@@ -41,69 +41,46 @@ No prior Red Hat experience required — Linux+ or equivalent familiarity recomm
 
 ---
 
-## 🧪 All Labs
+## 🧪 Labs
 
-Click any lab title to jump straight to the walkthrough.
+| # | Lab | Module | Topic |
+|---|-----|--------|-------|
+| 01 | [Configure a Static IP Address](./01-system-management/README.md#lab-01--configure-a-static-ip-address) | System Management | nmcli, DNS, hostname, persistence |
 
-### Module 01 — System Management
-| # | Lab | Topic | Status |
-|---|-----|-------|--------|
-| 01 | [Configure a Static IP Address](./01-system-management/README.md#lab-01--configure-a-static-ip-address) | nmcli, DNS, hostname, persistence | ✅ |
-
-### Module 02 — Networking
-| # | Lab | Topic | Status |
-|---|-----|-------|--------|
-| _Coming soon_ | | | 🔜 |
-
-### Module 03 — Containers
-| # | Lab | Topic | Status |
-|---|-----|-------|--------|
-| _Coming soon_ | | | 🔜 |
-
-### Module 04 — Automation (Ansible)
-| # | Lab | Topic | Status |
-|---|-----|-------|--------|
-| _Coming soon_ | | | 🔜 |
+*New labs added as I work through the cert objectives.*
 
 ---
 
-## 📂 Modules Overview
+## 📂 Modules
 
 | # | Module | Focus |
 |---|--------|-------|
 | 01 | [System Management](./01-system-management/README.md) | Users, storage, boot, SELinux, networking |
 | 02 | [Networking](./02-networking/README.md) | firewalld, SSH, advanced routing |
 | 03 | [Containers](./03-containers/README.md) | Podman, systemd services, rootless containers |
-| 04 | [Automation](./04-automation/README.md) | Ansible playbooks, roles, inventories (RHCE core) |
-| 05 | [Labs Archive](./05-labs/README.md) | Exam-style scenario labs |
+| 04 | [Automation](./04-automation) | Ansible playbooks, roles, inventories (RHCE core) |
+| 05 | [Labs Archive](./05-labs) | Exam-style scenario labs |
 
 ---
 
 ## 🧭 How To Use This Repo
 
-1. Pick a lab from the **All Labs** table above
+1. Pick a lab from the **Labs** table above
 2. Practice in a VM (RHEL 9 or Rocky Linux) — environment setup is in [Module 01](./01-system-management/README.md#-environment-setup)
-3. Check off objectives in [`progress-tracker.md`](./progress-tracker.md)
-4. All commands are tested on RHEL 9
+3. All commands are tested on RHEL 9
 
 ---
 
 ## 📋 RHCSA Exam Domains Covered
 
-| Domain | Module | Status |
-|--------|--------|--------|
-| Essential tools & file management | [01](./01-system-management/README.md) | 🔜 |
-| Local storage & filesystems | [01](./01-system-management/README.md) | 🔜 |
-| Deploy, configure, maintain systems | [01](./01-system-management/README.md) | 🔄 |
-| Manage networking | [01](./01-system-management/README.md) / [02](./02-networking/README.md) | 🔄 |
-| Manage security (SELinux, firewalld) | [02](./02-networking/README.md) | 🔜 |
-| Manage containers | [03](./03-containers/README.md) | 🔜 |
-
----
-
-## 📊 Progress Tracker
-
-[View full checklist →](./progress-tracker.md)
+| Domain | Module |
+|--------|--------|
+| Essential tools & file management | [01](./01-system-management/README.md) |
+| Local storage & filesystems | [01](./01-system-management/README.md) |
+| Deploy, configure, maintain systems | [01](./01-system-management/README.md) |
+| Manage networking | [01](./01-system-management/README.md) / [02](./02-networking/README.md) |
+| Manage security (SELinux, firewalld) | [02](./02-networking/README.md) |
+| Manage containers | [03](./03-containers/README.md) |
 
 ---
 
@@ -111,4 +88,9 @@ Click any lab title to jump straight to the walkthrough.
 
 [![LinkedIn](https://img.shields.io/badge/LinkedIn-Kelvin%20Tobias-0A66C2?logo=linkedin)](https://www.linkedin.com/in/kelvin-r-tobias-211949219)
 [![GitHub](https://img.shields.io/badge/GitHub-kelvintechnical-181717?logo=github)](https://github.com/kelvintechnical)
-[![Website](https://img.shields.io/badge/Web-kelvinintech.com-808000?logo=goo
+[![Website](https://img.shields.io/badge/Web-kelvinintech.com-808000?logo=google-chrome)](https://kelvinintech.com)
+[![Hashnode](https://img.shields.io/badge/Blog-PyTorch%20Zero%20to%20One-2962FF?logo=hashnode)](https://hashnode.com/@kelvintechnical)
+
+---
+
+*This repo is part of a larger engineering stack — from Linux ops to AI infrastructure to computational biology research.*
