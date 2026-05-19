@@ -41,12 +41,12 @@ No prior Red Hat experience required — Linux+ or equivalent familiarity recomm
 
 ---
 
-## 🧪 Labs
+## 🧪 Labs in This Module
 
-| # | Lab | Module | Topic |
-|---|-----|--------|-------|
-| 01 | [Configure a Static IP Address](./01-system-management/README.md#lab-01--configure-a-static-ip-address) | System Management | nmcli, DNS, hostname, persistence |
-
+| # | Lab Title | Topic | Exam Relevance |
+|---|-----------|-------|----------------|
+| 01 | [Configure a Static IP Address](#lab-01--configure-a-static-ip-address) | nmcli, DNS, hostname, persistence | RHCSA EX200 |
+| 02 | [Configure Repository Access](https://github.com/kelvintechnical/Configure-Repository-Access-) | dnf, BaseOS, AppStream, .repo files | RHCSA EX200 |
 *New labs added as I work through the cert objectives.*
 
 ---
