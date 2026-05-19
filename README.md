@@ -1,50 +1,96 @@
 # Linux Ops Mastery
-### RHCSA → RHCE Learning Path | Kelvin R. Tobias
+### RHCSA → RHCE Full Study Guide | Kelvin R. Tobias
 
-> Documenting my Linux operations depth as I bridge from Software Engineering into AI Engineering and Computational Biology infrastructure.
+> A complete, hands-on Linux operations study guide built for engineers preparing for RHCSA (EX200) and RHCE (EX294) — and anyone building production-grade Linux skills for AI/MLOps infrastructure.
+
+![RHCSA](https://img.shields.io/badge/RHCSA-EX200-EE0000?style=flat&logo=redhat&logoColor=white)
+![RHCE](https://img.shields.io/badge/RHCE-EX294-EE0000?style=flat&logo=redhat&logoColor=white)
+![CompTIA Linux+](https://img.shields.io/badge/Linux%2B-FF0000?style=flat&logo=comptia&logoColor=white)
+![CompTIA Security+](https://img.shields.io/badge/Security%2B-FF0000?style=flat&logo=comptia&logoColor=white)
+![AWS CCP](https://img.shields.io/badge/AWS_Cloud_Practitioner-232F3E?style=flat&logo=amazonaws&logoColor=white)
 
 ---
 
-## 👤 About Me
+## 👤 About the Author
 
-**Kelvin R. Tobias** — Software Engineer | AI Engineering Candidate | Consultant  
+**Kelvin R. Tobias** — Software Engineer | AI Engineering Candidate | Consultant
 📍 Kinston, NC | 🌐 [kelvinintech.com](https://kelvinintech.com) | 🐙 [github.com/kelvintechnical](https://github.com/kelvintechnical)
 
 - B.S. Software Engineering, WGU (2026) — 3× Excellence Award
 - M.S. AI Engineering, WGU (in progress)
 - Certifications: CompTIA Security+, Linux+, AWS Cloud Practitioner, ITIL 4 Foundation
-- Founder: [Tech Affiliates](https://www.linkedin.com/in/kelvintobias) — STEM outreach, Eastern NC
+- ✍️ Blog: [PyTorch Zero to One](https://hashnode.com/@kelvintechnical) — 32+ articles
 
 ---
 
-## 🗺️ Learning Path
+## 🎯 Who This Is For
 
-| Phase | Certification | Status |
-|-------|--------------|--------|
-| Foundation | CompTIA Linux+ | ✅ Complete |
-| Intermediate | RHCSA (EX200) | 🔄 In Progress |
-| Advanced | RHCE (EX294 — Ansible) | 🔜 Planned |
+> Any engineer preparing for **RHCSA (EX200)** or **RHCE (EX294)**, or anyone who wants production-grade Linux ops skills for cloud, DevOps, or AI/MLOps infrastructure roles.
+
+No prior Red Hat experience required — Linux+ or equivalent familiarity recommended.
+
+---
+
+## 🗺️ Certification Path
+
+| Phase | Certification | Exam | Status |
+|-------|--------------|------|--------|
+| Foundation | CompTIA Linux+ | XK0-005 | ✅ Complete |
+| Intermediate | RHCSA | EX200 | 🔄 In Progress |
+| Advanced | RHCE (Ansible) | EX294 | 🔜 Planned |
+
+---
+
+## 🧪 Labs
+
+| # | Lab | Module | Topic |
+|---|-----|--------|-------|
+| 01 | [Configure a Static IP Address](./README.md#lab-01--configure-a-static-ip-address) | System Management | nmcli, DNS, hostname, persistence |
+
+*New labs added as I work through the cert objectives.*
 
 ---
 
 ## 📂 Modules
 
-- [01 - System Management](./01-system-management/README.md)
-- [02 - Networking](./02-networking/README.md)
-- [03 - Containers](./03-containers/README.md)
-- [04 - Automation (Ansible)](./04-automation/README.md)
-- [05 - Labs](./05-labs/README.md)
+| # | Module | Focus |
+|---|--------|-------|
+| 01 | [System Management](./01-system-management/README.md) | Users, storage, boot, SELinux, networking |
+| 02 | [Networking](./02-networking/README.md) | firewalld, SSH, advanced routing |
+| 03 | [Containers](./03-containers/README.md) | Podman, systemd services, rootless containers |
+| 04 | [Automation](./04-automation) | Ansible playbooks, roles, inventories (RHCE core) |
+| 05 | [Labs Archive](./05-labs) | Exam-style scenario labs |
 
 ---
 
-## 📊 Progress Tracker
+## 🧭 How To Use This Repo
 
-[View Progress →](./progress-tracker.md)
+1. Pick a lab from the **Labs** table above
+2. Practice in a VM (RHEL 9 or Rocky Linux) — environment setup is in [Module 01](./01-system-management/README.md#-environment-setup)
+3. All commands are tested on RHEL 9
+
+---
+
+## 📋 RHCSA Exam Domains Covered
+
+| Domain | Module |
+|--------|--------|
+| Essential tools & file management | [01](./01-system-management/README.md) |
+| Local storage & filesystems | [01](./01-system-management/README.md) |
+| Deploy, configure, maintain systems | [01](./01-system-management/README.md) |
+| Manage networking | [01](./01-system-management/README.md) / [02](./02-networking/README.md) |
+| Manage security (SELinux, firewalld) | [02](./02-networking/README.md) |
+| Manage containers | [03](./03-containers/README.md) |
 
 ---
 
 ## 🔗 Connect
 
-[![LinkedIn](https://img.shields.io/badge/LinkedIn-Kelvin%20Tobias-blue?logo=linkedin)](https://linkedin.com/in/kelvintobias)
-[![GitHub](https://img.shields.io/badge/GitHub-kelvintechnical-black?logo=github)](https://github.com/kelvintechnical)
-[![Website](https://img.shields.io/badge/Web-kelvinintech.com-olive?logo=google-chrome)](https://kelvinintech.com)
+[![LinkedIn](https://img.shields.io/badge/LinkedIn-Kelvin%20Tobias-0A66C2?logo=linkedin)](https://www.linkedin.com/in/kelvin-r-tobias-211949219)
+[![GitHub](https://img.shields.io/badge/GitHub-kelvintechnical-181717?logo=github)](https://github.com/kelvintechnical)
+[![Website](https://img.shields.io/badge/Web-kelvinintech.com-808000?logo=google-chrome)](https://kelvinintech.com)
+[![Hashnode](https://img.shields.io/badge/Blog-PyTorch%20Zero%20to%20One-2962FF?logo=hashnode)](https://hashnode.com/@kelvintechnical)
+
+---
+
+*This repo is part of a larger engineering stack — from Linux ops to AI infrastructure to computational biology research.*
