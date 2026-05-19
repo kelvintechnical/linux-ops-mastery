@@ -45,7 +45,7 @@ No prior Red Hat experience required — Linux+ or equivalent familiarity recomm
 
 | # | Lab | Module | Topic |
 |---|-----|--------|-------|
-| 01 | [Configure a Static IP Address](./README.md#lab-01--configure-a-static-ip-address) | System Management | nmcli, DNS, hostname, persistence |
+| 01 | [Configure a Static IP Address](./01-system-management/README.md#lab-01--configure-a-static-ip-address) | System Management | nmcli, DNS, hostname, persistence |
 
 *New labs added as I work through the cert objectives.*
 
