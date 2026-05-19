@@ -1,60 +1,72 @@
-# Labs
+# 01 — System Management
 
-## Lab 01 — Static Network Configuration (RHCSA EX200)
-
-**Objective:** Configure persistent static networking on a RHEL node using `nmcli`.
-
-**Constraint:** Must survive reboot; no GUI allowed.
+> RHCSA core skills: networking basics, system configuration, and persistent settings.
 
 ---
 
-### Step 1 — Discover current config
+## 🧪 Labs in This Module
+
+| # | Lab Title | Topic | Exam Relevance |
+|---|-----------|-------|----------------|
+| 01 | [Configure a Static IP Address](#lab-01--configure-a-static-ip-address) | nmcli, persistent networking | RHCSA EX200 |
+
+---
+
+## Lab 01 — Configure a Static IP Address
+
+### 📋 Scenario
+You are working on **Node1**, which currently obtains its IP address via DHCP. The management team requires that Node1 be configured with a static IPv4 address so it can reliably communicate with other servers.
+
+### 🎯 Requirements
+1. Static IP `192.168.50.10` / netmask `255.255.255.0`
+2. Default gateway `192.168.50.1`
+3. DNS: `8.8.8.8`, `8.8.4.4`
+4. Interface enabled at boot
+5. Configuration persists across reboots
+6. Verify by pinging `192.168.50.1`
+
+### ✅ Tasks
+- Identify primary network interface
+- Configure static IP, gateway, DNS
+- Bring interface up + enable on boot
+- Verify settings and connectivity
+
+---
+
+### Step 1 — Identify the interface
 ```bash
-ip addr show
-ip route show
 nmcli device status
 ```
-> Note your interface name (e.g., `ens33`, `ens160`) and current IP — you'll use the same network, host ID `.50`.
+> Note the device name (e.g., `ens160`). Replace `ens160` below with yours.
 
 ---
 
-### Step 2 — Set static IP
+### Step 2 — Configure everything (one-shot)
 ```bash
-nmcli con mod "ensXXX" ipv4.addresses 192.168.X.50/24
-nmcli con mod "ensXXX" ipv4.gateway 192.168.X.1
-nmcli con mod "ensXXX" ipv4.dns "8.8.8.8"
-nmcli con mod "ensXXX" ipv4.dns-search "example.local"
-nmcli con mod "ensXXX" ipv4.method manual
-nmcli con up "ensXXX"
-```
-> Replace `ensXXX` and `192.168.X` with your actual interface and network.
-
----
-
-### Step 3 — Set hostname
-```bash
-hostnamectl set-hostname rhel-node1.example.com
+sudo nmcli con mod ens160 ipv4.addresses 192.168.50.10/24 ipv4.gateway 192.168.50.1 ipv4.dns "8.8.8.8 8.8.4.4" ipv4.method manual connection.autoconnect yes && sudo nmcli con up ens160
 ```
 
 ---
 
-### Step 4 — Verify persistence
+### Step 3 — Verify
 ```bash
-ip addr show ensXXX
-nmcli con show ensXXX | grep ipv4
-hostnamectl
+ip addr show ens160; ip route; cat /etc/resolv.conf; ping -c 3 192.168.50.1
 ```
 
 ---
 
-### Key Concepts
-| Concept | Tool |
-|---------|------|
-| Interface config | `nmcli con mod` |
-| Apply immediately | `nmcli con up` |
-| Hostname | `hostnamectl` |
-| Verify | `ip addr`, `nmcli con show` |
+### 🧠 Key Concepts
+| Setting | Purpose |
+|---------|---------|
+| `ipv4.method manual` | Disables DHCP — required for static |
+| `connection.autoconnect yes` | Persists across reboots |
+| `nmcli con up` | Applies immediately |
+
+### ⚠️ Pitfalls
+- Forgetting `ipv4.method manual` → DHCP overrides static
+- Wrong interface name → silent failure; always run `nmcli device status` first
+- DNS quotes matter → multiple DNS servers go in one quoted string
 
 ---
 
-**Pitfall:** Forgetting `ipv4.method manual` leaves DHCP active — static won't persist.
+[← Back to main README](../README.md)
