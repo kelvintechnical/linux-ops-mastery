@@ -306,6 +306,16 @@ Labs organized by official RHCSA EX200 exam objectives.
 
 ---
 
+### 🐳 Containers & Runtime Management
+
+> Build and run containerized Linux environments using Docker/Podman, including port mapping, named containers, and interactive shells.
+
+| # | Lab | Key Commands |
+|---|-----|-------------|
+| 45 | [Launch Named Root Container with Port Mapping](https://github.com/kelvintechnical/Launch-Named-Root-Container-with-Port-Mapping) | `podman run`, `docker run`, `-p`, `--name`, `-it` |
+
+---
+
 ## 🤖 RHCE EX294 Labs
 
 Labs organized by official RHCE EX294 exam objectives. Requires RHCSA as a prerequisite.
