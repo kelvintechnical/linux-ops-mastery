@@ -111,6 +111,8 @@ Labs organized by official RHCSA EX200 exam objectives.
 | # | Lab | Key Commands |
 |---|-----|-------------|
 | 06 | [Configure Repository Access](https://github.com/kelvintechnical/Configure-Repository-Access-) | `dnf`, `tee`, `/etc/yum.repos.d/` |
+| 07 | [Install Package Groups](https://github.com/kelvintechnical/install-package-group) | `dnf group list`, `dnf groupinstall`, `dnf groupremove` |
+
 
 ---
 
