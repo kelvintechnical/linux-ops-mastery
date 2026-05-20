@@ -113,7 +113,6 @@ Labs organized by official RHCSA EX200 exam objectives.
 | 06 | [Configure Repository Access](https://github.com/kelvintechnical/Configure-Repository-Access-) | `dnf`, `tee`, `/etc/yum.repos.d/` |
 | 07 | [Install Package Groups](https://github.com/kelvintechnical/install-package-group) | `dnf group list`, `dnf groupinstall`, `dnf groupremove` |
 
-
 ---
 
 ### ⏰ System Time & Locale
@@ -136,7 +135,10 @@ Labs organized by official RHCSA EX200 exam objectives.
 | 09 | [Search for a String and Save Output](https://github.com/kelvintechnical/search-string-save-output) | `grep`, `tee`, `>` |
 | 10 | [Find and Save Config Files](https://github.com/kelvintechnical/find-save-config-files) | `find -type f -name -user`, `2>/dev/null` |
 | 11 | [Locate Command Documentation](https://github.com/kelvintechnical/locate-command-docs) | `find /usr/share/doc`, `rpm -qf`, `rpm -qd` |
-| 12 | Archive & Compression *(coming soon)* | `tar`, `gzip`, `bzip2`, `xz` |
+| 12 | [Standard File Compression with gzip](https://github.com/kelvintechnical/standard-file-compression) | `gzip`, `gunzip`, `zcat`, `gzip -k`, `gzip -v` |
+| 13 | [High-Ratio Compression with bzip2](https://github.com/kelvintechnical/high-ratio-compression) | `bzip2`, `bunzip2`, `bzcat`, `bzip2 -k`, `bzip2 -v` |
+| 14 | [Create Standard Archives with tar](https://github.com/kelvintechnical/create-standard-archives) | `tar -cvf`, `tar -tvf`, `tar -xvf` |
+| 15 | Create Compressed Archives *(coming soon)* | `tar -czf`, `tar -cjf`, `tar -cJf`, `xz` |
 
 ---
 
@@ -146,8 +148,8 @@ Labs organized by official RHCSA EX200 exam objectives.
 
 | # | Lab | Key Commands |
 |---|-----|-------------|
-| 13 | [User & Group Management / Permissions](https://github.com/kelvintechnical/User-Group-Management-Permissions) | `useradd`, `groupadd`, `chown`, `chmod`, `id`, `getent` |
-| 14 | [Disable User Login Without Removing the Account](https://github.com/kelvintechnical/disable-user-login) | `usermod -s /sbin/nologin`, `getent passwd` |
+| 16 | [User & Group Management / Permissions](https://github.com/kelvintechnical/User-Group-Management-Permissions) | `useradd`, `groupadd`, `chown`, `chmod`, `id`, `getent` |
+| 17 | [Disable User Login Without Removing the Account](https://github.com/kelvintechnical/disable-user-login) | `usermod -s /sbin/nologin`, `getent passwd` |
 
 ---
 
@@ -157,8 +159,8 @@ Labs organized by official RHCSA EX200 exam objectives.
 
 | # | Lab | Key Commands |
 |---|-----|-------------|
-| 15 | [Configure SGID and Sticky Bit](https://github.com/kelvintechnical/sgid-sticky-bit) | `chmod g+s`, `chmod +t`, `ls -ld` |
-| 16 | Configure ACLs *(coming soon)* | `getfacl`, `setfacl`, default ACLs |
+| 18 | [Configure SGID and Sticky Bit](https://github.com/kelvintechnical/sgid-sticky-bit) | `chmod g+s`, `chmod +t`, `ls -ld` |
+| 19 | Configure ACLs *(coming soon)* | `getfacl`, `setfacl`, default ACLs |
 
 ---
 
@@ -168,9 +170,9 @@ Labs organized by official RHCSA EX200 exam objectives.
 
 | # | Lab | Key Commands |
 |---|-----|-------------|
-| 17 | Create and Format Partitions *(coming soon)* | `fdisk`, `parted`, `mkfs`, `lsblk` |
-| 18 | Mount Filesystems & Configure fstab *(coming soon)* | `mount`, `umount`, `/etc/fstab`, `UUID` |
-| 19 | Create and Activate Swap Space *(coming soon)* | `mkswap`, `swapon`, `swapoff`, `/etc/fstab` |
+| 20 | Create and Format Partitions *(coming soon)* | `fdisk`, `parted`, `mkfs`, `lsblk` |
+| 21 | Mount Filesystems & Configure fstab *(coming soon)* | `mount`, `umount`, `/etc/fstab`, `UUID` |
+| 22 | Create and Activate Swap Space *(coming soon)* | `mkswap`, `swapon`, `swapoff`, `/etc/fstab` |
 
 ---
 
@@ -180,8 +182,8 @@ Labs organized by official RHCSA EX200 exam objectives.
 
 | # | Lab | Key Commands |
 |---|-----|-------------|
-| 20 | Create LVM Volumes *(coming soon)* | `pvcreate`, `vgcreate`, `lvcreate` |
-| 21 | Extend and Reduce LVM Volumes *(coming soon)* | `lvextend`, `lvreduce`, `resize2fs`, `xfs_growfs` |
+| 23 | Create LVM Volumes *(coming soon)* | `pvcreate`, `vgcreate`, `lvcreate` |
+| 24 | Extend and Reduce LVM Volumes *(coming soon)* | `lvextend`, `lvreduce`, `resize2fs`, `xfs_growfs` |
 
 ---
 
@@ -191,8 +193,8 @@ Labs organized by official RHCSA EX200 exam objectives.
 
 | # | Lab | Key Commands |
 |---|-----|-------------|
-| 22 | Manage SELinux Modes and Contexts *(coming soon)* | `getenforce`, `setenforce`, `semanage`, `restorecon` |
-| 23 | Manage SELinux Booleans and Troubleshoot Denials *(coming soon)* | `getsebool`, `setsebool`, `audit2allow`, `ausearch` |
+| 25 | Manage SELinux Modes and Contexts *(coming soon)* | `getenforce`, `setenforce`, `semanage`, `restorecon` |
+| 26 | Manage SELinux Booleans and Troubleshoot Denials *(coming soon)* | `getsebool`, `setsebool`, `audit2allow`, `ausearch` |
 
 ---
 
@@ -202,8 +204,8 @@ Labs organized by official RHCSA EX200 exam objectives.
 
 | # | Lab | Key Commands |
 |---|-----|-------------|
-| 24 | Configure firewalld Rules *(coming soon)* | `firewall-cmd`, `--add-service`, `--add-port`, `--permanent` |
-| 25 | Manage firewalld Zones *(coming soon)* | `--zone`, `--list-all`, `--change-interface` |
+| 27 | Configure firewalld Rules *(coming soon)* | `firewall-cmd`, `--add-service`, `--add-port`, `--permanent` |
+| 28 | Manage firewalld Zones *(coming soon)* | `--zone`, `--list-all`, `--change-interface` |
 
 ---
 
@@ -213,9 +215,9 @@ Labs organized by official RHCSA EX200 exam objectives.
 
 | # | Lab | Key Commands |
 |---|-----|-------------|
-| 26 | Manage Services with systemctl *(coming soon)* | `systemctl start/stop/enable/disable/status` |
-| 27 | Create and Manage systemd Unit Files *(coming soon)* | Unit file syntax, `systemctl daemon-reload` |
-| 28 | Manage Boot Targets *(coming soon)* | `systemctl get-default`, `systemctl set-default`, `rescue.target` |
+| 29 | Manage Services with systemctl *(coming soon)* | `systemctl start/stop/enable/disable/status` |
+| 30 | Create and Manage systemd Unit Files *(coming soon)* | Unit file syntax, `systemctl daemon-reload` |
+| 31 | Manage Boot Targets *(coming soon)* | `systemctl get-default`, `systemctl set-default`, `rescue.target` |
 
 ---
 
@@ -225,8 +227,8 @@ Labs organized by official RHCSA EX200 exam objectives.
 
 | # | Lab | Key Commands |
 |---|-----|-------------|
-| 29 | Reset Root Password via Boot *(coming soon)* | GRUB interrupt, `rd.break`, `chroot`, `passwd` |
-| 30 | Configure GRUB Boot Loader *(coming soon)* | `grub2-mkconfig`, `/etc/default/grub` |
+| 32 | Reset Root Password via Boot *(coming soon)* | GRUB interrupt, `rd.break`, `chroot`, `passwd` |
+| 33 | Configure GRUB Boot Loader *(coming soon)* | `grub2-mkconfig`, `/etc/default/grub` |
 
 ---
 
@@ -236,8 +238,8 @@ Labs organized by official RHCSA EX200 exam objectives.
 
 | # | Lab | Key Commands |
 |---|-----|-------------|
-| 31 | Schedule Tasks with cron *(coming soon)* | `crontab -e`, `/etc/cron.d/`, cron syntax |
-| 32 | Schedule One-Time Tasks with at *(coming soon)* | `at`, `atq`, `atrm` |
+| 34 | Schedule Tasks with cron *(coming soon)* | `crontab -e`, `/etc/cron.d/`, cron syntax |
+| 35 | Schedule One-Time Tasks with at *(coming soon)* | `at`, `atq`, `atrm` |
 
 ---
 
@@ -247,8 +249,8 @@ Labs organized by official RHCSA EX200 exam objectives.
 
 | # | Lab | Key Commands |
 |---|-----|-------------|
-| 33 | Monitor and Manage Processes *(coming soon)* | `ps aux`, `top`, `kill`, `pkill` |
-| 34 | Manage Process Priority *(coming soon)* | `nice`, `renice`, `jobs`, `bg`, `fg` |
+| 36 | Monitor and Manage Processes *(coming soon)* | `ps aux`, `top`, `kill`, `pkill` |
+| 37 | Manage Process Priority *(coming soon)* | `nice`, `renice`, `jobs`, `bg`, `fg` |
 
 ---
 
@@ -258,8 +260,8 @@ Labs organized by official RHCSA EX200 exam objectives.
 
 | # | Lab | Key Commands |
 |---|-----|-------------|
-| 35 | Query Logs with journalctl *(coming soon)* | `journalctl -u`, `-p`, `--since`, `--until` |
-| 36 | Configure rsyslog *(coming soon)* | `/etc/rsyslog.conf`, log facilities, log rotation |
+| 38 | Query Logs with journalctl *(coming soon)* | `journalctl -u`, `-p`, `--since`, `--until` |
+| 39 | Configure rsyslog *(coming soon)* | `/etc/rsyslog.conf`, log facilities, log rotation |
 
 ---
 
@@ -269,7 +271,7 @@ Labs organized by official RHCSA EX200 exam objectives.
 
 | # | Lab | Key Commands |
 |---|-----|-------------|
-| 37 | [Configure Apache to Serve Default and Custom Web Content](https://github.com/kelvintechnical/apache-custom-content) | `httpd`, `semanage fcontext`, `restorecon`, `curl` |
+| 40 | [Configure Apache to Serve Default and Custom Web Content](https://github.com/kelvintechnical/apache-custom-content) | `httpd`, `semanage fcontext`, `restorecon`, `curl` |
 
 ---
 
@@ -279,7 +281,7 @@ Labs organized by official RHCSA EX200 exam objectives.
 
 | # | Lab | Key Commands |
 |---|-----|-------------|
-| 38 | [Enable Recommended Tuning Profile](https://github.com/kelvintechnical/tuning-profile) | `tuned-adm recommend`, `tuned-adm profile`, `tuned-adm active` |
+| 41 | [Enable Recommended Tuning Profile](https://github.com/kelvintechnical/tuning-profile) | `tuned-adm recommend`, `tuned-adm profile`, `tuned-adm active` |
 
 ---
 
@@ -289,7 +291,7 @@ Labs organized by official RHCSA EX200 exam objectives.
 
 | # | Lab | Key Commands |
 |---|-----|-------------|
-| 39 | [Argument-Based Conditional Script](https://github.com/kelvintechnical/argument-script) | `$1`, `$#`, `if/elif/else`, `exit 5`, `chmod +x` |
+| 42 | [Argument-Based Conditional Script](https://github.com/kelvintechnical/argument-script) | `$1`, `$#`, `if/elif/else`, `exit 5`, `chmod +x` |
 
 ---
 
@@ -299,8 +301,8 @@ Labs organized by official RHCSA EX200 exam objectives.
 
 | # | Lab | Key Commands |
 |---|-----|-------------|
-| 40 | [Command-Line Web and FTP Testing](https://github.com/kelvintechnical/elinks-iftp) | `elinks -dump`, `lftp`, `get`, `mget`, `put` |
-| 41 | [Command-Line Email Testing](https://github.com/kelvintechnical/mutt-mail-smtp) | `mail -s`, `mutt -f`, `postfix`, `/var/mail/` |
+| 43 | [Command-Line Web and FTP Testing](https://github.com/kelvintechnical/elinks-iftp) | `elinks -dump`, `lftp`, `get`, `mget`, `put` |
+| 44 | [Command-Line Email Testing](https://github.com/kelvintechnical/mutt-mail-smtp) | `mail -s`, `mutt -f`, `postfix`, `/var/mail/` |
 
 ---
 
