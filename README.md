@@ -62,6 +62,16 @@ Foundational Linux skills broken into focused, standalone learning resources:
 
 > 💡 **Start here if you're new to Linux** — these repos build the foundation before diving into RHCSA-level material.
 
+
+---
+### 🗂️ Linux Filesystem Hierarchy Standard (FHS)
+> Before touching a single command, know where everything lives. This reference repo documents every directory in the Linux root filesystem (`/`) with hands-on labs showing real-world purpose.
+
+| Repo | Topic |
+|------|-------|
+| 🗂️ [Linux-Filesystem-Hierarchy-Standard](https://github.com/kelvintechnical/Linux-Filesystem-Hierarchy-Standard-) | What every `/` directory is, why it exists, and how to use it |
+---
+
 ---
 
 ## 🗺️ Certification Path
