@@ -62,15 +62,14 @@ Foundational Linux skills broken into focused, standalone learning resources:
 
 > 💡 **Start here if you're new to Linux** — these repos build the foundation before diving into RHCSA-level material.
 
-
 ---
+
 ### 🗂️ Linux Filesystem Hierarchy Standard (FHS)
 > Before touching a single command, know where everything lives. This reference repo documents every directory in the Linux root filesystem (`/`) with hands-on labs showing real-world purpose.
 
 | Repo | Topic |
 |------|-------|
 | 🗂️ [Linux-Filesystem-Hierarchy-Standard](https://github.com/kelvintechnical/Linux-Filesystem-Hierarchy-Standard-) | What every `/` directory is, why it exists, and how to use it |
----
 
 ---
 
@@ -97,31 +96,44 @@ Labs organized by official RHCSA EX200 exam objectives.
 
 | # | Lab | Key Commands |
 |---|-----|-------------|
-| 01 | [Standard Output Redirection](https://github.com/kelvintechnical/stdout-redirection) | `>`, `>>`, `cat` |
-| 02 | [Standard Error Redirection](https://github.com/kelvintechnical/stderr-redirection) | `2>`, `2>/dev/null`, `&>` |
-| 03 | [Pipe Text Streams](https://github.com/kelvintechnical/pipe-text-streams) | `\|`, `less`, `grep`, `tee`, `wc -l` |
+| 01 | [Standard Output Redirection](https://github.com/kelvintechnical/stdout-redirection) | `>`, `>>`, `cat` — Use `>` to direct output into a new file and `>>` to append output to an existing file |
+| 02 | [Standard Error Redirection](https://github.com/kelvintechnical/stderr-redirection) | `2>`, `2>/dev/null`, `&>` — Force a command to generate an error and redirect that error stream to a file or discard it |
+| 03 | [Pipe Text Streams](https://github.com/kelvintechnical/pipe-text-streams) | `\|`, `less`, `grep`, `tee`, `wc -l` — Combine multiple commands using `\|` to send stdout of one command into stdin of another |
+| 04 | Capture Both Output and Error *(coming soon)* | `&>`, `2>&1` — Send both stdout and stderr to the same file using the `&>` operator |
 
 ---
 
 ### 🌐 Networking
 
-> Configure and manage network interfaces, static IPs, hostnames, and DNS.
+> Configure and manage network interfaces, static IPs, hostnames, SSH, and DNS.
 
 | # | Lab | Key Commands |
 |---|-----|-------------|
-| 04 | [Configure a Static IP Address](./01-system-management/README.md#lab-01--configure-a-static-ip-address) | `nmcli con mod`, `ip addr`, `ip route` |
-| 05 | Configure SSH & Key-Based Authentication *(coming soon)* | `ssh-keygen`, `authorized_keys`, `sshd_config` |
+| 05 | [Configure a Static IP Address](./01-system-management/README.md#lab-01--configure-a-static-ip-address) | `nmcli con mod`, `ip addr`, `ip route` — Configure a network interface with a static IPv4 address, gateway, and DNS |
+| 06 | Check Network Connectivity *(coming soon)* | `ping`, `traceroute` — Test connections and map the path packets take across the network |
+| 07 | Display IP and Routing Info *(coming soon)* | `ip addr show`, `ip route show` — Check IP assignments and review the routing table |
+| 08 | Inspecting Listening Sockets *(coming soon)* | `ss -tuna4` — View active TCP and UDP sockets and identify open ports |
+| 09 | Text-Based Network Config *(coming soon)* | `nmtui` — Set a static IPv4 address, subnet mask, gateway, and DNS |
+| 10 | Command-Line Network Config *(coming soon)* | `nmcli` — Modify connection settings and reload a network interface |
+| 11 | Configuring Local Host Resolution *(coming soon)* | `/etc/hosts` — Manually map IP addresses to hostnames for local name resolution |
+| 12 | Configuring DNS Servers *(coming soon)* | `/etc/resolv.conf` — Specify external name servers and search domains |
+| 13 | Configure SSH & Key-Based Authentication *(coming soon)* | `ssh-keygen`, `ssh-copy-id`, `authorized_keys`, `sshd_config` — Generate an RSA key pair and deploy it for passwordless login |
 
 ---
 
 ### 📦 Package Management & Repositories
+
 > Configure DNF repositories, install packages, and manage software sources.
 
 | # | Lab | Key Commands |
 |---|-----|-------------|
-| 06 | [Configure Repository Access](https://github.com/kelvintechnical/Configure-Repository-Access-) | `dnf`, `tee`, `/etc/yum.repos.d/` |
-| 07 | [Install Package Groups](https://github.com/kelvintechnical/install-package-group) | `dnf group list`, `dnf groupinstall`, `dnf groupremove` |
-| 08 | [Managing Flatpak](https://github.com/kelvintechnical/Managing-Flatpak/blob/main/README.md) | `flatpak remote-add`, `flatpak install --user`, `flatpak list` |
+| 14 | [Configure Repository Access](https://github.com/kelvintechnical/Configure-Repository-Access-) | `dnf`, `tee`, `/etc/yum.repos.d/` — Create a `.repo` configuration file pointing to a repository |
+| 15 | [Install Package Groups](https://github.com/kelvintechnical/install-package-group) | `dnf group list`, `dnf groupinstall`, `dnf groupremove` — Install a complete set of related software |
+| 16 | [Managing Flatpak](https://github.com/kelvintechnical/Managing-Flatpak/blob/main/README.md) | `flatpak remote-add`, `flatpak install --user`, `flatpak list` |
+| 17 | Install Packages with dnf *(coming soon)* | `dnf install`, `dnf remove`, `dnf update` — Install, remove, and update packages with automatic dependency resolution |
+| 18 | Search for Software *(coming soon)* | `dnf search`, `dnf whatprovides`, `dnf list` — Search repositories and find file providers |
+| 19 | Query and Verify RPM Packages *(coming soon)* | `rpm -qa`, `rpm -qi`, `rpm -ql`, `rpm -V` — Query installed packages and verify integrity |
+
 ---
 
 ### ⏰ System Time & Locale
@@ -130,24 +142,68 @@ Labs organized by official RHCSA EX200 exam objectives.
 
 | # | Lab | Key Commands |
 |---|-----|-------------|
-| 07 | [Configure Timezone and Time Synchronization](https://github.com/kelvintechnical/Configure-Timezone-and-Time-Synchronization) | `timedatectl`, `systemctl enable --now chronyd` |
-| 08 | [Configure NTP Time Source](https://github.com/kelvintechnical/configure-ntp) | `/etc/chrony.conf`, `chronyc sources`, `iburst` |
+| 20 | [Configure Timezone and Time Synchronization](https://github.com/kelvintechnical/Configure-Timezone-and-Time-Synchronization) | `timedatectl`, `systemctl enable --now chronyd` — List timezones and set timezone |
+| 21 | [Configure NTP Time Source](https://github.com/kelvintechnical/configure-ntp) | `/etc/chrony.conf`, `chronyc sources`, `iburst` — Configure server/peer directives for NTP synchronization |
+| 22 | Check NTP Sync Status *(coming soon)* | `ntpq -p`, `chronyc tracking` — Verify NTP is actively synchronizing |
 
 ---
 
 ### 🔧 Essential Tools & File Operations
 
-> Search, filter, redirect, and manage files from the command line.
+> Search, filter, redirect, compress, and manage files from the command line.
 
 | # | Lab | Key Commands |
 |---|-----|-------------|
-| 09 | [Search for a String and Save Output](https://github.com/kelvintechnical/search-string-save-output) | `grep`, `tee`, `>` |
-| 10 | [Find and Save Config Files](https://github.com/kelvintechnical/find-save-config-files) | `find -type f -name -user`, `2>/dev/null` |
-| 11 | [Locate Command Documentation](https://github.com/kelvintechnical/locate-command-docs) | `find /usr/share/doc`, `rpm -qf`, `rpm -qd` |
-| 12 | [Standard File Compression with gzip](https://github.com/kelvintechnical/standard-file-compression) | `gzip`, `gunzip`, `zcat`, `gzip -k`, `gzip -v` |
-| 13 | [High-Ratio Compression with bzip2](https://github.com/kelvintechnical/high-ratio-compression) | `bzip2`, `bunzip2`, `bzcat`, `bzip2 -k`, `bzip2 -v` |
-| 14 | [Create Standard Archives with tar](https://github.com/kelvintechnical/create-standard-archives) | `tar -cvf`, `tar -tvf`, `tar -xvf` |
-| 15 | Create Compressed Archives *(coming soon)* | `tar -czf`, `tar -cjf`, `tar -cJf`, `xz` |
+| 23 | [Search for a String and Save Output](https://github.com/kelvintechnical/search-string-save-output) | `grep`, `tee`, `>` — Search for strings inside config files and experiment with regular expressions |
+| 24 | [Find and Save Config Files](https://github.com/kelvintechnical/find-save-config-files) | `find -type f -name -user`, `2>/dev/null` — Search the filesystem for specific files by name |
+| 25 | [Locate Command Documentation](https://github.com/kelvintechnical/locate-command-docs) | `find /usr/share/doc`, `rpm -qf`, `rpm -qd` — Look up manual pages and locate documentation |
+| 26 | Directory Navigation *(coming soon)* | `cd`, `pwd`, `ls` — Move through the filesystem using absolute paths, relative paths, `..`, and `~` |
+| 27 | Listing Files and SELinux Contexts *(coming soon)* | `ls -l`, `ls -Z` — Use long listings and display SELinux contexts of files and directories |
+| 28 | Creating Empty Files and Timestamps *(coming soon)* | `touch` — Create an empty file and update the last modification timestamp |
+| 29 | Copying Files and Directories *(coming soon)* | `cp`, `cp -R`, `cp -a` — Copy single files and entire directory structures recursively |
+| 30 | Hard and Soft Links *(coming soon)* | `ln`, `ln -s` — Create hard links pointing to the same inode and soft links |
+| 31 | Moving and Renaming Files *(coming soon)* | `mv` — Rename files locally and move files from one directory to another |
+| 32 | Safe Deletion of Files and Directories *(coming soon)* | `rm`, `rmdir`, `rm -rf` — Delete files, empty directories, and entire directory trees |
+| 33 | Creating Nested Directories *(coming soon)* | `mkdir -p` — Create a long nested directory structure in a single command |
+| 34 | Creating Command Aliases *(coming soon)* | `alias` — Map a custom shortcut to a standard command |
+| 35 | File Searching with find *(coming soon)* | `find` — Search the filesystem for specific files by name starting from root or a subdirectory |
+| 36 | Instant File Searching with locate *(coming soon)* | `locate`, `updatedb` — Run the manual database update script and use locate to instantly find files |
+| 37 | [Standard File Compression with gzip](https://github.com/kelvintechnical/standard-file-compression) | `gzip`, `gunzip`, `zcat`, `gzip -k`, `gzip -v` — Compress a large text file and view the resulting `.gz` file |
+| 38 | [High-Ratio Compression with bzip2](https://github.com/kelvintechnical/high-ratio-compression) | `bzip2`, `bunzip2`, `bzcat`, `bzip2 -k`, `bzip2 -v` — Compress files using bzip2 for higher compression ratio |
+| 39 | [Create Standard Archives with tar](https://github.com/kelvintechnical/create-standard-archives) | `tar -cvf`, `tar -tvf`, `tar -xvf` — Combine files and directories into a single uncompressed archive |
+| 40 | Create Compressed Archives *(coming soon)* | `tar -czf`, `tar -cjf`, `tar -cJf`, `xz` — Create a gzip-compressed tarball |
+| 41 | Extract Archives *(coming soon)* | `tar -xvf` — Extract contents of a `.tar.bz2` archive into a specific directory |
+| 42 | Preserve Security Contexts in Archives *(coming soon)* | `tar --selinux` — Create a tarball preserving SELinux contexts and ACLs |
+
+---
+
+### 📄 Text File Management
+
+> Read, filter, edit, and compare text files from the command line.
+
+| # | Lab | Key Commands |
+|---|-----|-------------|
+| 43 | Concatenating Files with cat *(coming soon)* | `cat` — Read the contents of short text files directly in the terminal |
+| 44 | Scrolling Through Large Files *(coming soon)* | `less`, `more` — Scroll through large system logs and search using `/` and `?` |
+| 45 | Monitoring Live Log Files *(coming soon)* | `tail -f` — Actively monitor a log file and watch new lines appended in real-time |
+| 46 | Filtering Text with grep and Regex *(coming soon)* | `grep` — Search for strings inside config files and experiment with regular expressions |
+| 47 | Comparing File Differences with diff *(coming soon)* | `diff` — Modify a config file and compare it against a backup to identify exact line changes |
+| 48 | Stream Editing with sed *(coming soon)* | `sed` — Automatically find and replace text strings within a file without opening an editor |
+| 49 | Extracting Columns with awk *(coming soon)* | `awk` — Specify a delimiter and print only a specific field to the screen |
+| 50 | Command Mode and Insert Mode in vi *(coming soon)* | `vi`, `:wq` — Open a config file in vi, switch to insert mode, make a change, and save |
+| 51 | Safely Editing System Databases *(coming soon)* | `vipw`, `vigr` — Practice editing password and group files safely |
+
+---
+
+### 📖 Documentation Tools
+
+> Look up man pages, keyword searches, and info pages.
+
+| # | Lab | Key Commands |
+|---|-----|-------------|
+| 52 | Exploring Manual Pages *(coming soon)* | `man` — Look up manual pages and practice scrolling through descriptions and syntax examples |
+| 53 | Searching Manuals by Keyword *(coming soon)* | `whatis`, `apropos` — Find documentation when you only know a keyword or purpose |
+| 54 | Navigating info Pages *(coming soon)* | `info` — Read detailed manual pages, navigating with `n`, `p`, and `u` keys |
 
 ---
 
@@ -157,8 +213,21 @@ Labs organized by official RHCSA EX200 exam objectives.
 
 | # | Lab | Key Commands |
 |---|-----|-------------|
-| 16 | [User & Group Management / Permissions](https://github.com/kelvintechnical/User-Group-Management-Permissions) | `useradd`, `groupadd`, `chown`, `chmod`, `id`, `getent` |
-| 17 | [Disable User Login Without Removing the Account](https://github.com/kelvintechnical/disable-user-login) | `usermod -s /sbin/nologin`, `getent passwd` |
+| 55 | [User & Group Management / Permissions](https://github.com/kelvintechnical/User-Group-Management-Permissions) | `useradd`, `groupadd`, `chown`, `chmod`, `id`, `getent` — Add a new user and assign a password securely |
+| 56 | [Disable User Login Without Removing the Account](https://github.com/kelvintechnical/disable-user-login) | `usermod -s /sbin/nologin`, `getent passwd` — Modify a user to assign `/sbin/nologin` as their shell |
+| 57 | Inspect Password Database *(coming soon)* | `/etc/passwd` — Review usernames, UIDs, GIDs, and home directory structure |
+| 58 | Analyze Shadow File *(coming soon)* | `/etc/shadow` — View hashed passwords and identify password aging fields |
+| 59 | Modify Default Password Aging *(coming soon)* | `/etc/login.defs` — Set new default security policies like `PASS_MAX_DAYS` |
+| 60 | Modify Existing Account *(coming soon)* | `usermod -L`, `usermod -U`, `usermod -aG` — Lock an account, unlock it, and append to a group |
+| 61 | Advanced Group Management *(coming soon)* | `groupadd`, `gpasswd`, `groupmod` — Create a group, assign admin, and modify GID |
+| 62 | Force Password Changes *(coming soon)* | `chage` — View password aging info and force a password change on next login |
+| 63 | Safely Delete Users *(coming soon)* | `userdel -r` — Remove a user and completely delete their home directory and mail spool |
+| 64 | Configure Custom Administrators *(coming soon)* | `visudo`, `/etc/sudoers` — Grant a user full administrative privileges |
+| 65 | Granular sudo Privileges *(coming soon)* | `visudo`, `Cmnd_Alias` — Grant permission to run only specific commands |
+| 66 | Limit root Logins *(coming soon)* | `/etc/securetty` — Restrict which virtual consoles root can log into directly |
+| 67 | Populate Directory Templates *(coming soon)* | `/etc/skel` — Add custom files so new users automatically receive them |
+| 68 | Manage Shell Environments *(coming soon)* | `.bash_profile`, `.bashrc` — Configure persistent environment variables and aliases |
+| 69 | Alter Global Default umask *(coming soon)* | `/etc/bashrc`, `/etc/profile` — Restrict default file permissions system-wide |
 
 ---
 
@@ -168,31 +237,60 @@ Labs organized by official RHCSA EX200 exam objectives.
 
 | # | Lab | Key Commands |
 |---|-----|-------------|
-| 18 | [Configure SGID and Sticky Bit](https://github.com/kelvintechnical/sgid-sticky-bit) | `chmod g+s`, `chmod +t`, `ls -ld` |
-| 19 | Configure ACLs *(coming soon)* | `getfacl`, `setfacl`, default ACLs |
+| 70 | [Configure SGID and Sticky Bit](https://github.com/kelvintechnical/sgid-sticky-bit) | `chmod g+s`, `chmod +t`, `ls -ld` — Create a directory with SGID set so new files inherit the group ownership of the parent |
+| 71 | Standard File Permissions *(coming soon)* | `chmod`, `ls -l`, `ugo/rwx` — List, set, and change standard ugo/rwx permissions |
+| 72 | Changing Ownership *(coming soon)* | `chown`, `chgrp` — Reassign file and directory ownership |
+| 73 | SUID Executables *(coming soon)* | `chmod u+s`, `ls -l` — Configure the SUID bit on a file and observe how it executes with the privileges of the file owner |
+| 74 | SGID Collaboration Directory *(coming soon)* | `chmod g+s` — Create a directory with SGID set so new files inherit the group ownership of the parent |
+| 75 | Immutable File Attribute *(coming soon)* | `chattr +i`, `lsattr` — Make a critical file immutable, preventing deletion even by root |
+| 76 | Append-Only File Attribute *(coming soon)* | `chattr +a`, `lsattr` — Use `chattr +a` on a log file to ensure data can only be appended and never overwritten |
+| 77 | Identifying File Attributes *(coming soon)* | `lsattr` — List extended attributes of files on ext4 or XFS filesystems |
+| 78 | Check ACL Support *(coming soon)* | `mount`, `acl` option — Verify a filesystem is mounted with the acl option |
+| 79 | Viewing ACLs *(coming soon)* | `getfacl` — Inspect a file's current access control list |
+| 80 | Modifying ACLs *(coming soon)* | `setfacl -m` — Grant a specific user read and write access to a file |
+| 81 | Denying Access via ACLs *(coming soon)* | `setfacl` — Implement an ACL to explicitly deny access to a specific user |
+| 82 | Default Directory ACLs *(coming soon)* | `setfacl -d` — Configure a default ACL on a directory so newly created files automatically inherit permissions |
+| 83 | ACL Masks *(coming soon)* | `setfacl -m m::` — Set a mask that caps maximum allowable permissions for users and groups |
+| 84 | Removing ACLs *(coming soon)* | `setfacl -x`, `setfacl -b` — Strip specific ACL entries or remove all ACLs |
+| 85 | NFSv4 ACLs *(coming soon — needs NFS)* | `nfs4_getfacl`, `nfs4_setfacl` — Display and edit permissions on an NFS v4 share |
 
 ---
 
-### 💾 Storage Management
+### 🔥 Firewall (firewalld)
 
-> Create and manage partitions, filesystems, and disk devices.
+> Manage firewall rules, zones, ports, services, NAT, and rich rules.
 
 | # | Lab | Key Commands |
 |---|-----|-------------|
-| 20 | Create and Format Partitions *(coming soon)* | `fdisk`, `parted`, `mkfs`, `lsblk` |
-| 21 | Mount Filesystems & Configure fstab *(coming soon)* | `mount`, `umount`, `/etc/fstab`, `UUID` |
-| 22 | Create and Activate Swap Space *(coming soon)* | `mkswap`, `swapon`, `swapoff`, `/etc/fstab` |
+| 86 | Inspecting iptables *(coming soon)* | `iptables -L` — Review the default filtering chains and packet rules |
+| 87 | Exploring firewalld Zones *(coming soon)* | `firewall-cmd --get-default-zone`, `--list-all` — List available and active zones |
+| 88 | Changing Default Firewall Zone *(coming soon)* | `firewall-cmd --set-default-zone` — Reassign an active interface from the public zone to the dmz or internal zone |
+| 89 | Adding Services to Zones *(coming soon)* | `firewall-cmd --add-service`, `--permanent` — Permanently open ports for a service |
+| 90 | Opening Custom Ports *(coming soon)* | `firewall-cmd --add-port` — Open a non-standard port by adding it directly to a zone |
+| 91 | Inspect Active Firewall Zones *(coming soon)* | `firewall-cmd --get-default-zone`, `--list-all` — Review zones and allowed services |
+| 92 | Reassign Interfaces to Zones *(coming soon)* | `firewall-cmd --change-interface` — Temporarily and permanently move a network interface between zones |
+| 93 | Allow Services Through Firewall *(coming soon)* | `firewall-cmd --permanent --add-service` — Open ports for web and FTP servers |
+| 94 | Configure IP Masquerading NAT *(coming soon)* | `firewall-cmd --add-masquerade` — Enable IP masquerading on the external zone |
+| 95 | Configure IP Forwarding *(coming soon)* | `/etc/sysctl.conf`, `sysctl -p` — Enable `net.ipv4.ip_forward = 1` and apply |
+| 96 | Configure Rich Rules *(coming soon)* | `firewall-cmd --add-rich-rule` — Create a rich rule that denies traffic from a specific host |
+| 97 | Setup Port Forwarding DNAT *(coming soon)* | `firewall-cmd` rich rules — Redirect inbound traffic from port 80 to port 8008 |
+| 98 | Configure ICMP Filters *(coming soon)* | `firewall-cmd --add-icmp-block` — Block specific ICMP message types to drop ping floods |
 
 ---
 
-### 🗂 LVM (Logical Volume Management)
+### 🔐 TCP Wrappers & PAM
 
-> Create, extend, and manage logical volumes.
+> Restrict network access and enforce authentication policies.
 
 | # | Lab | Key Commands |
 |---|-----|-------------|
-| 23 | Create LVM Volumes *(coming soon)* | `pvcreate`, `vgcreate`, `lvcreate` |
-| 24 | Extend and Reduce LVM Volumes *(coming soon)* | `lvextend`, `lvreduce`, `resize2fs`, `xfs_growfs` |
+| 99 | Verify TCP Wrappers Support *(coming soon)* | `ldd /usr/sbin/sshd \| grep libwrap` — Confirm SSH is linked to TCP Wrappers |
+| 100 | Restrict Access via hosts.deny *(coming soon)* | `/etc/hosts.deny` — Edit with `ALL : ALL` to block all wrapper-aware network traffic by default |
+| 101 | Allow Specific Access via hosts.allow *(coming soon)* | `/etc/hosts.allow` — Explicitly allow SSH from localhost and a specific subnet |
+| 102 | Implement Password Complexity *(coming soon)* | `pam_pwquality.so`, `system-auth` — Review how RHEL enforces password rules |
+| 103 | Configure PAM to Limit root Access *(coming soon)* | `pam_securetty.so` — Limit root logins to only virtual terminal 6 |
+| 104 | Use PAM to Limit User Access *(coming soon)* | `/etc/nologin` — Create `/etc/nologin` with a custom message to block regular users from logging in |
+| 105 | Restrict Service Access by User List *(coming soon)* | `pam_listfile.so` — Deny access to users defined in a text file |
 
 ---
 
@@ -202,31 +300,13 @@ Labs organized by official RHCSA EX200 exam objectives.
 
 | # | Lab | Key Commands |
 |---|-----|-------------|
-| 25 | Manage SELinux Modes and Contexts *(coming soon)* | `getenforce`, `setenforce`, `semanage`, `restorecon` |
-| 26 | Manage SELinux Booleans and Troubleshoot Denials *(coming soon)* | `getsebool`, `setsebool`, `audit2allow`, `ausearch` |
-
----
-
-### 🔥 Firewall (firewalld)
-
-> Manage firewall rules, zones, ports, and services.
-
-| # | Lab | Key Commands |
-|---|-----|-------------|
-| 27 | Configure firewalld Rules *(coming soon)* | `firewall-cmd`, `--add-service`, `--add-port`, `--permanent` |
-| 28 | Manage firewalld Zones *(coming soon)* | `--zone`, `--list-all`, `--change-interface` |
-
----
-
-### ⚙️ Systemd & Services
-
-> Manage system services, unit files, and boot targets.
-
-| # | Lab | Key Commands |
-|---|-----|-------------|
-| 29 | Manage Services with systemctl *(coming soon)* | `systemctl start/stop/enable/disable/status` |
-| 30 | Create and Manage systemd Unit Files *(coming soon)* | Unit file syntax, `systemctl daemon-reload` |
-| 31 | Manage Boot Targets *(coming soon)* | `systemctl get-default`, `systemctl set-default`, `rescue.target` |
+| 106 | Managing SELinux Modes *(coming soon)* | `sestatus`, `setenforce` — Check SELinux status and toggle between enforcing and permissive |
+| 107 | Viewing SELinux Contexts *(coming soon)* | `ls -Z`, `ps -eZ` — View file contexts and contexts of running processes |
+| 108 | Temporary Context Changes *(coming soon)* | `chcon` — Temporarily modify the SELinux type context of a custom directory |
+| 109 | Persistent Context Restoration *(coming soon)* | `semanage fcontext`, `restorecon` — Define persistent rules and apply them |
+| 110 | Toggling SELinux Booleans *(coming soon)* | `getsebool`, `setsebool -P` — Search available booleans and make persistent changes |
+| 111 | SELinux User Mapping *(coming soon)* | `semanage login` — Map a Linux user account to a restricted SELinux user type |
+| 112 | Troubleshooting SELinux *(coming soon)* | `audit.log`, `sealert` — Trigger a policy violation, locate it in audit.log, and analyze |
 
 ---
 
@@ -236,30 +316,29 @@ Labs organized by official RHCSA EX200 exam objectives.
 
 | # | Lab | Key Commands |
 |---|-----|-------------|
-| 32 | Reset Root Password via Boot *(coming soon)* | GRUB interrupt, `rd.break`, `chroot`, `passwd` |
-| 33 | Configure GRUB Boot Loader *(coming soon)* | `grub2-mkconfig`, `/etc/default/grub` |
+| 113 | Modify GRUB Timeout *(coming soon)* | `/etc/default/grub`, `GRUB_TIMEOUT` — Adjust bootloader countdown |
+| 114 | Enable Verbose Kernel Messages *(coming soon)* | `GRUB_CMDLINE_LINUX` — Remove the `quiet` keyword to show verbose startup output |
+| 115 | Generate New GRUB Config *(coming soon)* | `grub2-mkconfig -o /boot/grub2/grub.cfg` — Apply changes persistently |
+| 116 | Reset Root Password via Boot *(coming soon)* | GRUB interrupt, `rd.break`, `chroot`, `passwd` — Interrupt boot before filesystem mount and reset root password |
 
 ---
 
-### 🕐 Scheduled Tasks
+### ⚙️ Systemd & Services
 
-> Automate recurring and one-time tasks using cron and at.
-
-| # | Lab | Key Commands |
-|---|-----|-------------|
-| 34 | Schedule Tasks with cron *(coming soon)* | `crontab -e`, `/etc/cron.d/`, cron syntax |
-| 35 | Schedule One-Time Tasks with at *(coming soon)* | `at`, `atq`, `atrm` |
-
----
-
-### 🔄 Process Management
-
-> Monitor, control, and prioritize running processes.
+> Manage system services, unit files, and boot targets.
 
 | # | Lab | Key Commands |
 |---|-----|-------------|
-| 36 | Monitor and Manage Processes *(coming soon)* | `ps aux`, `top`, `kill`, `pkill` |
-| 37 | Manage Process Priority *(coming soon)* | `nice`, `renice`, `jobs`, `bg`, `fg` |
+| 117 | Check Default Boot Target *(coming soon)* | `systemctl get-default` — Verify if system boots into graphical or multi-user target |
+| 118 | Change Default Boot Target *(coming soon)* | `systemctl set-default` — Configure system to permanently boot into text-based environment |
+| 119 | System Reboots and Shutdowns *(coming soon)* | `systemctl reboot`, `systemctl poweroff` — Safely transition system state |
+| 120 | List All System Units *(coming soon)* | `systemctl list-units --all` — Display state of all systemd units |
+| 121 | Check Service Status *(coming soon)* | `systemctl status` — Verify running status, PID, and recent logs of a daemon |
+| 122 | Start and Stop Services *(coming soon)* | `systemctl start`, `systemctl stop` — Control active services on the fly |
+| 123 | Enable Services at Boot *(coming soon)* | `systemctl enable` — Ensure services survive restart by linking to the default target |
+| 124 | Disable Services at Boot *(coming soon)* | `systemctl disable` — Prevent a service from launching automatically |
+| 125 | Mask System Services *(coming soon)* | `systemctl mask` — Prevent a conflicting daemon from being started accidentally |
+| 126 | Create and Manage systemd Unit Files *(coming soon)* | Unit file syntax, `systemctl daemon-reload` |
 
 ---
 
@@ -269,8 +348,100 @@ Labs organized by official RHCSA EX200 exam objectives.
 
 | # | Lab | Key Commands |
 |---|-----|-------------|
-| 38 | Query Logs with journalctl *(coming soon)* | `journalctl -u`, `-p`, `--since`, `--until` |
-| 39 | Configure rsyslog *(coming soon)* | `/etc/rsyslog.conf`, log facilities, log rotation |
+| 127 | Analyze Boot Performance *(coming soon)* | `systemd-analyze blame` — Identify services slowing down the boot process |
+| 128 | Query Logs with journalctl *(coming soon)* | `journalctl -u`, `-p`, `--since`, `--until` — Read and filter system logs by priority |
+| 129 | Configure Persistent Journal Logs *(coming soon)* | `/var/log/journal` — Create directory to force systemd to write logs persistently to disk |
+| 130 | Understand Log Routing *(coming soon)* | `/etc/rsyslog.conf` — Review where different system and kernel messages are logged |
+| 131 | Monitor Authentication Logs *(coming soon)* | `/var/log/secure` — Track user logins, SSH access, and failed authentication attempts |
+| 132 | Filter systemd Journals by Priority *(coming soon)* | `journalctl -p alert` — Query the journal filtering for high-priority errors |
+| 133 | Service-Specific Journal Logs *(coming soon)* | `journalctl -u httpd` — Display journal entries for a specific daemon |
+
+---
+
+### 💾 Storage Management
+
+> Create and manage partitions, filesystems, and disk devices.
+
+| # | Lab | Key Commands |
+|---|-----|-------------|
+| 134 | Inspect Filesystems *(coming soon)* | `df -h`, `findmnt` — View space on mounted filesystems |
+| 135 | Display Partition Tables *(coming soon)* | `fdisk -l` — List configured partitions from all attached hard drives |
+| 136 | Create MBR Partition with fdisk *(coming soon — needs EBS)* | `fdisk /dev/vdb` — Create partition with `n`, print with `p`, write with `w` |
+| 137 | Create GPT Partition with gdisk *(coming soon — needs EBS)* | `gdisk` — Practice creating a GPT-based partition table |
+| 138 | Format Partition with XFS *(coming soon — needs EBS)* | `mkfs.xfs` — Format a newly created partition with the default RHEL XFS filesystem |
+| 139 | Format Partition with Ext4 *(coming soon — needs EBS)* | `mkfs.ext4` — Format a partition with the ext4 journaling filesystem |
+| 140 | Check Filesystem Consistency *(coming soon — needs EBS)* | `fsck.ext4` — Check integrity of an unmounted ext partition |
+| 141 | Create and Activate Swap Space *(coming soon)* | `mkswap`, `swapon`, `swapoff`, `/etc/fstab` |
+
+---
+
+### 🗂 LVM (Logical Volume Management)
+
+> Create, extend, and manage logical volumes.
+
+| # | Lab | Key Commands |
+|---|-----|-------------|
+| 142 | Initialize Physical Volumes *(coming soon — needs EBS)* | `pvcreate` — Initialize a disk or partition for use by LVM |
+| 143 | Create Volume Group *(coming soon — needs EBS)* | `vgcreate` — Pool one or more physical volumes into a volume group |
+| 144 | Create Logical Volume *(coming soon — needs EBS)* | `lvcreate` — Allocate space from a volume group into a logical volume |
+| 145 | Extend Logical Volume *(coming soon — needs EBS)* | `lvextend`, `xfs_growfs`, `resize2fs` — Increase space and expand filesystem to fill new space |
+| 146 | Remove LVM Components *(coming soon — needs EBS)* | `lvremove`, `vgremove`, `pvremove` — Unmount, then remove LV, VG, and PV |
+
+---
+
+### 📁 Filesystem Mounts
+
+> Mount, configure, and automate filesystem mounts.
+
+| # | Lab | Key Commands |
+|---|-----|-------------|
+| 147 | Retrieve Filesystem UUIDs *(coming soon)* | `blkid` — Identify the UUID of formatted block devices for persistent mounting |
+| 148 | Configure Persistent Mounts fstab *(coming soon)* | `/etc/fstab` — Add a new mount entry using UUID, mount point, and filesystem type |
+| 149 | Remount with New Options *(coming soon)* | `mount -o remount` — Modify mount options of an actively mounted filesystem |
+| 150 | Manage Autofs Service *(coming soon)* | `systemctl` — Ensure the automounter is running and set to start at boot |
+
+---
+
+### 🔄 Process Management
+
+> Monitor, control, and prioritize running processes.
+
+| # | Lab | Key Commands |
+|---|-----|-------------|
+| 151 | Audit All Running Processes *(coming soon)* | `ps aux` — List all running processes and identify CPU and memory usage |
+| 152 | Real-Time Process Monitoring *(coming soon)* | `top` — Monitor real-time system load, tasks, memory, and swap |
+| 153 | Adjust Process Priority *(coming soon)* | `renice` — Change the priority of an already running CPU-intensive process |
+| 154 | Start Processes with Custom Priority *(coming soon)* | `nice` — Launch a new process with a predefined priority level |
+| 155 | Terminate Processes Gracefully *(coming soon)* | `kill` (SIGTERM) — Identify a PID and terminate it safely |
+| 156 | Force Kill Unresponsive Processes *(coming soon)* | `kill -9` (SIGKILL) — Forcibly terminate a hung process |
+| 157 | Kill Processes by Name *(coming soon)* | `killall` — Terminate multiple instances of a process at once |
+
+---
+
+### 🕐 Scheduled Tasks
+
+> Automate recurring and one-time tasks using cron and at.
+
+| # | Lab | Key Commands |
+|---|-----|-------------|
+| 158 | Schedule Tasks with cron *(coming soon)* | `crontab -e`, `/etc/cron.d/`, cron syntax — Schedule a recurring script to run at a specific interval |
+| 159 | Remove User cron Jobs *(coming soon)* | `crontab -l`, `crontab -r` — View active jobs and remove all user cron jobs |
+| 160 | Schedule One-Time Tasks with at *(coming soon)* | `at`, `atq`, `atrm` — Schedule a command to execute exactly once at a specified time |
+| 161 | Limit Access to cron *(coming soon)* | `/etc/cron.deny` — Restrict users from scheduling tasks |
+| 162 | Review the Anacron System *(coming soon)* | `/etc/anacrontab` — See how RHEL ensures periodic jobs run after downtime |
+
+---
+
+### 🔐 GPG Encryption
+
+> Generate keys, encrypt, decrypt, and share GPG-protected files.
+
+| # | Lab | Key Commands |
+|---|-----|-------------|
+| 163 | Generate a GPG Key Pair *(coming soon)* | `gpg --gen-key` — Create an RSA public/private key pair with a passphrase |
+| 164 | Encrypt a File with GPG *(coming soon)* | `gpg --recipient --encrypt` — Create a text file and secure it |
+| 165 | Decrypt a GPG File *(coming soon)* | `gpg --decrypt` — Enter the passphrase to read the original plaintext contents |
+| 166 | Share and Verify Public Keys *(coming soon)* | `gpg --export -a`, `scp`, `gpg --import` — Export, transfer, and import a GPG key |
 
 ---
 
@@ -280,27 +451,10 @@ Labs organized by official RHCSA EX200 exam objectives.
 
 | # | Lab | Key Commands |
 |---|-----|-------------|
-| 40 | [Configure Apache to Serve Default and Custom Web Content](https://github.com/kelvintechnical/apache-custom-content) | `httpd`, `semanage fcontext`, `restorecon`, `curl` |
-
----
-
-### ⚡ System Performance & Tuning
-
-> Identify and apply system tuning profiles using tuned.
-
-| # | Lab | Key Commands |
-|---|-----|-------------|
-| 41 | [Enable Recommended Tuning Profile](https://github.com/kelvintechnical/tuning-profile) | `tuned-adm recommend`, `tuned-adm profile`, `tuned-adm active` |
-
----
-
-### 📜 Shell Scripting & Automation
-
-> Write conditional bash scripts that handle arguments, validate input, and return exit codes.
-
-| # | Lab | Key Commands |
-|---|-----|-------------|
-| 42 | [Argument-Based Conditional Script](https://github.com/kelvintechnical/argument-script) | `$1`, `$#`, `if/elif/else`, `exit 5`, `chmod +x` |
+| 167 | [Configure Apache to Serve Default and Custom Web Content](https://github.com/kelvintechnical/apache-custom-content) | `httpd`, `semanage fcontext`, `restorecon`, `curl` — Install Apache, start/enable the service, and deploy web content |
+| 168 | Password-Protect a Directory *(coming soon)* | `htpasswd`, `AuthType Basic`, `Require user` — Restrict access to a specific folder |
+| 169 | Deploy Name-Based Virtual Hosts *(coming soon)* | `<VirtualHost *:80>`, `/etc/httpd/conf.d/` — Configure multiple virtual hosts resolving to the same IP |
+| 170 | Configure Secure Virtual Hosts HTTPS *(coming soon)* | `ssl.conf`, `SSLCertificateFile`, `genkey` — Configure an HTTPS virtual host with self-signed certificates |
 
 ---
 
@@ -310,18 +464,43 @@ Labs organized by official RHCSA EX200 exam objectives.
 
 | # | Lab | Key Commands |
 |---|-----|-------------|
-| 43 | [Command-Line Web and FTP Testing](https://github.com/kelvintechnical/elinks-iftp) | `elinks -dump`, `lftp`, `get`, `mget`, `put` |
-| 44 | [Command-Line Email Testing](https://github.com/kelvintechnical/mutt-mail-smtp) | `mail -s`, `mutt -f`, `postfix`, `/var/mail/` |
+| 171 | SSH and SCP File Transfer *(coming soon)* | `ssh`, `scp` — Access VMs remotely and transfer files |
+| 172 | Network Troubleshooting *(coming soon)* | `telnet`, `nmap` — Check listening services and scan ports |
+| 173 | [Command-Line Web and FTP Testing](https://github.com/kelvintechnical/elinks-iftp) | `elinks -dump`, `lftp`, `get`, `mget`, `put` — Use elinks to test web connectivity and lftp to download and upload files |
+| 174 | [Command-Line Email Testing](https://github.com/kelvintechnical/mutt-mail-smtp) | `mail -s`, `mutt -f`, `postfix`, `/var/mail/` — Use mail and mutt to test local SMTP and verify mail spool delivery |
+
+---
+
+### ⚡ System Performance & Tuning
+
+> Identify and apply system tuning profiles using tuned.
+
+| # | Lab | Key Commands |
+|---|-----|-------------|
+| 175 | [Enable Recommended Tuning Profile](https://github.com/kelvintechnical/tuning-profile) | `tuned-adm recommend`, `tuned-adm profile`, `tuned-adm active` |
+
+---
+
+### 📜 Shell Scripting & Automation
+
+> Write conditional bash scripts that handle arguments, validate input, and return exit codes.
+
+| # | Lab | Key Commands |
+|---|-----|-------------|
+| 176 | [Argument-Based Conditional Script](https://github.com/kelvintechnical/argument-script) | `$1`, `$#`, `if/elif/else`, `exit 5`, `chmod +x` — Write a script that reads user input using special variables |
+| 177 | Use for Loops for Iteration *(coming soon)* | `for`, `getent passwd` — Write a script that cycles through a list of items |
+| 178 | Evaluate Command Exit Codes *(coming soon)* | `$?` — Check the exit code to determine if a command succeeded or failed |
+| 179 | Create a Directory Backup Script *(coming soon)* | `tar`, `date` — Build a script that takes source/destination arguments and creates a `.tar` backup named dynamically |
 
 ---
 
 ### 🐳 Containers & Runtime Management
 
-> Build and run containerized Linux environments using Docker/Podman, including port mapping, named containers, and interactive shells.
+> Build and run containerized Linux environments using Docker/Podman.
 
 | # | Lab | Key Commands |
 |---|-----|-------------|
-| 45 | [Launch Named Root Container with Port Mapping](https://github.com/kelvintechnical/Launch-Named-Root-Container-with-Port-Mapping) | `podman run`, `docker run`, `-p`, `--name`, `-it` |
+| 180 | [Launch Named Root Container with Port Mapping](https://github.com/kelvintechnical/Launch-Named-Root-Container-with-Port-Mapping) | `podman run`, `docker run`, `-p`, `--name`, `-it` — Run containerized Linux environments with port mapping and interactive shells |
 
 ---
 
@@ -486,6 +665,7 @@ Labs organized by official CKA exam objectives.
 
 - B.S. Software Engineering, WGU (2026) — 3× Excellence Award
 - M.S. AI Engineering, WGU (in progress)
+- TEDxRaleigh 2026 Speaker
 - Certs: CompTIA Security+, Linux+, AWS Cloud Practitioner, ITIL 4 Foundation
 - ✍️ Blog: [PyTorch Zero to One](https://hashnode.com/@kelvintechnical) — 32+ articles
 
