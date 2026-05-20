@@ -23,7 +23,6 @@
 - [Who This Is For](#-who-this-is-for)
 - [Companion Repos](#-companion-repos)
 - [Certification Path](#-certification-path)
-- [Modules](#-modules)
 - [Labs by RHCSA Exam Domain](#-labs-by-rhcsa-exam-domain)
 - [How to Use This Repo](#-how-to-use-this-repo)
 - [Author & Connect](#-author--connect)
@@ -72,21 +71,21 @@ Foundational Linux skills broken into focused, standalone learning resources:
 
 ---
 
-## 📂 Modules
-
-| # | Module | Focus |
-|---|--------|-------|
-| 01 | [System Management](./01-system-management/README.md) | Users, storage, boot, SELinux, networking |
-| 02 | [Networking](./02-networking/README.md) | firewalld, SSH, advanced routing |
-| 03 | [Containers](./03-containers/README.md) | Podman, systemd services, rootless containers |
-| 04 | [Automation](./04-automation) | Ansible playbooks, roles, inventories (RHCE core) |
-| 05 | [Labs Archive](./05-labs) | Exam-style scenario labs |
-
----
-
 ## 🧪 Labs by RHCSA Exam Domain
 
 Labs are organized by the official RHCSA EX200 exam objectives. Each domain maps directly to what Red Hat tests on exam day.
+
+---
+
+### 🖥️ Shells, Terminals & Redirection
+
+> Understand stdout, stderr, pipes, and how to control where command output goes.
+
+| # | Lab | Key Commands |
+|---|-----|-------------|
+| 01 | [Standard Output Redirection](https://github.com/kelvintechnical/stdout-redirection) | `>`, `>>`, `cat` |
+| 02 | [Standard Error Redirection](https://github.com/kelvintechnical/stderr-redirection) | `2>`, `2>/dev/null`, `&>` |
+| 03 | [Pipe Text Streams](https://github.com/kelvintechnical/pipe-text-streams) | `\|`, `less`, `grep`, `tee`, `wc -l` |
 
 ---
 
@@ -96,7 +95,7 @@ Labs are organized by the official RHCSA EX200 exam objectives. Each domain maps
 
 | # | Lab | Key Commands |
 |---|-----|-------------|
-| 01 | [Configure a Static IP Address](./01-system-management/README.md#lab-01--configure-a-static-ip-address) | `nmcli con mod`, `ip addr`, `ip route` |
+| 04 | [Configure a Static IP Address](./01-system-management/README.md#lab-01--configure-a-static-ip-address) | `nmcli con mod`, `ip addr`, `ip route` |
 
 ---
 
@@ -106,7 +105,7 @@ Labs are organized by the official RHCSA EX200 exam objectives. Each domain maps
 
 | # | Lab | Key Commands |
 |---|-----|-------------|
-| 02 | [Configure Repository Access](https://github.com/kelvintechnical/Configure-Repository-Access-) | `dnf`, `tee`, `/etc/yum.repos.d/` |
+| 05 | [Configure Repository Access](https://github.com/kelvintechnical/Configure-Repository-Access-) | `dnf`, `tee`, `/etc/yum.repos.d/` |
 
 ---
 
@@ -116,8 +115,8 @@ Labs are organized by the official RHCSA EX200 exam objectives. Each domain maps
 
 | # | Lab | Key Commands |
 |---|-----|-------------|
-| 03 | [Configure Timezone and Time Synchronization](https://github.com/kelvintechnical/Configure-Timezone-and-Time-Synchronization) | `timedatectl`, `systemctl enable --now chronyd` |
-| 04 | [Configure NTP Time Source](https://github.com/kelvintechnical/configure-ntp) | `/etc/chrony.conf`, `chronyc sources`, `iburst` |
+| 06 | [Configure Timezone and Time Synchronization](https://github.com/kelvintechnical/Configure-Timezone-and-Time-Synchronization) | `timedatectl`, `systemctl enable --now chronyd` |
+| 07 | [Configure NTP Time Source](https://github.com/kelvintechnical/configure-ntp) | `/etc/chrony.conf`, `chronyc sources`, `iburst` |
 
 ---
 
@@ -127,9 +126,9 @@ Labs are organized by the official RHCSA EX200 exam objectives. Each domain maps
 
 | # | Lab | Key Commands |
 |---|-----|-------------|
-| 05 | [Search for a String and Save Output](https://github.com/kelvintechnical/search-string-save-output) | `grep`, `tee`, `>` redirect |
-| 06 | [Find and Save Config Files](https://github.com/kelvintechnical/find-save-config-files) | `find -type f -name -user`, `2>/dev/null` |
-| 07 | [Locate Command Documentation](https://github.com/kelvintechnical/locate-command-docs) | `find /usr/share/doc`, `rpm -qf`, `rpm -qd` |
+| 08 | [Search for a String and Save Output](https://github.com/kelvintechnical/search-string-save-output) | `grep`, `tee`, `>` redirect |
+| 09 | [Find and Save Config Files](https://github.com/kelvintechnical/find-save-config-files) | `find -type f -name -user`, `2>/dev/null` |
+| 10 | [Locate Command Documentation](https://github.com/kelvintechnical/locate-command-docs) | `find /usr/share/doc`, `rpm -qf`, `rpm -qd` |
 
 ---
 
@@ -139,8 +138,8 @@ Labs are organized by the official RHCSA EX200 exam objectives. Each domain maps
 
 | # | Lab | Key Commands |
 |---|-----|-------------|
-| 08 | [User & Group Management / Permissions](https://github.com/kelvintechnical/User-Group-Management-Permissions) | `useradd`, `groupadd`, `chown`, `chmod`, `id`, `getent` |
-| 09 | [Disable User Login Without Removing the Account](https://github.com/kelvintechnical/disable-user-login) | `usermod -s /sbin/nologin`, `getent passwd` |
+| 11 | [User & Group Management / Permissions](https://github.com/kelvintechnical/User-Group-Management-Permissions) | `useradd`, `groupadd`, `chown`, `chmod`, `id`, `getent` |
+| 12 | [Disable User Login Without Removing the Account](https://github.com/kelvintechnical/disable-user-login) | `usermod -s /sbin/nologin`, `getent passwd` |
 
 ---
 
@@ -150,7 +149,7 @@ Labs are organized by the official RHCSA EX200 exam objectives. Each domain maps
 
 | # | Lab | Key Commands |
 |---|-----|-------------|
-| 10 | [Configure SGID and Sticky Bit](https://github.com/kelvintechnical/sgid-sticky-bit) | `chmod g+s`, `chmod +t`, `ls -ld` |
+| 13 | [Configure SGID and Sticky Bit](https://github.com/kelvintechnical/sgid-sticky-bit) | `chmod g+s`, `chmod +t`, `ls -ld` |
 
 ---
 
@@ -160,7 +159,7 @@ Labs are organized by the official RHCSA EX200 exam objectives. Each domain maps
 
 | # | Lab | Key Commands |
 |---|-----|-------------|
-| 11 | [Configure Apache to Serve Default and Custom Web Content](https://github.com/kelvintechnical/apache-custom-content) | `httpd`, `semanage fcontext`, `restorecon`, `curl` |
+| 14 | [Configure Apache to Serve Default and Custom Web Content](https://github.com/kelvintechnical/apache-custom-content) | `httpd`, `semanage fcontext`, `restorecon`, `curl` |
 
 ---
 
@@ -170,9 +169,9 @@ Labs are organized by the official RHCSA EX200 exam objectives. Each domain maps
 
 | # | Lab | Key Commands |
 |---|-----|-------------|
-| 12 | [Enable Recommended Tuning Profile](https://github.com/kelvintechnical/tuning-profile) | `tuned-adm recommend`, `tuned-adm profile`, `tuned-adm active` |
+| 15 | [Enable Recommended Tuning Profile](https://github.com/kelvintechnical/tuning-profile) | `tuned-adm recommend`, `tuned-adm profile`, `tuned-adm active` |
 
----  
+---
 
 ### 📜 Shell Scripting & Automation
 
@@ -180,7 +179,18 @@ Labs are organized by the official RHCSA EX200 exam objectives. Each domain maps
 
 | # | Lab | Key Commands |
 |---|-----|-------------|
-| 13 | [Argument-Based Conditional Script](https://github.com/kelvintechnical/argument-script) | `$1`, `$#`, `if/elif/else`, `exit 5`, `chmod +x` |
+| 16 | [Argument-Based Conditional Script](https://github.com/kelvintechnical/argument-script) | `$1`, `$#`, `if/elif/else`, `exit 5`, `chmod +x` |
+
+---
+
+### 🔗 Remote Administration & Network Tools
+
+> Remotely administer systems, transfer files, test ports, and verify network services from the CLI.
+
+| # | Lab | Key Commands |
+|---|-----|-------------|
+| 17 | [Command-Line Web and FTP Testing](https://github.com/kelvintechnical/elinks-iftp) | `elinks -dump`, `lftp`, `get`, `mget`, `put` |
+| 18 | [Command-Line Email Testing](https://github.com/kelvintechnical/mutt-mail-smtp) | `mail -s`, `mutt -f`, `postfix`, `/var/mail/` |
 
 ---
 
