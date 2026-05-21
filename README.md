@@ -99,7 +99,7 @@ Labs organized by official RHCSA EX200 exam objectives.
 | 01 | [Standard Output Redirection](https://github.com/kelvintechnical/stdout-redirection) | `>`, `>>`, `cat` — Use `>` to direct output into a new file and `>>` to append output to an existing file |
 | 02 | [Standard Error Redirection](https://github.com/kelvintechnical/stderr-redirection) | `2>`, `2>/dev/null` — Force a command to generate an error and redirect that error stream to a file or discard it |
 | 03 | [Pipe Text Streams](https://github.com/kelvintechnical/pipe-text-streams) | `\|`, `less`, `grep`, `tee`, `wc -l` — Combine multiple commands using `\|` to send stdout of one command into stdin of another |
-| 04 | Capture Both Output and Error *(coming soon)* | `&>`, `2>&1` — Send both stdout and stderr to the same file using the `&>` operator |
+| 04 | [Capture Both Output and Error](https://github.com/kelvintechnical/capture-both-output-error/blob/main/README.md) | `&>`, `2>&1` — Send both stdout and stderr to the same file using the `&>` operator |
 
 ---
 
