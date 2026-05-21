@@ -109,11 +109,11 @@ Labs organized by official RHCSA EX200 exam objectives.
 
 | # | Lab | Key Commands |
 |---|-----|-------------|
-| 05 | Directory Navigation *(coming soon)* | `cd`, `pwd`, `ls` — Move through the filesystem using absolute paths, relative paths, `..`, and `~` |
-| 06 | Listing Files and SELinux Contexts *(coming soon)* | `ls -l`, `ls -Z` — Use long listings and display SELinux contexts of files and directories |
-| 07 | Creating Empty Files and Timestamps *(coming soon)* | `touch` — Create an empty file and update the last modification timestamp |
-| 08 | Copying Files and Directories *(coming soon)* | `cp`, `cp -R`, `cp -a` — Copy single files and entire directory structures recursively |
-| 09 | Hard and Soft Links *(coming soon)* | `ln`, `ln -s` — Create a hard link pointing to the same inode, then create a soft link and observe the differences |
+| 05 | [Directory Navigation](https://github.com/kelvintechnical/directory-nav/blob/main/README.md)| `cd`, `pwd`, `ls` — Move through the filesystem using absolute paths, relative paths, `..`, and `~` |
+| 06 | [Listing Files and SELinux Contexts](https://github.com/kelvintechnical/listing-files-selinux/blob/main/README.md) | `ls -l`, `ls -Z` — Use long listings and display SELinux contexts of files and directories |
+| 07 | [Creating Empty Files and Timestamps](https://github.com/kelvintechnical/touch-timestamps/blob/main/README.md) | `touch` — Create an empty file and update the last modification timestamp |
+| 08 | [Copying Files and Directories](https://github.com/kelvintechnical/copying-files-directories) | `cp`, `cp -R`, `cp -a` — Copy single files and entire directory structures recursively |
+| 09 | [Hard and Soft Links](https://github.com/kelvintechnical/hard-and-soft-links/blob/main/README.md)* | `ln`, `ln -s` — Create a hard link pointing to the same inode, then create a soft link and observe the differences |
 | 10 | Moving and Renaming Files *(coming soon)* | `mv` — Use `mv` to rename files locally and move files from one directory to another |
 | 11 | Safe Deletion of Files and Directories *(coming soon)* | `rm`, `rmdir`, `rm -rf` — Delete files with `rm`, empty directories with `rmdir`, and entire trees with `rm -rf` |
 | 12 | Creating Nested Directories *(coming soon)* | `mkdir -p` — Create a long nested directory structure in a single command |
