@@ -1,0 +1,395 @@
+================================================================
+FUTURE LABS
+================================================================
+
+Bullet list of standalone labs to build next, sourced from:
+
+  - ckaexamguide.txt     (CKA exam objectives)
+  - rhcsasample.txt      (RHCE Practice Exams 1, 2, 3 — file is
+                          mislabeled; content is Ansible/RHCE)
+  - samplerhcsa2.txt     (RHCSA sample exam #2)
+  - samplerhcsa3.txt     (RHCSA sample exam #3)
+  - samplerhcsa4.txt     (RHCSA sample exam #4)
+
+Already-completed and placeholder labs in linux-ops-mastery
+(as of 2026-05-22) have been excluded — no duplicates.
+
+Date generated: 2026-05-22
+
+
+----------------------------------------------------------------
+RHCSA  —  from samplerhcsa2.txt
+----------------------------------------------------------------
+
+- Create LV with XFS Filesystem
+    (lv1 in vg1 with 8MB PE size, 10 LEs, format XFS,
+     persistent mount on /mnt/lvfs1, drop a test file —
+     existing lvm-create-lvol1-ext4 covers ext4 only;
+     XFS path is its own lab)
+
+- Online Extend an LV and Its Filesystem Without Unmounting
+    (lvextend -L +64M then xfs_growfs without taking the FS
+     offline, verify lvs and df -h before/after)
+
+- Create a Swap Partition by UUID
+    (mkswap on a small partition, capture UUID, append
+     to /etc/fstab with sw 0 0, swapon -a, verify
+     swapon --show)
+
+- Create an Ext4 Partition Mounted by LABEL
+    (mkfs.ext4 -L stdlabel, fstab entry using LABEL=
+     instead of UUID=, mount on /mnt/stdfs1)
+
+- Apply Recursive SELinux Contexts to a New Directory
+    (mkdir /direct01, semanage fcontext -a -e /root,
+     restorecon -Rv, prove with ls -Zd before and after)
+
+- User-Level Cron Job with find -exec
+    (as user70: crontab -e schedules
+     "find /var -name core -exec cp {} /var/tmp/coredir1 \;"
+     to run every Monday at 01:20)
+
+- Find Files by mtime and Save Listing to File
+    (find / -mtime -30 -type f redirected to
+     /var/tmp/modfiles.txt with 2>/dev/null for noise control)
+
+- Install Development Tools Package Group with Output Capture
+    (dnf groupinstall "Development Tools", then capture
+     dnf group info "Development Tools"
+     into /var/tmp/systemtools.out)
+
+- Lock a User Account and Capture Lock State with Regex
+    (passwd -l user70, then grep -E '^user70:!' /etc/shadow
+     redirected to /var/tmp/user70.lock — proves the lock
+     via the leading `!` in the shadow hash field)
+
+- Bidirectional Bash Script with Argument Logic
+    (script.sh prints "RHCSA" when given "RHCE" and vice
+     versa; with no argument it prints usage and exits 5)
+
+- Rootless Container with Bind Mount and systemd Auto-Start
+    (as user80, podman run ubi9 with -v /data01:/data01,
+     generate user-level systemd unit, loginctl enable-linger,
+     prove auto-start survives reboot without user login)
+
+
+----------------------------------------------------------------
+RHCSA  —  from samplerhcsa3.txt and samplerhcsa4.txt
+----------------------------------------------------------------
+
+- Manual Hostname Configuration by Editing /etc/hostname
+    (set the hostname *without* hostnamectl: write the FQDN
+     directly into /etc/hostname, refresh the shell prompt,
+     verify after reboot — companion to the nmcli/hostnamectl
+     path already covered)
+
+- Manual Network Configuration by Editing Connection Files
+    (configure IP/gateway/DNS without nmcli: hand-edit the
+     keyfile under /etc/NetworkManager/system-connections/
+     or the legacy /etc/sysconfig/network-scripts/ifcfg-*,
+     `nmcli connection reload`, prove persistence)
+
+- Add a Custom HTTP Port to the SELinux Policy Database
+    (semanage port -a -t http_port_t -p tcp 8300, verify
+     with `semanage port -l | grep http_port_t`, prove the
+     change survives a relabel — the SELinux *port* policy
+     path, distinct from fcontext file labeling)
+
+- Create an LVM VDO Volume with Thin Provisioning
+    (build a Virtual Data Optimizer volume: vdo create
+     --name=vdo1 --device=/dev/sdb --vdoLogicalSize=20G on
+     a 5 GB physical disk, mount with ext4 *and* XFS variants,
+     persistent fstab entry with `_netdev,x-systemd.requires=
+     vdo.service`)
+
+- NFS Server + AutoFS Direct Map
+    (export /rh_share on the server, on the client write
+     /etc/auto.master.d/direct.autofs and an /etc/auto.direct
+     map that mounts the share on demand at /mnt/rh_share,
+     test cross-user file creation honoring NFS permissions)
+
+- NFS Home-Directory Export with AutoFS Indirect Map on Login
+    (server exports /home/user60, client indirect map under
+     /nfsdir mounts the home dir automatically the first time
+     user60 logs in, prove with `mount | grep nfs` after login
+     and unmount-on-idle behavior)
+
+- NFS Static Export with Persistent /etc/fstab Mount
+    (the classic non-autofs path: exportfs -rav on the server,
+     `server:/share5  /share6  nfs  _netdev,defaults  0 0` in
+     fstab on the client, `mount -a`, prove survives reboot —
+     companion to the two autofs labs above)
+
+- Collaborative SGID Directory with Multi-User Write Test
+    (mkdir /sdata, chown root:group30, chmod 2770, add user60
+     + user80 to group30, prove that a file created by user60
+     can be edited *and* not deleted by user80 — the full
+     SGID + group-write exam validation script)
+
+- Bash Script: Find Files Matching a Pattern and Print stat
+    (loop over /usr/bin/ac*, `[ -f $f ]` guard to exclude
+     directories, run `stat $f` for each match, redirect to
+     /var/tmp/acstats.out — the find+stat scripting drill)
+
+- Bash Script: Create a User Whose Name Comes from a Variable
+    (declare ENV1=book1, useradd "$ENV1", set a default
+     password from stdin, verify `id "$ENV1"` — the
+     env-var-to-useradd scripting pattern)
+
+- Build a Custom Container Image with a Containerfile
+    (write a Containerfile FROM ubi8 / ubi9, RUN/COPY a
+     small script that prints `ls` + `pwd` output, build
+     with `podman build -t custom:latest`, push to local
+     registry, run as a named rootless container under
+     user60)
+
+- Rootless Container with Port Mapping + systemd Auto-Start
+    (as user60: podman run -d --name web -p 10000:80 ubi8,
+     `podman generate systemd --new --files`, copy to
+     ~/.config/systemd/user/, loginctl enable-linger, prove
+     port 10000 reachable from the host after reboot
+     without user60 logging in — port-mapping variant of
+     the bind-mount lab above)
+
+- Rootless Container with Bind Mount + Env Vars + Port Mapping
+    (the everything-at-once exam scenario: podman run as
+     user60 with -v /host_data01:/container_data01,
+     -e ENVIRON=Exam, -e KERN=$(uname -r), -p 1050:1050,
+     ubi9:latest; user-level systemd unit with linger;
+     verify mount, env, and port via `podman inspect` +
+     `podman port`)
+
+
+----------------------------------------------------------------
+RHCE / Ansible  —  from rhcsasample.txt
+----------------------------------------------------------------
+
+Foundation labs (Common Tasks across all three sample exams):
+
+- Build an RHCE Ansible Control Project
+    (/home/ansible, ansible.cfg, static inventory, groups
+     test/dev/prod/servers, FQDN + short-name resolution)
+
+- Bootstrap Managed Hosts with Ad-Hoc Commands
+    (setuphosts.sh: install Python, create `ansible` user,
+     write sudoers drop-in, ping module to verify)
+
+- Configure a Repository Server with an Ansible Playbook
+    (setupreposerver.yml: loop-mount RHEL ISO to
+     /var/ftp/repo, disable firewalld, enable vsftpd
+     with anonymous access)
+
+- Configure Managed Repo Clients with Ad-Hoc Commands
+    (disable existing repos, add BaseOS + AppStream from
+     control.example.com via dnf config-manager)
+
+Exam Practice 1 specifics:
+
+- HTTP Server and Client Playbooks with site.yml
+    (webserver.yml installs httpd, webclient.yml installs
+     curl, shared vars/web.yml, templates/httpd.j2,
+     handler restarts httpd, site.yml ties them together)
+
+- Convert HTTP Playbooks Into an Ansible Role
+    (refactor webserver tasks into a role with
+     defaults/main.yml, tasks/main.yml, templates/,
+     handlers/, then call from a new top-level play)
+
+- Ansible Storage Role for /web with SELinux Contexts
+    (parted gpt mkpart 1MiB 100%, mount /web,
+     semanage fcontext httpd_sys_content_t,
+     deploy /web/index.html with welcome message)
+
+Exam Practice 2 specifics:
+
+- Default Roles Path in ansible.cfg
+    (set roles_path = /home/ansible/roles while preserving
+     system role locations as fallbacks)
+
+- setupstorage.yml — Conditional LVM Playbook
+    (only on hosts with a second disk: 5GiB partition,
+     vgdata with 8MiB PEs, lvdata 1GiB, ext3 format,
+     /data persistent mount)
+
+- packagefacts.yml — Package Version Report
+    (gather package facts, format kernel/bash/glibc as
+     packagename=version into /root/packages.txt)
+
+- Ansible Vault Credentials Workflow
+    (cloudpass.yml with CLOUDID and CLOUDPASS encrypted,
+     vault password file vaultpass.txt, usevault.yml
+     reads vars and writes /root/cloudcreds.txt)
+
+- Install Galaxy Roles from requirements.yml
+    (geerlingguy.nginx + geerlingguy.docker into
+     /home/ansible/roles, then start-galaxy-roles.yml
+     plays both)
+
+- Apache Role with Custom Template Showing HOSTNAME/IPADDRESS
+    (role enables httpd, opens firewall, deploys
+     templated index.html using ansible_facts.hostname
+     and ansible_default_ipv4.address; runweb.yml runs
+     it on the `test` group with firewalld pre-start)
+
+- Create Users from YAML Input with SHA256 Passwords
+    (read users_pass.yml, on `prod` create only users
+     whose department=profs, set department as secondary
+     group, hash passwords with password_hash('sha512'))
+
+Exam Practice 3 specifics:
+
+- Conditional Package Installation by Host Group
+    (perl/php on dev/test/prod, "Virtualization Host"
+     group on prod only, dnf upgrade on prod)
+
+- Conditional LVM Playbook with Failure Messages
+    (vgdata 2GiB only on prod; if missing print
+     "vgprod does not exist"; if <1GiB free print
+     "insufficient disk space available")
+
+- sysreport.yml — Hardware Report from a Template
+    (generate hwtemplate.txt, copy to /root/report.txt
+     on each managed host, populate NAME, IPADDRESS,
+     TOTAL_MEMORY, NIC_NAME, SECOND_NIC_NAME=NONE if
+     second NIC absent)
+
+- Ansible Vault Password Rotation
+    (create anspass.txt with devpass + prodpass under
+     password `vaultpass`, then rekey to `myvaultpass`
+     and confirm the file is still readable via the
+     stored vault-password-file)
+
+- RHEL Time Sync System Role (rhel-system-roles.timesync)
+    (settime.yml uses control.example.com as time source
+     with makestep enabled; verify chronyc tracking;
+     print failure message if not synchronized)
+
+- runwebserver.yml — Web Content with Symlink and Group Vars
+    (create /webcontent/index.html with welcome message,
+     USERNAME=anna sourced from a group_vars/prod file,
+     symlink /var/www/html/index.html to it, prove
+     remote access)
+
+
+----------------------------------------------------------------
+CKA  —  from ckaexamguide.txt
+----------------------------------------------------------------
+
+Cluster Architecture, Installation, Configuration:
+
+- Highly Available Control Plane with kubeadm
+    (stacked-etcd HA topology with kubeadm init
+     --control-plane-endpoint, three control planes
+     behind a VIP/LB, kubeadm join --control-plane)
+
+- Install Cluster Components with Helm
+    (helm repo add, helm install, helm upgrade --atomic,
+     helm rollback, inspect helm history)
+
+- Manage Configs with Kustomize
+    (base/ + overlays/dev/ + overlays/prod/, kubectl
+     apply -k, kustomize edit set image,
+     SecretGenerator and ConfigMapGenerator)
+
+- Container Runtime and Extension Interfaces
+    (CRI: crictl ps with containerd; CNI: install
+     Calico or Cilium and inspect /etc/cni/net.d;
+     CSI: deploy a CSI driver and validate StorageClass)
+
+- Install and Configure an Operator with a CRD
+    (install Operator Lifecycle Manager or a vendor
+     operator, define a CRD, create a custom resource,
+     watch the controller reconcile)
+
+Workloads and Scheduling:
+
+- Perform a Rolling Update and Rollback
+    (kubectl set image deployment/web app=v2,
+     kubectl rollout status, kubectl rollout undo,
+     control maxSurge/maxUnavailable)
+
+- Configure Pods with ConfigMaps
+    (kubectl create configmap --from-file and
+     --from-literal, project as env vars vs. volume
+     mounts, demonstrate hot reload limits)
+
+- Horizontal Pod Autoscaling
+    (deploy metrics-server, create HPA targeting CPU,
+     hey/wrk load generator, watch kubectl get hpa
+     scale up and back down)
+
+- ReplicaSet Self-Healing Demonstration
+    (delete a pod backed by a ReplicaSet, observe
+     recreation; cordon/drain a node and observe
+     reschedule)
+
+- Resource Limits and LimitRanges
+    (set requests/limits on a Pod, apply a LimitRange
+     to the namespace, watch admission rejections when
+     exceeded)
+
+- Resource Quotas at Namespace Scope
+    (ResourceQuota for cpu, memory, pods, pvcs;
+     prove rejection of pods that exceed quota)
+
+- Node Affinity and Anti-Affinity Scheduling
+    (requiredDuringSchedulingIgnoredDuringExecution
+     vs. preferred; labels on nodes; podAntiAffinity
+     with topologyKey=kubernetes.io/hostname)
+
+- Taints and Tolerations
+    (kubectl taint node ... NoSchedule, matching
+     tolerations on workloads, NoExecute eviction
+     and tolerationSeconds)
+
+- Pod Topology Spread Constraints
+    (spread pods across zones with maxSkew,
+     topologyKey, whenUnsatisfiable=DoNotSchedule)
+
+Storage:
+
+- Volume Access Modes and Reclaim Policies
+    (RWO vs. RWX vs. ROX, persistentVolumeReclaimPolicy
+     Retain vs. Delete vs. Recycle, demonstrate each
+     state transition)
+
+Servicing and Networking:
+
+- Use Gateway API for Ingress Traffic
+    (install Gateway API CRDs, define a GatewayClass,
+     Gateway, and HTTPRoute, replace a classic Ingress
+     resource)
+
+- Use CoreDNS for Service Discovery
+    (inspect kube-system coredns ConfigMap, add a
+     custom stub-domain, validate DNS resolution
+     from a debug pod with nslookup)
+
+Troubleshooting:
+
+- Monitor Cluster with kubectl top and Metrics Server
+    (deploy metrics-server, kubectl top nodes,
+     kubectl top pods --containers, identify hot pods)
+
+- Manage Container Output Streams
+    (kubectl logs --previous, --tail, --since,
+     -f to follow, sidecar logging patterns)
+
+- Troubleshoot Services and Networking
+    (kubectl get endpoints, validate Service selectors,
+     debug from within the cluster using netshoot or
+     busybox, trace via iptables -t nat -L KUBE-SERVICES)
+
+
+----------------------------------------------------------------
+SUMMARY COUNTS
+----------------------------------------------------------------
+
+  RHCSA  (from samplerhcsa2.txt)         : 11 future labs
+  RHCSA  (from samplerhcsa3 + 4.txt)     : 13 future labs
+  RHCE   (from rhcsasample.txt)          : 20 future labs
+  CKA    (from ckaexamguide.txt)         : 20 future labs
+  ---------------------------------------------------------
+  TOTAL                                  : 64 future labs
+
+
