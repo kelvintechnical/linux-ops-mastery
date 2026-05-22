@@ -70,6 +70,10 @@ Foundational Linux skills broken into focused, standalone learning resources:
 | Repo | Topic |
 |------|-------|
 | 🗂️ [Linux-Filesystem-Hierarchy-Standard](https://github.com/kelvintechnical/Linux-Filesystem-Hierarchy-Standard-) | What every `/` directory is, why it exists, and how to use it |
+| 📁 [bin-directory](https://github.com/kelvintechnical/bin-directory) | `/bin` — essential user command binaries available in single-user mode |
+| 📁 [sbin-directory](https://github.com/kelvintechnical/sbin-directory) | `/sbin` — system administration binaries for root and admin tasks |
+| 📁 [lib-directory](https://github.com/kelvintechnical/lib-directory) | `/lib` — essential shared libraries needed by `/bin` and `/sbin` |
+| 📁 [lib64-directory](https://github.com/kelvintechnical/lib64-directory) | `/lib64` — 64-bit shared libraries for x86_64 binaries |
 
 ---
 
@@ -116,9 +120,9 @@ Labs organized by official RHCSA EX200 exam objectives.
 | 09 | [Hard and Soft Links](https://github.com/kelvintechnical/hard-and-soft-links/blob/main/README.md) | `ln`, `ln -s` — Create a hard link pointing to the same inode, then create a soft link and observe the differences |
 | 10 | [Moving and Renaming Files](https://github.com/kelvintechnical/moving-renaming-files/blob/main/README.md) | `mv` — Use `mv` to rename files locally and move files from one directory to another |
 | 11 | [Safe Deletion of Files and Directories](https://github.com/kelvintechnical/safe-deletion/blob/main/README.md) | `rm`, `rmdir`, `rm -rf` — Delete files with `rm`, empty directories with `rmdir`, and entire trees with `rm -rf` |
-| 12 | Creating Nested Directories *(coming soon)* | `mkdir -p` — Create a long nested directory structure in a single command |
-| 13 | Creating Command Aliases *(coming soon)* | `alias` — Map a custom shortcut to a standard command and understand how aliases can override defaults |
-| 14 | File Searching with find *(coming soon)* | `find` — Search the filesystem for specific files by name starting from root or a specific subdirectory |
+| 12 | [Creating Nested Directories](https://github.com/kelvintechnical/creating-nested-directories) | `mkdir -p` — Create a long nested directory structure in a single command |
+| 13 | [Creating Command Aliases](https://github.com/kelvintechnical/creating-command-aliases) | `alias` — Map a custom shortcut to a standard command and understand how aliases can override defaults |
+| 14 | [File Searching with find](https://github.com/kelvintechnical/searching-with-find) | `find` — Search the filesystem for specific files by name starting from root or a specific subdirectory |
 | 15 | Instant File Searching with locate *(coming soon)* | `locate`, `updatedb` — Run the manual database update script and use `locate` to instantly find files |
 | 16 | [Search for a String and Save Output](https://github.com/kelvintechnical/search-string-save-output) | `grep`, `tee`, `>` — Search for strings inside config files and experiment with regular expressions |
 | 17 | [Find and Save Config Files](https://github.com/kelvintechnical/find-save-config-files) | `find -type f -name -user`, `2>/dev/null` — Search the filesystem for specific files by name |
@@ -132,15 +136,15 @@ Labs organized by official RHCSA EX200 exam objectives.
 
 | # | Lab | Key Commands |
 |---|-----|-------------|
-| 19 | Concatenating Files with cat *(coming soon)* | `cat` — Use `cat` to read the contents of short text files directly in the terminal |
-| 20 | Scrolling Through Large Files *(coming soon)* | `less`, `more` — Scroll through large system logs and search using `/` and `?` |
-| 21 | Monitoring Live Log Files *(coming soon)* | `tail -f` — Actively monitor a log file and watch new lines appended in real-time |
-| 22 | Filtering Text with grep and Regex *(coming soon)* | `grep` — Search for strings inside config files and experiment with regular expressions |
-| 23 | Comparing File Differences with diff *(coming soon)* | `diff` — Modify a config file and use `diff` to compare it against a backup to identify exact line changes |
-| 24 | Stream Editing with sed *(coming soon)* | `sed` — Use `sed` to automatically find and replace text strings within a file without opening an editor |
-| 25 | Extracting Columns with awk *(coming soon)* | `awk` — Use `awk` to specify a delimiter and print only a specific field to the screen |
-| 26 | Command Mode and Insert Mode in vi *(coming soon)* | `vi`, `:wq` — Open a config file in vi, switch to insert mode, make a change, and save with `:wq` |
-| 27 | Safely Editing System Databases *(coming soon)* | `vipw`, `vigr` — Practice editing password and group files safely using `vipw` and `vigr` |
+| 19 | [Concatenating Files with cat](https://github.com/kelvintechnical/concactenating-files-with-cat) | `cat` — Use `cat` to read the contents of short text files directly in the terminal |
+| 20 | [Scrolling Through Large Files](https://github.com/kelvintechnical/less-more-scrolling) | `less`, `more` — Scroll through large system logs and search using `/` and `?` |
+| 21 | [Monitoring Live Log Files](https://github.com/kelvintechnical/tail-f-live-logs) | `tail -f` — Actively monitor a log file and watch new lines appended in real-time |
+| 22 | [Filtering Text with grep and Regex](https://github.com/kelvintechnical/grep-regex) | `grep` — Search for strings inside config files and experiment with regular expressions |
+| 23 | [Comparing File Differences with diff](https://github.com/kelvintechnical/diff-comparing-files) | `diff` — Modify a config file and use `diff` to compare it against a backup to identify exact line changes |
+| 24 | [Stream Editing with sed](https://github.com/kelvintechnical/sed-stream-editor) | `sed` — Use `sed` to automatically find and replace text strings within a file without opening an editor |
+| 25 | [Extracting Columns with awk](https://github.com/kelvintechnical/awk-columns) | `awk` — Use `awk` to specify a delimiter and print only a specific field to the screen |
+| 26 | [Command Mode and Insert Mode in vi](https://github.com/kelvintechnical/vi-editor) | `vi`, `:wq` — Open a config file in vi, switch to insert mode, make a change, and save with `:wq` |
+| 27 | [Safely Editing System Databases](https://github.com/kelvintechnical/vipw-vigr-safe-editing) | `vipw`, `vigr` — Practice editing password and group files safely using `vipw` and `vigr` |
 
 ---
 
