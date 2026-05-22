@@ -356,6 +356,7 @@ Labs organized by official RHCSA EX200 exam objectives.
 | 128 | Extend Logical Volume *(coming soon — needs EBS)* | `lvextend` — Use `lvextend` to increase space allocated to an existing logical volume |
 | 129 | Resize Filesystem After Extend *(coming soon — needs EBS)* | `xfs_growfs`, `resize2fs` — Use `xfs_growfs` or `resize2fs` to expand filesystem to fill new space |
 | 130 | Remove LVM Components *(coming soon — needs EBS)* | `lvremove`, `vgremove`, `pvremove` — Unmount, then remove LV with `lvremove`, VG with `vgremove`, PV with `pvremove` |
+| LAB | [Create LV `lvol1` (ext4, 280 MB)](https://github.com/kelvintechnical/lvm-create-lvol1-ext4) | `pvcreate`, `vgcreate`, `lvcreate -L 280M -n lvol1 vgtest`, `mkfs.ext4`, `blkid`, `/etc/fstab` — Build a 280 MiB ext4 logical volume end-to-end and mount it persistently by UUID on `/mnt/mnt1` |
 
 ---
 
@@ -487,6 +488,7 @@ Labs organized by official RHCSA EX200 exam objectives.
 | 205 | Review the Anacron System *(coming soon)* | `/etc/anacrontab` — Examine `/etc/anacrontab` to see how RHEL ensures periodic jobs run after downtime |
 | 206 | Create a Specific cron Job *(coming soon)* | `crontab -e` — Use `crontab -e` to schedule a script to run at 1:05 PM every Monday in January |
 | 207 | Schedule Software Audit with at *(coming soon)* | `at` — Use `at` to run `rpm -qa > /root/rpms.txt` in exactly 5 minutes |
+| LAB | [Scheduling Jobs (systemd timer, Mon–Fri 2 AM)](https://github.com/kelvintechnical/scheduling-jobs-systemd-timer) | `systemd.timer`, `OnCalendar=Mon..Fri *-*-* 02:00:00`, `systemctl daemon-reload`, `systemctl enable --now`, `journalctl -u`, `logger` — Build a `.timer` + `.service` unit pair that writes "hello folks" to syslog every weekday at 2 AM as a non-root user |
 
 ---
 
