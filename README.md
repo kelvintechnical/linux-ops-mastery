@@ -123,7 +123,7 @@ Labs organized by official RHCSA EX200 exam objectives.
 | 12 | [Creating Nested Directories](https://github.com/kelvintechnical/creating-nested-directories) | `mkdir -p` — Create a long nested directory structure in a single command |
 | 13 | [Creating Command Aliases](https://github.com/kelvintechnical/creating-command-aliases) | `alias` — Map a custom shortcut to a standard command and understand how aliases can override defaults |
 | 14 | [File Searching with find](https://github.com/kelvintechnical/searching-with-find) | `find` — Search the filesystem for specific files by name starting from root or a specific subdirectory |
-| 15 | Instant File Searching with locate *(coming soon)* | `locate`, `updatedb` — Run the manual database update script and use `locate` to instantly find files |
+| 15 | [Instant File Searching with locate](https://github.com/kelvintechnical/searching-with-locate) | `locate`, `updatedb` — Run the manual database update script and use `locate` to instantly find files |
 | 16 | [Search for a String and Save Output](https://github.com/kelvintechnical/search-string-save-output) | `grep`, `tee`, `>` — Search for strings inside config files and experiment with regular expressions |
 | 17 | [Find and Save Config Files](https://github.com/kelvintechnical/find-save-config-files) | `find -type f -name -user`, `2>/dev/null` — Search the filesystem for specific files by name |
 | 18 | [Locate Command Documentation](https://github.com/kelvintechnical/locate-command-docs) | `find /usr/share/doc`, `rpm -qf`, `rpm -qd` — Find documentation when you only know a keyword or purpose |
