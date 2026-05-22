@@ -4,17 +4,25 @@ FUTURE LABS
 
 Bullet list of standalone labs to build next, sourced from:
 
-  - ckaexamguide.txt     (CKA exam objectives)
-  - rhcsasample.txt      (RHCE Practice Exams 1, 2, 3 — file is
-                          mislabeled; content is Ansible/RHCE)
-  - samplerhcsa2.txt     (RHCSA sample exam #2)
-  - samplerhcsa3.txt     (RHCSA sample exam #3)
-  - samplerhcsa4.txt     (RHCSA sample exam #4)
+  - ckaexamguide.txt                       (CKA exam objectives)
+  - ckadstudyguide.txt                     (CKAD exam objectives — Appendix B
+                                            of the CKAD Study Guide, all five
+                                            curriculum domains)
+  - rhcsasample.txt                        (RHCE Practice Exams 1, 2, 3 — file is
+                                            mislabeled; content is Ansible/RHCE)
+  - samplerhcsa2.txt                       (RHCSA sample exam #2)
+  - samplerhcsa3.txt                       (RHCSA sample exam #3)
+  - samplerhcsa4.txt                       (RHCSA sample exam #4)
+  - PerfectScorerPracticeExams.txt         (RHCSA 9 & 10 FULL PRACTICE EXAMS
+                                            BY A PERFECT SCORER — five complete
+                                            mock exams across Node1 + Node2)
 
 Already-completed and placeholder labs in linux-ops-mastery
 (as of 2026-05-22) have been excluded — no duplicates.
 
-Date generated: 2026-05-22
+Date generated: 2026-05-22 (originally)
+Updated:        2026-05-22 (added PerfectScorerPracticeExams.txt
+                            section, organized by README topic)
 
 
 ----------------------------------------------------------------
@@ -381,15 +389,985 @@ Troubleshooting:
      busybox, trace via iptables -t nat -L KUBE-SERVICES)
 
 
+================================================================
+RHCSA 9 & 10  —  from PerfectScorerPracticeExams.txt
+                  (mini labs, organized by README topic section)
+================================================================
+
+These are extracted from the five complete mock exams in
+"RHCSA 9 & 10 FULL PRACTICE EXAMS BY A PERFECT SCORER.txt".
+Each entry below maps to a distinct exam task suitable for a
+standalone 20-task lab in the existing linux-ops-mastery format.
+
+Labs that duplicate items already in the README (e.g. tuning
+profile, basic static IP) or already listed above (e.g. XFS LV
+on /mnt/lvfs1, manual hostname edit) have been excluded.
+
+
+----------------------------------------------------------------
+🌐  NETWORKING
+----------------------------------------------------------------
+
+- Configure Static IPv4 with Specific Host Address
+    (nmcli con mod ens-XX ipv4.addresses 192.168.50.10/24,
+     ipv4.gateway 192.168.50.1, ipv4.dns "8.8.8.8 8.8.4.4",
+     ipv4.method manual, connection.autoconnect yes,
+     bring up and prove persistence after reboot — focused
+     practice variant of the existing static-IP lab)
+
+- Configure Static IPv6 Address with DNS Search Domain
+    (ipv6.addresses fd02::42/64, ipv6.gateway fd02::1,
+     ipv6.dns fd02::222, ipv6.dns-search example.local,
+     hostname node1.example.local — the IPv6 counterpart
+     to the static-IPv4 lab)
+
+- Dual-Stack IPv4 + IPv6 with Local Host Resolution
+    (configure both IPv4 192.168.56.25/24 and IPv6
+     fd12:3456:789a:1::25/64 on one interface, set hostname
+     node1.lab3.example.net, add `/etc/hosts` entry so the
+     short and FQDN both resolve locally — combines nmcli,
+     hostnamectl, and getent in one workflow)
+
+
+----------------------------------------------------------------
+📦  PACKAGE MANAGEMENT & REPOSITORIES
+----------------------------------------------------------------
+
+- Configure Local Repository from Installation ISO Media
+    (mount RHEL 9 ISO at /repo with a persistent loop entry in
+     /etc/fstab, create /etc/yum.repos.d/local-baseos.repo and
+     local-appstream.repo pointing at file:///repo/BaseOS and
+     /repo/AppStream with gpgcheck=0, prove `dnf install`
+     works without internet access)
+
+- Configure Two HTTP-Hosted Repositories from a Network Source
+    (create BaseOS and AppStream .repo files pointing at
+     http://repo.example.com/rhel9/{BaseOS,AppStream} with
+     enabled=1 and appropriate gpgcheck, prove with
+     `dnf repolist enabled` and a `dnf install -y httpd`
+     smoke test)
+
+
+----------------------------------------------------------------
+🔥  FIREWALL (firewalld)
+----------------------------------------------------------------
+
+- Open Multiple Services at Once for Web Hosting
+    (firewall-cmd --permanent --add-service={ssh,http,https},
+     reload, verify with `--list-services`, prove
+     external connectivity to each service from a second host)
+
+- Open a Non-Standard SSH Port + Move SSH There
+    (firewalld --add-port=88/tcp --permanent, then
+     sshd_config Port 88, semanage port -a -t ssh_port_t -p
+     tcp 88, systemctl restart sshd, prove `ssh -p 88` works
+     from a remote host while port 22 is now closed)
+
+
+----------------------------------------------------------------
+🔗  REMOTE ADMINISTRATION & SSH
+----------------------------------------------------------------
+
+- Configure SSH to Listen on a Custom Port
+    (sshd_config Port 88, SELinux semanage port -a -t
+     ssh_port_t -p tcp 88, firewall-cmd --add-port=88/tcp
+     --permanent, systemctl restart sshd — three-system
+     coordination that students often miss the SELinux piece)
+
+- Permit Root SSH Login with Authentication-Failure Lockout
+    (sshd_config PermitRootLogin yes + MaxAuthTries 3,
+     restart sshd, demonstrate that the 4th failed attempt
+     is rejected and earlier attempts produce
+     `pam_unix(sshd:auth): authentication failure` lines
+     in `journalctl -u sshd`)
+
+- Passwordless SSH from Root to Remote Root
+    (ssh-keygen -t ed25519 -N "" on Node1,
+     ssh-copy-id root@Node2, verify with
+     `ssh root@Node2 hostname` returning the remote
+     hostname without a password)
+
+- Key-Based SSH from a User to a Remote Root on a Custom Port
+    (as user marvin on Node2: ssh-keygen, ssh-copy-id -p 88
+     root@Node1, prove `ssh -p 88 root@Node1` succeeds without
+     a password — combines key-auth with the custom-port lab)
+
+- Configure Local /etc/hosts Name Resolution
+    (add `192.168.56.25 node1.lab3.example.net node1` so
+     `ping node1` resolves locally, persists across reboots,
+     and `ssh node1` works from the same box without DNS)
+
+- Secure File Transfer with scp Preserving Attributes
+    (scp -p /etc/fstab user@host:~/ — note `-p` preserves
+     timestamps, mode, but NOT ownership across users; for
+     ownership-preserving copies use `rsync -avz --chown` or
+     a privileged target user, verify with `stat` remote-side)
+
+
+----------------------------------------------------------------
+🌍  WEB SERVICES (Apache)
+----------------------------------------------------------------
+
+- Apache Listening on a Non-Standard TCP Port
+    (Listen 85 in /etc/httpd/conf.d/port.conf drop-in,
+     semanage port -a -t http_port_t -p tcp 85,
+     firewall-cmd --add-port=85/tcp --permanent,
+     curl http://localhost:85 returns the welcome page —
+     port 82 and port 85 are both common exam variants)
+
+- Apache Default Page + Custom Content Directory
+    (modify /var/www/html/index.html with welcome text,
+     create /web/practice.html with custom content,
+     httpd.conf `<Directory /web> Require all granted`,
+     semanage fcontext httpd_sys_content_t for `/web(/.*)?`,
+     restorecon -Rv /web, curl both URLs successfully)
+
+- Apache Subdirectory Routing with SELinux Inheritance
+    (mkdir /var/www/html/route_station, drop index.html
+     with "Apache Routing Station" text, confirm the new
+     directory inherited httpd_sys_content_t from the parent,
+     curl http://Node1/route_station/index.html returns the
+     content — the "inheritance works automatically" lab)
+
+- Password-Protected Apache Directory with htpasswd
+    (htpasswd -c /etc/httpd/.htpasswd alice, <Directory>
+     AuthType Basic + AuthUserFile + Require valid-user,
+     prove `curl -u alice:pw http://localhost/protected/`
+     succeeds while anonymous curl returns HTTP 401)
+
+- Apache SSL Virtual Host with Self-Signed Certificate
+    (openssl req -x509 -newkey rsa:2048 -nodes -keyout
+     /etc/pki/tls/private/site.key -out
+     /etc/pki/tls/certs/site.crt -days 365 -subj '/CN=...',
+     ssl.conf SSLCertificateFile/SSLCertificateKeyFile,
+     firewall-cmd --add-service=https, curl -k
+     https://localhost succeeds)
+
+
+----------------------------------------------------------------
+👥  USER & GROUP MANAGEMENT
+----------------------------------------------------------------
+
+- Group with Fixed GID + User with Primary/Secondary Groups
+    (groupadd -g 3500 admins, groupadd users, useradd -u 3455
+     -g admins -G users harry, prove with `id harry` showing
+     uid=3455, gid=3500(admins), groups=admins,users)
+
+- User Without Interactive Shell (nologin) That Still Authenticates
+    (useradd -s /sbin/nologin sarah, set password,
+     prove ssh login is rejected with "This account is
+     currently not available" but PAM-level password auth
+     still succeeds for password-only services)
+
+- User With Explicit (Hand-Built) Home Directory
+    (useradd -M bruce, mkdir /home/bruce, cp -av
+     /etc/skel/. /home/bruce, chown -R bruce:bruce
+     /home/bruce, chmod 700 /home/bruce — the
+     "I built the home dir myself" path that the exam
+     sometimes requires)
+
+- Force Password Change at Next Login
+    (passwd --expire liam (or chage -d 0 liam), prove with
+     `chage -l liam` showing "Password must be changed",
+     then ssh in and observe the forced-change prompt
+     without modifying any other aging settings)
+
+- Set Hard Account Expiry Date
+    (chage -E 2029-01-01 lina, or
+     `chage -E $(date -d '+7 days' +%Y-%m-%d) marvin` for
+     relative expiry, prove with `chage -l USER` showing
+     the date — exam often uses `12 June 2029` style)
+
+- Welcome.txt Auto-Created for Every New User via /etc/skel
+    (echo "Welcome Onboard!" > /etc/skel/Welcome.txt,
+     useradd a new user, verify Welcome.txt appears in
+     their home directory with the right ownership and
+     mode — the canonical /etc/skel demonstration)
+
+- Configure System-Wide Password Aging Policy
+    (edit /etc/login.defs: PASS_MAX_DAYS 30, PASS_MIN_LEN 9,
+     prove the policy applies only to users created
+     *after* the edit; existing users are unaffected unless
+     you also `chage --maxdays 30 USER`)
+
+- Reset Root Password from GRUB Boot Menu (rd.break Path)
+    (edit GRUB at boot, append `rd.break` to kernel
+     command line, ctrl-x, mount -o remount,rw /sysroot,
+     chroot /sysroot, passwd root, touch /.autorelabel,
+     two `exit`s, reboot — the canonical "I forgot the
+     root password" recovery path)
+
+
+----------------------------------------------------------------
+🔒  PERMISSIONS, SPECIAL BITS & ACLs
+----------------------------------------------------------------
+
+- File Copy with Combined Ownership + Permissions + ACL + Future-User Safety
+    (cp /etc/fstab /var/tmp, chown root:admins, chmod 644,
+     setfacl -m u:harry:rw,u:bruce:r,u:natasha:--- on the
+     file, prove "other" still has read so future users
+     automatically get access — the all-in-one exam scenario)
+
+- ACL with Mixed Read/Write/Read-Only Per User
+    (cp /etc/hosts /srv/project/hosts_copy, setfacl
+     u:emma:rw,u:liam:rw,u:sophie:r,m::rw, default ACL
+     on the parent dir for inheritance, verify with
+     `getfacl` and a `sudo -u sophie tee` test)
+
+- Per-User Default umask via ~/.bashrc
+    (echo 'umask 0577' >> /home/bruce/.bashrc — files
+     become `-r--------`, directories become `dr-x------`
+     for the owner only, prove with `touch ~/test &&
+     stat -c '%a' ~/test` showing 400 and `mkdir` 500)
+
+- Collaborative Group Directory with SGID + Sticky Bit
+    (mkdir /data/engineers, chown root:engineers, chmod
+     3770 — SGID for group ownership inheritance, sticky
+     for owner-only delete, prove with two users creating
+     and failing to delete each other's files)
+
+- Restricted Directory Where Owner Has chmod But No rwx
+    (mkdir /data/engineers, chown tom:engineers, chmod
+     g+rwx,o-rwx,u-rwx — prove tom can still `chmod`
+     because he's the owner even though he cannot read
+     or write the contents; group members have full access)
+
+
+----------------------------------------------------------------
+🛂  SUDO & PRIVILEGE
+----------------------------------------------------------------
+
+- Full Sudo for a User + NOPASSWD for an Entire Group
+    (visudo: `john ALL=(ALL) ALL` + `%admins ALL=(ALL)
+     NOPASSWD: ALL`, prove via `sudo -l` per user, prove
+     password prompt for john but no prompt for an
+     admins member)
+
+- Granular Sudo: Allow passwd Except Root Password Changes
+    (visudo: `brian ALL=(ALL) /usr/bin/passwd [A-Za-z]*,
+     !/usr/bin/passwd root, !/usr/bin/passwd ""` — the
+     classic deny-list pattern that prevents root password
+     hijacking via sudo)
+
+- Privileged User with Account Expiry
+    (useradd -u 4545 marvin, passwd marvin, add to wheel
+     for sudo, chage -E $(date -d '+7 days' +%F) marvin
+     so the account self-deletes 7 days later — prove
+     with `chage -l marvin` and `sudo -l -U marvin`)
+
+
+----------------------------------------------------------------
+📁  NFS & AUTOFS / FILESYSTEM MOUNTS
+----------------------------------------------------------------
+
+- Configure a Node as an NFS Server (companion lab)
+    (dnf install nfs-utils, mkdir /exports/home, /etc/exports
+     `/exports/home *(rw,sync,no_root_squash)`, exportfs
+     -rav, systemctl enable --now nfs-server, firewall-cmd
+     --add-service={nfs,mountd,rpc-bind}, showmount -e
+     localhost — the server-side prep most exam autofs
+     questions assume)
+
+- AutoFS Indirect Map for Remote Home Dirs with 60s Timeout
+    (autofs auto.master.d/homes.autofs entry
+     `/homes/remote /etc/auto.homes --timeout=60`,
+     /etc/auto.homes with `* server.example.com:/exports/home/&`,
+     prove `cd /homes/remote/john` triggers mount on demand
+     and unmounts after 60s of inactivity)
+
+- AutoFS Direct Map for /mnt/shared with 5-Minute Timeout
+    (auto.master.d/direct.autofs `/- /etc/auto.direct
+     --timeout=300`, /etc/auto.direct
+     `/mnt/shared -rw server.example.com:/srv/shared`,
+     prove `cd /mnt/shared` triggers the mount)
+
+
+----------------------------------------------------------------
+⏰  SCHEDULED TASKS (cron, at, systemd timers)
+----------------------------------------------------------------
+
+- User Cron Job at 12:45 AM Daily
+    (as user bruce: crontab -e
+     `45 0 * * * /usr/bin/echo "EX200 Practice Test!"
+     >> $HOME/cron.log`, verify with `crontab -l -u bruce`
+     and tail the log after the firing time)
+
+- Recurring User Cron Job Every 2 Minutes
+    (as user linda: `*/2 * * * * logger "RHCSA EX200
+     Practice Test 2 In Progress!"`, verify with
+     `journalctl --since "5 minutes ago"` showing the
+     line appearing every 2 minutes)
+
+- Weekday-Only Cron Job at 5:45 AM
+    (as user emma: `45 5 * * 1-5 logger "Good morning!
+     Work day about to start."`, verify the day-of-week
+     range fires Mon–Fri only)
+
+- Midnight-Weekend Root Cron Job to Clean Empty Files in /tmp
+    (root crontab: `0 0 * * 6,0 find /tmp -maxdepth 1
+     -type f -empty -delete`, dry-run first with -print,
+     verify it fires only on Saturday and Sunday)
+
+- One-Time at Job for a Specific Wall-Clock Time
+    (as user russ: `echo 'echo "EX200 Mock Practice 1
+     Complete!" >> $HOME/practice.log' | at 21:30`,
+     verify with `atq` and confirm execution after the
+     time passes)
+
+- One-Time at Job One Hour from Now Writing to journald
+    (as user alina: `echo 'logger "Making Progress with
+     EX200!"' | at now + 1 hour`, verify the journal entry
+     under alina's UID after the hour elapses)
+
+
+----------------------------------------------------------------
+🔧  ESSENTIAL TOOLS & FILE OPERATIONS
+----------------------------------------------------------------
+
+- Find Files by Size Range and Copy Preserving All Attributes
+    (find /etc -type f -size +5M -size -10M -exec cp
+     --preserve=ownership,mode,timestamps,context {}
+     /find/largefiles/ \;, prove with `stat -c '%A %U:%G %y'`
+     that originals match the copies)
+
+- Find Files Owned by a User Within a Size Range
+    (find / -xdev -user linda -type f -size +3M -size
+     -50M 2>/dev/null -exec cp -a {} /root/linda-files/ \;,
+     suppresses permission-denied noise gracefully)
+
+- Find Configuration Files by Name and Owner
+    (find /etc -type f -name '*.conf' -user root >
+     /root/config_files, verify with `wc -l` and spot-check
+     the matches)
+
+- Find Files Modified More Than 30 Days Ago and Copy with Hierarchy
+    (find /etc -type f -mtime +30 -exec cp --parents
+     --preserve=all {} /tmp/etc_backup/ \; — the
+     `--parents` flag preserves the directory layout
+     inside the destination)
+
+- Find Directories with the SUID Bit Set + Copy with Attributes
+    (find / -xdev -type d -perm -4000 2>/dev/null
+     -exec cp -a {} /security_backup/ \; — useful pattern
+     for security audits and forensic copies)
+
+- Find Directories by Size Range and Save Long Listing
+    (find / -xdev -type d -size +50k -size -100k
+     2>/dev/null | xargs ls -ld > /root/moderate_dir_list.txt
+     — note `find` reports the *directory entry size*, not
+     the recursive contents size)
+
+- Hard and Symbolic Link Lifecycle Demonstration
+    (touch report.txt with content, ln report.txt
+     report_hard.txt, ln -s report.txt report_symlink.txt,
+     rm report.txt — show that the hard link still has
+     the data but the symlink is now dangling; canonical
+     inode-vs-path lesson)
+
+
+----------------------------------------------------------------
+📄  TEXT FILE MANAGEMENT
+----------------------------------------------------------------
+
+- Extract Lines Containing a String Preserving Order
+    (grep 'bin' /etc/passwd > /root/bin_lines, prove the
+     line order matches the source with `grep -n`)
+
+- Find Exact Word Matches with grep -w
+    (grep -wE 'bin' /etc/passwd > /root/bin_users.txt — the
+     `-w` flag prevents matches inside longer words like
+     `sbin`, `binary`, or `roundbin`)
+
+- Search Apache Configuration for Listen Directives
+    (grep '^Listen' /etc/httpd/conf/httpd.conf >
+     /root/httpd_listen.txt, the `^` anchor excludes
+     commented-out Listen lines)
+
+
+----------------------------------------------------------------
+🗜  ARCHIVES & COMPRESSION
+----------------------------------------------------------------
+
+- Create an xz-Compressed Tar Archive
+    (tar -cJvf /archives/config_backup.tar.xz /etc,
+     restore with tar -xJvf into /restore — the
+     highest-compression-ratio option for backup archives)
+
+- Create an Uncompressed Standard Tar Archive
+    (tar -cvf /root/etc_opt.bak.tar /etc /opt — the
+     no-compression variant for streaming to other
+     compressors or when source data is already compressed)
+
+- Restore a Tar Archive into a Specific Destination Directory
+    (mkdir -p /root/restored_tmp && tar -xzvf /root/tmp.tgz
+     -C /root/restored_tmp, prove the directory structure
+     was preserved with `find /root/restored_tmp -maxdepth 2`)
+
+
+----------------------------------------------------------------
+⏰  SYSTEM TIME & LOCALE
+----------------------------------------------------------------
+
+- Set System Timezone via timedatectl
+    (timedatectl set-timezone Europe/London — also
+     practice America/New_York and Asia/Tokyo variants;
+     verify with `timedatectl` and `date` showing the
+     correct UTC offset)
+
+- Configure Chrony with a Specific NTP Server
+    (edit /etc/chrony.conf: comment out the default pool,
+     add `server utility.ntp.org iburst` or
+     `server server.example.com iburst`, systemctl restart
+     chronyd, `chronyc sources -v` showing `^*` reachability
+     on the configured server)
+
+
+----------------------------------------------------------------
+🥾  BOOT PROCESS & GRUB
+----------------------------------------------------------------
+
+- Enable Verbose Boot by Removing `quiet` and `rhgb`
+    (edit /etc/default/grub, remove `quiet rhgb` from
+     GRUB_CMDLINE_LINUX, grub2-mkconfig -o
+     /boot/grub2/grub.cfg, reboot and watch the verbose
+     systemd boot log scroll by — useful for boot
+     troubleshooting)
+
+
+----------------------------------------------------------------
+💾  STORAGE MANAGEMENT
+----------------------------------------------------------------
+
+- Create an MBR Partition with ext4 Mounted by LABEL
+    (parted /dev/vdb mklabel msdos, mkpart primary ext4
+     1MiB 2GiB, mkfs.ext4 -L MYDEV /dev/vdb1, fstab
+     `LABEL=MYDEV /mnt/dev ext4 defaults 0 2`, prove
+     persistence after reboot)
+
+- Create a Companion LVM-Type Partition on the Same Disk
+    (parted /dev/vdb mkpart primary 2GiB 7GiB, set 2
+     lvm on, prove with `fdisk -l` showing partition
+     type `Linux LVM` — preps the disk for an LVM lab)
+
+
+----------------------------------------------------------------
+🗂  LVM (Logical Volume Management)
+----------------------------------------------------------------
+
+- LV by Extent Count in a VG with Custom PE Size (ext4 variant)
+    (vgcreate -s 8M vgstore /dev/vdb1, lvcreate -l 50
+     -n lvdata vgstore — produces a 400 MiB LV,
+     mkfs.ext4, mount persistently on /mnt/data —
+     the ext4 sibling of the existing XFS lv1/vg1 lab)
+
+- LV Sized as a Percentage of the VG with XFS + UUID Mount
+    (lvcreate -l 50%VG -n mylv myvg, mkfs.xfs, capture
+     UUID with blkid, fstab UUID entry on /mnt/mylv —
+     proves the percent-of-VG sizing syntax)
+
+- LV Sized as a Percentage of Free Space with XFS
+    (lvcreate -l 75%FREE -n lvstore vgdata, mkfs.xfs,
+     fstab UUID entry on /mnt/lvm — the "use most of
+     what's left" sizing pattern, distinct from %VG)
+
+- LV with Extent Count + Reserved Free Extents Constraint
+    (vgcreate -s 16M team_vg /dev/sdb1, lvcreate -l 40
+     -n team_lv team_vg while leaving at least 10 free
+     extents — proves you read the constraint and didn't
+     accidentally max out the VG)
+
+- Online Resize LV to a New Total Extent Count + Grow ext4
+    (lvresize -l 85 /dev/vgstore/lvdata && resize2fs
+     /dev/vgstore/lvdata, prove `df -h /mnt/data` shows
+     the new size without unmounting — `-l 85` means
+     "exactly 85 extents total", not "add 85")
+
+- Add Extents to an Existing LV + Grow XFS Online
+    (lvextend -l +8 /dev/team_vg/team_lv && xfs_growfs
+     /mnt/team_lv, same idea as the previous lab but
+     expressed as "add N extents" instead of "total
+     N extents")
+
+- Create Swap from Remaining VG Free Space
+    (lvcreate -L 500M -n swap_lv team_vg, mkswap
+     /dev/team_vg/swap_lv, swapon, fstab UUID entry
+     `swap swap defaults 0 0`, prove with `swapon --show`)
+
+
+----------------------------------------------------------------
+🛡️  SELinux
+----------------------------------------------------------------
+
+- Set SELinux to Permissive Mode Persistently
+    (edit /etc/selinux/config: SELINUX=permissive,
+     `setenforce 0` for immediate effect, prove with
+     `getenforce` and reboot to verify persistence — the
+     classic exam first-question check)
+
+- Apply Recursive SELinux Context from a Reference Directory
+    (mkdir /dir && mkdir /dir/subdir{1,2}, semanage fcontext
+     -a -e /etc /dir, restorecon -RFv /dir, prove with
+     `ls -Zd /dir/subdir1` that contexts match `ls -Zd
+     /etc/skel` exactly — the `-e` equivalency directive)
+
+- Configure Apache to Serve from a Non-Default Directory
+    (mkdir /web, drop practice.html, semanage fcontext
+     -a -t httpd_sys_content_t '/web(/.*)?', restorecon
+     -Rv /web, prove `ls -Z` shows the right type and
+     `curl http://localhost/web/practice.html` succeeds)
+
+- Toggle the httpd_can_network_connect Boolean Persistently
+    (setsebool -P httpd_can_network_connect on, prove
+     `getsebool httpd_can_network_connect` shows on, reboot
+     and re-verify — the canonical SELinux boolean lab)
+
+
+----------------------------------------------------------------
+⚙️  SYSTEMD & SERVICES
+----------------------------------------------------------------
+
+- Set the Default Boot Target to multi-user.target
+    (systemctl set-default multi-user.target, systemctl
+     isolate multi-user.target for immediate effect, prove
+     with `systemctl get-default` and a reboot — the
+     "disable the GUI" exam variant)
+
+
+----------------------------------------------------------------
+⚡  SYSTEM PERFORMANCE & TUNING
+----------------------------------------------------------------
+
+- Apply the virtual-guest Tuning Profile
+    (tuned-adm profile virtual-guest — the
+     virtualization-efficiency profile for VMs, verify with
+     `tuned-adm active`)
+
+- Apply a Power-Saving / Virtualization-Balanced Profile
+    (tuned-adm profile balanced-battery or
+     virtual-guest-powersave, compare with `tuned-adm
+     recommend` first, prove the active profile changed)
+
+
+----------------------------------------------------------------
+🐳  CONTAINERS & FLATPAK
+----------------------------------------------------------------
+
+- Authenticated Pull from registry.redhat.io
+    (podman login registry.redhat.io with developer.redhat.com
+     credentials, pull ubi9/ubi, prove with `podman images`
+     and `podman run --rm ubi9/ubi cat /etc/redhat-release`)
+
+- Build a UBI Image from a Single-Line Containerfile
+    (Containerfile with just `FROM registry.redhat.io/ubi8/
+     ubi-init`, `podman build -t ubigreeter`, podman run
+     --rm ubigreeter — the simplest possible custom image)
+
+- Rootless HTTP Container with Bind-Mounted DocumentRoot
+    (podman run -d --name webcon -p 8080:80 -v
+     /var/www/html:/usr/local/apache2/htdocs:Z
+     docker.io/library/httpd, echo content > index.html,
+     curl localhost:8080 returns the content — the `:Z`
+     SELinux relabel flag is the main lesson)
+
+- Rootless Database Container with Env Vars + Persistent Data
+    (as user ray: podman run -d --name inventorydb -p
+     3308:3306 -e MYSQL_ROOT_PASSWORD=InvPass123 -v
+     /home/ray/inventory_data:/var/lib/mysql:Z
+     registry.redhat.io/rhel9/mariadb-1011, prove with
+     `podman exec inventorydb mysql -uroot
+     -p"InvPass123" -e 'SHOW DATABASES;'`)
+
+- Rootless Nginx with Custom Config + DocumentRoot Mounts
+    (as user david: podman run -d --name mynginx -p 8080:80
+     -v /srv/nginx/html:/usr/share/nginx/html:Z -v
+     /srv/nginx/conf:/etc/nginx/conf.d:Z
+     docker.io/library/nginx, prove SELinux context with
+     `ls -Z /srv/nginx/html` shows `container_file_t`)
+
+- Multi-Mount Rootless Container with Two Bind Mounts + Port
+    (podman run -d --name ubicon -p 8089:8089 -v
+     /opt/out:/opt/in:Z -v /opt/send:/opt/receive:Z
+     registry.redhat.io/ubi9/ubi sleep infinity, prove both
+     bind mounts work and the port is reachable — the
+     two-volume variant of the bind-mount lab)
+
+- Add Both Flathub and RHEL Flatpak Remotes
+    (flatpak remote-add --if-not-exists flathub
+     https://flathub.org/repo/flathub.flatpakrepo,
+     flatpak remote-add --if-not-exists rhel
+     https://flatpaks.redhat.io/rhel.flatpakrepo,
+     verify with `flatpak remotes`)
+
+- Install Flatpak Applications (Firefox + VLC + GIMP)
+    (flatpak search firefox to find the app ID, flatpak
+     install -y flathub org.mozilla.firefox, repeat for
+     VLC and GIMP, verify with `flatpak list --app`)
+
+- User-Scoped vs System-Wide Flatpak Installation
+    (compare `flatpak install --user flathub
+     org.mozilla.firefox` vs root `flatpak install --system`,
+     prove `flatpak list --user` vs `--system` show
+     different inventories)
+
+- Remove Flatpak Apps, Prune Runtimes, Remove Remote
+    (flatpak uninstall -y org.videolan.VLC org.gimp.GIMP,
+     flatpak uninstall --unused -y, flatpak remote-delete
+     flathub, verify with `flatpak list` and `flatpak
+     remotes` — the full cleanup sequence)
+
+
+----------------------------------------------------------------
+📜  SHELL SCRIPTING & AUTOMATION
+----------------------------------------------------------------
+
+- Countdown Timer Script with Argument or Interactive Prompt
+    (countdown.sh: if `$# -eq 1`, COUNT=$1; else read -p;
+     `while [ $COUNT -gt 0 ]; do echo "$COUNT seconds
+     remaining..."; sleep 1; ((COUNT--)); done`; final
+     message "Maintenance begins now." — installed to
+     /usr/local/bin so it's on $PATH for every user)
+
+- Sum of an Unknown Number of Integer Arguments
+    (sum.sh: `$# -eq 0` → exit 1 with "No arguments
+     provided. Exiting."; else `for n in "$@"; do
+     ((total+=n)); done; echo "Sum is $total"` — teaches
+     `$@` iteration and arithmetic expansion)
+
+- Find Users by Login Shell and Save the List
+    (bash_users.sh: `getent passwd | awk -F: '$7=="/bin/bash"
+     {print $1}' > /root/bash_users.txt`, chmod +x,
+     re-runnable so the file is always current)
+
+- Extract Login Shells of the Last 5 Users in /etc/passwd
+    (recent_users.sh: `tail -5 /etc/passwd | awk -F:
+     '{printf "User %s has login shell %s\n", $1, $7}'`,
+     teaches awk's printf formatting)
+
+- Per-User Login Script via .bash_profile
+    (as user john: append `grep bash /etc/passwd >
+     ~/bash-users.txt` to ~/.bash_profile — every
+     interactive login refreshes the file; user-scoped,
+     doesn't touch /etc/profile)
+
+- Three-Way Argument-Based Script with Multi-Arg Rejection
+    (team.sh: $# > 1 → "Please enter just one team" exit 5;
+     $1 == "ops" → "Team Operations is on duty.";
+     $1 == "dev" → "Developers are coding now."; else
+     usage message — the full validation matrix beyond
+     the simpler RHCSA/RHCE argument-script lab)
+
+
+----------------------------------------------------------------
+🔄  PROCESS MANAGEMENT
+----------------------------------------------------------------
+
+- Start a Background Process with a Specific nice Value
+    (nice -n 10 sleep 3600 &, capture $! into a variable,
+     verify nice value with `ps -o pid,ni,cmd $!`)
+
+- Renice a Running Process to a Higher Priority
+    (renice -n -5 -p $PID — note this requires root for
+     a negative niceness, prove with `ps -o pid,ni` before
+     and after; teaches the "negative is higher priority"
+     counter-intuitive convention)
+
+- Lowest-Priority Background Task on User Login
+    (as user lina: in ~/.bash_profile add `nice -n 19
+     sleep infinity &`, verify after fresh login that
+     the process exists with `ps -o pid,ni -u lina`
+     showing `19`)
+
+- Clean Termination of a Background Process
+    (kill $PID for SIGTERM first, verify exit, fall back
+     to kill -9 only on hung processes — teaches the
+     graceful-shutdown idiom and the difference between
+     SIGTERM and SIGKILL)
+
+
+----------------------------------------------------------------
+📖  DOCUMENTATION TOOLS
+----------------------------------------------------------------
+
+- Locate Command Documentation Under /usr/share/doc
+    (find /usr/share/doc -iname '*passwd*', display the
+     path of one matching file, less or cat to confirm
+     relevance, prove the package owns it with `rpm -qf`)
+
+
+----------------------------------------------------------------
+🌱  ENVIRONMENT & SHELL CONFIGURATION
+----------------------------------------------------------------
+
+- System-Wide Environment Variable via /etc/profile.d
+    (cat > /etc/profile.d/sys_tag.sh <<'EOF'
+     export SYS_TAG="RHCSA v9 EX200 PRACTICE EXAMS COMPLETED!"
+     EOF; chmod +x, prove every new shell has the
+     variable with `printenv SYS_TAG`, persistent
+     across reboots and available to all users)
+
+
+================================================================
+CKAD  —  from ckadstudyguide.txt
+                  (organized by the five official CKAD exam domains)
+================================================================
+
+These labs map to the CKAD curriculum from "Certified Kubernetes
+Application Developer Study Guide" (Appendix B exam review).
+
+CKAD differs from CKA: where CKA focuses on cluster operations,
+CKAD focuses on the *application developer* perspective — Pod
+design patterns, deployment workflows, application observability,
+configuration injection, and traffic management *for your own app*.
+
+Some objectives overlap with the existing CKA section above
+(e.g. ConfigMaps, rolling updates, metrics-server, container logs).
+The CKA labs cover the cluster-admin angle; the CKAD entries
+below add the app-developer angle as separate focused labs.
+
+
+----------------------------------------------------------------
+Application Design and Build  (4 official objectives)
+----------------------------------------------------------------
+
+- Build a Container Image from a Dockerfile/Containerfile
+    (write a Dockerfile FROM python:3.12-slim, COPY app.py,
+     CMD python app.py; `podman build -t myapp:1.0`,
+     push to a local registry, `kubectl run myapp --image=...`,
+     verify with `kubectl describe pod` — teaches the
+     dev-build-push-deploy loop)
+
+- Run a Kubernetes Job (One-Shot Batch Task)
+    (kind: Job spec with completions: 5, parallelism: 2,
+     backoffLimit: 4, container command runs to completion;
+     verify with `kubectl get jobs` and
+     `kubectl logs job/myjob`)
+
+- Schedule a Kubernetes CronJob
+    (kind: CronJob with schedule: "*/5 * * * *", jobTemplate
+     that runs `date` and echoes to stdout, prove with
+     `kubectl get cronjob` and `kubectl get jobs --watch`
+     showing periodic Job creations)
+
+- Multi-Container Pod: Sidecar Logging Pattern
+    (main container writes to /var/log/app.log; sidecar
+     `busybox` runs `tail -F /var/log/app.log`; shared
+     emptyDir volume mounted at /var/log in both; verify
+     with `kubectl logs POD -c sidecar` showing main's logs)
+
+- Multi-Container Pod: Init Container for Pre-Start Setup
+    (initContainers run a `wget` to fetch a config file
+     into a shared emptyDir; main container starts only
+     after init succeeds; verify with
+     `kubectl describe pod` showing Init Containers
+     completed before main container started)
+
+- Persistent Volume + PVC Workflow End-to-End
+    (StorageClass-backed PV or static hostPath PV, PVC
+     with accessModes: ReadWriteOnce + storage: 1Gi;
+     Pod consumes the claim; write a file; delete the
+     Pod; new Pod with same PVC sees the file — proves
+     data persistence across Pod restarts)
+
+- Ephemeral Volume Shared Between Containers (emptyDir)
+    (Pod with two containers + emptyDir volume mounted
+     at /shared in both; one writes, the other reads;
+     verify the emptyDir does NOT survive Pod deletion,
+     contrasting with PVC behavior above)
+
+
+----------------------------------------------------------------
+Application Deployment  (3 official objectives)
+----------------------------------------------------------------
+
+- Canary Deployment with One Service + Two Deployments
+    (Deployment v1 replicas: 9 + label `version: v1`,
+     Deployment v2 replicas: 1 + label `version: v2`,
+     Service selector matches only `app: web` so traffic
+     splits roughly 90/10 by replica ratio; promote canary
+     by scaling v2 up and v1 down progressively)
+
+- Blue-Green Deployment via Service Selector Switch
+    (two Deployments labelled `color: blue` and
+     `color: green`, Service selector starts on
+     `color: blue`, deploy green, smoke-test green via
+     a temporary debug Pod, `kubectl patch svc` to flip
+     selector to green — instant cutover, zero in-flight
+     traffic loss)
+
+- Deploy an Application via Helm Chart with Custom Values
+    (`helm repo add bitnami https://charts.bitnami.com/bitnami`,
+     `helm install myapp bitnami/nginx --set
+     service.type=NodePort,replicaCount=3`, prove with
+     `helm list` and
+     `kubectl get all -l app.kubernetes.io/instance=myapp`;
+     practice `helm upgrade --atomic` and `helm rollback`)
+
+
+----------------------------------------------------------------
+Application Observability and Maintenance  (5 official objectives)
+----------------------------------------------------------------
+
+- Configure Liveness + Readiness + Startup Probes Together
+    (Deployment with three probe types pointing at /healthz:
+     livenessProbe httpGet, readinessProbe tcpSocket,
+     startupProbe with failureThreshold: 30 for slow-boot
+     apps; intentionally break /healthz and watch kubelet
+     restart the container; verify readiness gates traffic
+     via Service endpoints with `kubectl get endpoints`)
+
+- Identify Deprecated API Versions and Migrate Manifests
+    (run `kubectl api-resources` and `kubectl api-versions`,
+     identify any apps using removed APIs like
+     `extensions/v1beta1` or old `apiregistration.k8s.io`,
+     rewrite to current `apps/v1`, validate with
+     `kubectl apply --dry-run=server`)
+
+- Debug a Failing Pod End-to-End
+    (`kubectl get pods` shows CrashLoopBackOff;
+     `kubectl describe pod` for events; `kubectl logs
+     --previous` for the crashed instance;
+     `kubectl exec -it POD -- sh` for interactive debug;
+     ephemeral debug container via `kubectl debug` for
+     distroless images; `kubectl port-forward` to test
+     from outside the cluster)
+
+
+----------------------------------------------------------------
+Application Environment, Configuration, and Security
+                                          (7 official objectives)
+----------------------------------------------------------------
+
+- Define a Custom Resource Definition and a Custom Resource
+    (kind: CustomResourceDefinition with group, names,
+     versions, openAPIV3Schema validation; create a custom
+     resource of that kind; verify with
+     `kubectl get crd` and `kubectl get <kind>`; foundation
+     for understanding Operators)
+
+- RBAC: Role + RoleBinding for a ServiceAccount
+    (ServiceAccount `read-only`, Role with verbs
+     [get, list, watch] on pods, RoleBinding wiring the
+     SA to the Role; create a Pod with `serviceAccountName:
+     read-only` and verify it can list pods but not create
+     them via `kubectl auth can-i` from inside the Pod)
+
+- Pod Resource Requests and Limits (CPU + Memory)
+    (resources.requests.cpu: 100m, requests.memory: 128Mi,
+     limits.cpu: 500m, limits.memory: 256Mi; deploy a
+     stress-test Pod that exceeds memory limits and watch
+     the OOMKilled event in `kubectl describe pod`)
+
+- ConfigMap Injection: env vs envFrom vs Volume Mount
+    (one ConfigMap with three keys; demonstrate
+     `env.valueFrom.configMapKeyRef` (single key as env
+     var), `envFrom.configMapRef` (all keys as env vars),
+     and `volumes.configMap` + `volumeMounts` (each key
+     becomes a file); show all three patterns in one
+     Pod manifest)
+
+- Secret Patterns: Env Injection vs Mounted File
+    (`kubectl create secret generic db --from-literal=
+     password=s3cret`, inject as env via
+     `envFrom.secretRef`, also mount at /etc/db with
+     `volumes.secret`; observe that base64 encoding is
+     decoded at injection; secret rotation by re-creating
+     the Secret and restarting the Pod)
+
+- Custom ServiceAccount with Pod Binding
+    (`kubectl create sa myapp-sa`, `kubectl create token
+     myapp-sa` for an explicit short-lived token, Pod
+     spec with `serviceAccountName: myapp-sa`, verify
+     the projected token is mounted at
+     /var/run/secrets/kubernetes.io/serviceaccount/token
+     and works against the API)
+
+- SecurityContext: runAsUser, fsGroup, Capabilities, ROFS
+    (Pod-level securityContext with runAsUser: 1000,
+     runAsGroup: 1000, fsGroup: 2000,
+     readOnlyRootFilesystem: true,
+     capabilities.drop: ["ALL"], capabilities.add:
+     ["NET_BIND_SERVICE"]; verify with
+     `kubectl exec POD -- id` and
+     `kubectl exec POD -- touch /tmp/x` proving the
+     constraints — touch fails on read-only root FS)
+
+
+----------------------------------------------------------------
+Services and Networking  (3 official objectives)
+----------------------------------------------------------------
+
+- NetworkPolicy: Default-Deny + Allow Specific Ingress
+    (NetworkPolicy with podSelector: {} + policyTypes:
+     [Ingress] blocks ALL ingress in a namespace; second
+     NetworkPolicy allows ingress from pods with
+     `role: frontend`; verify with `kubectl exec` into
+     blocked vs allowed pods and `curl` the target —
+     requires a CNI that enforces NetworkPolicy like
+     Calico or Cilium)
+
+- Service Types: ClusterIP vs NodePort vs LoadBalancer vs ExternalName
+    (deploy the same backend, expose via four Service
+     types in turn, verify reachability:
+       ClusterIP — from inside cluster only,
+       NodePort — from any node IP:port,
+       LoadBalancer — via cloud provider integration
+         (or MetalLB on bare metal),
+       ExternalName — DNS alias to api.example.com)
+
+- Ingress with Path-Based Routing and TLS Termination
+    (deploy NGINX Ingress Controller or Traefik, Ingress
+     resource with two backends: /api → backend1,
+     /web → backend2, host: app.example.com; provision
+     a self-signed cert + Secret of type kubernetes.io/tls,
+     attach via `spec.tls`, verify with
+     `curl -k https://app.example.com/api`)
+
+
 ----------------------------------------------------------------
 SUMMARY COUNTS
 ----------------------------------------------------------------
 
-  RHCSA  (from samplerhcsa2.txt)         : 11 future labs
-  RHCSA  (from samplerhcsa3 + 4.txt)     : 13 future labs
-  RHCE   (from rhcsasample.txt)          : 20 future labs
-  CKA    (from ckaexamguide.txt)         : 20 future labs
-  ---------------------------------------------------------
-  TOTAL                                  : 64 future labs
+  RHCSA  (from samplerhcsa2.txt)            : 11 future labs
+  RHCSA  (from samplerhcsa3 + 4.txt)        : 13 future labs
+  RHCE   (from rhcsasample.txt)             : 20 future labs
+  CKA    (from ckaexamguide.txt)            : 20 future labs
+  RHCSA 9 & 10 (PerfectScorerPracticeExams) : 97 future labs
+  CKAD   (from ckadstudyguide.txt)          : 22 future labs
+  -----------------------------------------------------------
+  TOTAL                                     : 183 future labs
+
+  CKAD breakdown by exam domain:
+    Application Design and Build .................. 7
+    Application Deployment ........................ 3
+    Application Observability and Maintenance ..... 3
+    Application Environment, Config & Security .... 7
+    Services and Networking ....................... 3
+
+  RHCSA 9 & 10 breakdown by README section:
+    Networking ................. 3
+    Package Management ......... 2
+    Firewall ................... 2
+    Remote Admin & SSH ......... 6
+    Web Services (Apache) ...... 5
+    User & Group Management .... 8
+    Permissions & ACLs ......... 5
+    Sudo & Privilege ........... 3
+    NFS & AutoFS ............... 3
+    Scheduled Tasks ............ 6
+    Essential Tools & Files .... 7
+    Text File Management ....... 3
+    Archives & Compression ..... 3
+    System Time & Locale ....... 2
+    Boot Process & GRUB ........ 1
+    Storage Management ......... 2
+    LVM ........................ 7
+    SELinux .................... 4
+    Systemd & Services ......... 1
+    System Performance ......... 2
+    Containers & Flatpak ....... 10
+    Shell Scripting ............ 6
+    Process Management ......... 4
+    Documentation Tools ........ 1
+    Environment & Shell ........ 1
 
 
