@@ -572,7 +572,7 @@ Labs organized by official RHCSA EX200 exam objectives.
 
 | # | Lab | Key Commands |
 |---|-----|-------------|
-| 228 | [Launch Named Root Container with Port Mapping](https://github.com/kelvintechnical/Launch-Named-Root-Container-with-Port-Mapping) | `podman run`, `docker run`, `-p`, `--name`, `-it` — Run containerized Linux environments with port mapping and interactive shells |
+| LAB | [Launch Named Root Container with Port Mapping](https://github.com/kelvintechnical/Launch-Named-Root-Container-with-Port-Mapping) | `podman run`, `docker run`, `-p`, `--name`, `-it` — Run containerized Linux environments with port mapping and interactive shells (8-part lab) |
 
 ---
 
