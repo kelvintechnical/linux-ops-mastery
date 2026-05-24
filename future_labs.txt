@@ -1611,93 +1611,26 @@ MASTERING ANSIBLE  Ch 1  —  System Architecture & Design (from ch1.txt)
      supports passing complex/nested arguments)
 
 *** NAVIGATE-AND-DISCOVER REMINDER (see INTENT block at top of file) ***
-The verbatim multiple-choice questions below are kept here as REFERENCE
-ONLY. When the corresponding labs above are actually built, these
-questions MUST be rewritten in template.txt-style navigate-and-discover
-form (open-ended prompt + hint commands like `ansible-doc`, `man`,
-`find`, `grep`, `journalctl`, `<cmd> --help`). The a/b/c/d options below
-are the source-of-truth answer key for the lab author, not the final
-question format the learner should see.
+The question stems below are paraphrased prompts only. When the
+corresponding labs above are actually built, each stem should be
+expanded into a template.txt-style navigate-and-discover lab:
+an open-ended prompt plus hint commands like `ansible-doc`, `man`,
+`find`, `grep`, `journalctl`, or `<cmd> --help` so the learner
+answers by exploring Linux, not by picking a/b/c/d.
 ***********************************************************************
 
-Verbatim Questions from ch1.txt (Mastering Ansible 4th Ed.):
+Question Stems from ch1.txt (paraphrased — use as lab prompts):
 
-  1. Why is an inventory important to Ansible?
-     a) It forms part of Ansible's configuration management database.
-     b) It is used to audit your servers.
-     c) It tells Ansible which servers to perform automation tasks on.
-     d) None of the above.
-
-  2. When working with frequently changing infrastructures (such as
-     public cloud deployments), Ansible users must manually update
-     their inventory on a regular basis. Is this true or false?
-     a) True – this is the only way to do it.
-     b) False – dynamic inventories were invented for precisely this
-        purpose.
-
-  3. By default, Ansible processes hosts in an inventory in which
-     order?
-     a) In alphabetical order
-     b) In lexicographical order
-     c) In random order
-     d) In the order in which they appear in the inventory
-
-  4. By default, Ansible tasks in a simple playbook are executed in
-     which order?
-     a) In the order in which they are written, but each task must
-        be completed on all inventory hosts before the next is
-        executed.
-     b) In the most optimal order.
-     c) In the order in which they are written but only on one
-        inventory host at a time.
-     d) Something else.
-
-  5. Which variable type takes the highest priority, overriding all
-     other variable sources?
-     a) Inventory variables
-     b) Extra variables (from the command line)
-     c) Role defaults
-     d) Variables source via vars_prompt
-
-  6. What is the name of the special Ansible variables that only
-     exist at runtime?
-     a) Special variables
-     b) Runtime variables
-     c) Magic variables
-     d) User variables
-
-  7. If you wanted to access external data from a playbook, what
-     would you use?
-     a) A lookup plugin
-     b) A lookup module
-     c) A lookup executable
-     d) A lookup role
-
-  8. What is Ansible's preferred default transport mechanism for
-     most non-Windows hosts?
-     a) The REST API
-     b) RabbitMQ
-     c) RSH
-     d) SSH
-
-  9. What can inventory variables be used to do?
-     a) Define unique data for each host or group of hosts in an
-        inventory.
-     b) Declare your playbook variables.
-     c) Define connection parameters for your inventory hosts.
-     d) Both (a) and (c).
-
- 10. How can you override the default Ansible configuration on your
-     system?
-     a) By creating an Ansible configuration file in any location,
-        and using the ANSIBLE_CFG environment variable to specify
-        this location.
-     b) By creating a file called ansible.cfg in the current working
-        directory.
-     c) By creating a file in your home directory called
-        ~/.ansible.cfg.
-     d) Any of the above.
-
+   1. Why is an inventory important to Ansible?
+   2. Do Ansible users need to manually update inventory for frequently changing infrastructure?
+   3. By default, in what order does Ansible process hosts in an inventory?
+   4. By default, in what order are Ansible tasks in a simple playbook executed?
+   5. Which variable type has the highest priority?
+   6. What are Ansible's special runtime variables called?
+   7. What would you use to access external data from a playbook?
+   8. What is Ansible's preferred default transport for most non-Windows hosts?
+   9. What can inventory variables be used for?
+  10. How can you override the default Ansible configuration?
 
 
 ================================================================
@@ -1782,78 +1715,26 @@ MASTERING ANSIBLE  Ch 2  —  Migration / Collections / FQCNs (from ch2.txt)
      it appears at galaxy.ansible.com/masterybook/demo)
 
 *** NAVIGATE-AND-DISCOVER REMINDER (see INTENT block at top of file) ***
-The verbatim multiple-choice questions below are kept here as REFERENCE
-ONLY. When the corresponding labs above are actually built, these
-questions MUST be rewritten in template.txt-style navigate-and-discover
-form (open-ended prompt + hint commands like `ansible-doc`, `man`,
-`find`, `grep`, `journalctl`, `<cmd> --help`). The a/b/c/d options below
-are the source-of-truth answer key for the lab author, not the final
-question format the learner should see.
+The question stems below are paraphrased prompts only. When the
+corresponding labs above are actually built, each stem should be
+expanded into a template.txt-style navigate-and-discover lab:
+an open-ended prompt plus hint commands like `ansible-doc`, `man`,
+`find`, `grep`, `journalctl`, or `<cmd> --help` so the learner
+answers by exploring Linux, not by picking a/b/c/d.
 ***********************************************************************
 
-Verbatim Questions from ch2.txt (Mastering Ansible 4th Ed.):
+Question Stems from ch2.txt (paraphrased — use as lab prompts):
 
-  1. Collections can contain:
-     a) Roles
-     b) Modules
-     c) Plugins
-     d) All of the above
-
-  2. Collections mean that Ansible Module versioning is independent
-     of the version of the Ansible engine.
-     a) True
-     b) False
-
-  3. The Ansible 4.3 package:
-     a) includes the Ansible automation engine.
-     b) has a dependency on the Ansible automation engine.
-     c) bears no relation to the Ansible automation engine.
-
-  4. It is possible to upgrade directly from Ansible 2.9 to Ansible
-     4.3.
-     a) True
-     b) False
-
-  5. In Ansible 4.3, module names are guaranteed to be unique
-     between different namespaces.
-     a) True
-     b) False
-
-  6. To ensure that you always access the correct module you intend,
-     you should start using which of the following now in your
-     tasks?
-     a) Fully Qualified Domain Names
-     b) Short form module names
-     c) Fully Qualified Collection Names
-     d) None of the above
-
-  7. Which file can be used to list all the required Collections
-     from Ansible Galaxy, ensuring they can easily be installed
-     when needed?
-     a) site.yml
-     b) ansible.cfg
-     c) collections.yml
-     d) requirements.yml
-
-  8. When you create an account on Ansible Galaxy for the purposes
-     of contributing your own Collections, your namespace is:
-     a) randomly generated.
-     b) chosen by you.
-     c) automatically generated based on your GitHub user ID.
-
-  9. Collections are stored in which common file format?
-     a) .tar.gz
-     b) .zip
-     c) .rar
-     d) .rpm
-
- 10. How could you list all the Collections installed with your
-     Ansible package?
-     a) ansible --list-collections
-     b) ansible-doc -l
-     c) ansible-galaxy --list-collections
-     d) ansible-galaxy collections list
-
+   1. What can Ansible Collections contain?
+   2. Do Collections make module versioning independent of the Ansible engine version?
+   3. What is the relationship between the Ansible package and the automation engine?
+   4. Can you upgrade directly from Ansible 2.9 to Ansible 4.3?
+   5. Are module names guaranteed to be unique across namespaces in Ansible 4.3?
+   6. What naming format helps ensure you call the correct module?
+   7. Which file lists required Collections for easy installation?
+   8. How is your Ansible Galaxy namespace created?
+   9. What archive format are Collections stored in?
+  10. How can you list installed Collections?
 
 
 ================================================================
@@ -1942,82 +1823,26 @@ MASTERING ANSIBLE  Ch 7  —  Task Conditions, Error Recovery, Loops (from ch7.t
      identical files but show the readability tradeoff)
 
 *** NAVIGATE-AND-DISCOVER REMINDER (see INTENT block at top of file) ***
-The verbatim multiple-choice questions below are kept here as REFERENCE
-ONLY. When the corresponding labs above are actually built, these
-questions MUST be rewritten in template.txt-style navigate-and-discover
-form (open-ended prompt + hint commands like `ansible-doc`, `man`,
-`find`, `grep`, `journalctl`, `<cmd> --help`). The a/b/c/d options below
-are the source-of-truth answer key for the lab author, not the final
-question format the learner should see.
+The question stems below are paraphrased prompts only. When the
+corresponding labs above are actually built, each stem should be
+expanded into a template.txt-style navigate-and-discover lab:
+an open-ended prompt plus hint commands like `ansible-doc`, `man`,
+`find`, `grep`, `journalctl`, or `<cmd> --help` so the learner
+answers by exploring Linux, not by picking a/b/c/d.
 ***********************************************************************
 
-Verbatim Questions from ch7.txt (Mastering Ansible 4th Ed.):
+Question Stems from ch7.txt (paraphrased — use as lab prompts):
 
-  1. By default, Ansible will stop processing further tasks for a
-     given host after the first failure occurs:
-     a) True
-     b) False
-
-  2. The ansible.builtin.command and ansible.builtin.shell modules'
-     default behavior is to only ever give a task status of changed
-     or failed:
-     a) True
-     b) False
-
-  3. You can store the results from a task using which Ansible
-     keyword?
-     a) store:
-     b) variable:
-     c) register:
-     d) save:
-
-  4. Which of the following directives can be used to change the
-     failure condition of a task?
-     a) error_if:
-     b) failed_if:
-     c) error_when:
-     d) failed_when:
-
-  5. You can combine multiple conditional statements in Ansible
-     using which of the following?
-     a) and
-     b) or
-     c) The YAML list format (which works the same as a logical
-        AND)
-     d) All of the above
-
-  6. Changes can be suppressed with which of the following?
-     a) suppress_changed: true
-     b) changed_when: false
-     c) changed: false
-     d) failed_when: false
-
-  7. In a block section, all tasks are executed in order on all
-     hosts:
-     a) Until the first error occurs
-     b) Regardless of any error condition
-
-  8. Which optional section of a block gets run only if an error
-     occurs in the block tasks?
-     a) recover
-     b) rescue
-     c) always
-     d) on_error
-
-  9. Tasks in the always section of a block are run:
-     a) Regardless of what happened in either the block tasks or
-        the rescue section
-     b) Only if the rescue section did not get run
-     c) Only if no errors were encountered
-     d) When called manually by the user
-
- 10. The default name of the variable referencing the current
-     element of a loop is:
-     a) loopvar
-     b) loopitem
-     c) item
-     d) val
-
+   1. Does Ansible stop processing further tasks for a host after the first failure by default?
+   2. What default statuses do `command` and `shell` usually return?
+   3. Which keyword stores task results?
+   4. Which directive changes a task's failure condition?
+   5. How can multiple conditional statements be combined?
+   6. How can changed status be suppressed?
+   7. How do tasks behave inside a `block` when an error occurs?
+   8. Which block section runs only after an error?
+   9. When does the `always` section of a block run?
+  10. What is the default variable name for the current loop item?
 
 
 ================================================================
@@ -2129,83 +1954,26 @@ MASTERING ANSIBLE  Ch 8  —  Roles, Includes & ansible-galaxy (from ch8.txt)
      `ansible-galaxy role list -p roles/`)
 
 *** NAVIGATE-AND-DISCOVER REMINDER (see INTENT block at top of file) ***
-The verbatim multiple-choice questions below are kept here as REFERENCE
-ONLY. When the corresponding labs above are actually built, these
-questions MUST be rewritten in template.txt-style navigate-and-discover
-form (open-ended prompt + hint commands like `ansible-doc`, `man`,
-`find`, `grep`, `journalctl`, `<cmd> --help`). The a/b/c/d options below
-are the source-of-truth answer key for the lab author, not the final
-question format the learner should see.
+The question stems below are paraphrased prompts only. When the
+corresponding labs above are actually built, each stem should be
+expanded into a template.txt-style navigate-and-discover lab:
+an open-ended prompt plus hint commands like `ansible-doc`, `man`,
+`find`, `grep`, `journalctl`, or `<cmd> --help` so the learner
+answers by exploring Linux, not by picking a/b/c/d.
 ***********************************************************************
 
-Verbatim Questions from ch8.txt (Mastering Ansible 4th Ed.):
+Question Stems from ch8.txt (paraphrased — use as lab prompts):
 
-  1. Which Ansible module can be used to run tasks from a separate
-     external task file when a playbook is run?
-     a) ansible.builtin.import
-     b) ansible.builtin.include
-     c) ansible.builtin.tasks_file
-     d) ansible.builtin.with_tasks
-
-  2. Variable data can be passed to an external task file when it
-     is called:
-     a) True
-     b) False
-
-  3. The default name of the variable containing the current loop
-     value is:
-     a) i
-     b) loop_var
-     c) loop_value
-     d) item
-
-  4. When looping over external task files, it is important to
-     consider setting which special variable to prevent loop
-     variable name collisions?
-     a) loop_name
-     b) loop_item
-     c) loop_var
-     d) item
-
-  5. Handlers are generally run:
-     a) Once, at the end of the play
-     b) Once each, at the end of the pre_tasks, roles/tasks, and
-        post_tasks sections of the play
-     c) Once each, at the end of the pre_tasks, roles/tasks, and
-        post_tasks sections of the play and only when notified
-     d) Once each, at the end of the pre_tasks, roles/tasks, and
-        post_tasks sections of the play and only when imported
-
-  6. Ansible can load variables from the following external
-     sources:
-     a) Static vars_files inclusion
-     b) Dynamic vars_files inclusion
-     c) Through the include_vars statement
-     d) Through the extra-vars command-line parameter
-     e) All of the above
-
-  7. Roles obtain their name from the role directory name (for
-     example, roles/testrole1 has the name testrole1):
-     a) True
-     b) False
-
-  8. If a role is missing the tasks/main.yml file, Ansible will:
-     a) Abort the play with an error
-     b) Skip the role entirely
-     c) Still reference any other valid parts of the role,
-        including metadata, default variables, and handlers
-     d) Display a warning
-
-  9. Roles can have dependencies on other roles:
-     a) True
-     b) False
-
- 10. When you specify a tag for a role, Ansible's behavior is to:
-     a) Apply the tag to the entire role
-     b) Apply the tag to each task within the role
-     c) Skip the role entirely
-     d) Only execute tasks from a role with the same tag
-
+   1. Which module runs tasks from an external task file?
+   2. Can variable data be passed to an external task file?
+   3. What is the default variable name for the current loop value?
+   4. Which loop control prevents loop variable name collisions?
+   5. When are handlers generally run?
+   6. From which external sources can Ansible load variables?
+   7. How do roles get their names?
+   8. What happens if a role is missing `tasks/main.yml`?
+   9. Can roles depend on other roles?
+  10. What happens when you specify a tag for a role?
 
 
 ================================================================
@@ -2287,80 +2055,26 @@ MASTERING ANSIBLE  Ch 13  —  Network Automation (from ch13.txt)
      "stepping stone to a proper module" pattern)
 
 *** NAVIGATE-AND-DISCOVER REMINDER (see INTENT block at top of file) ***
-The verbatim multiple-choice questions below are kept here as REFERENCE
-ONLY. When the corresponding labs above are actually built, these
-questions MUST be rewritten in template.txt-style navigate-and-discover
-form (open-ended prompt + hint commands like `ansible-doc`, `man`,
-`find`, `grep`, `journalctl`, `<cmd> --help`). The a/b/c/d options below
-are the source-of-truth answer key for the lab author, not the final
-question format the learner should see.
+The question stems below are paraphrased prompts only. When the
+corresponding labs above are actually built, each stem should be
+expanded into a template.txt-style navigate-and-discover lab:
+an open-ended prompt plus hint commands like `ansible-doc`, `man`,
+`find`, `grep`, `journalctl`, or `<cmd> --help` so the learner
+answers by exploring Linux, not by picking a/b/c/d.
 ***********************************************************************
 
-Verbatim Questions from ch13.txt (Mastering Ansible 4th Ed.):
+Question Stems from ch13.txt (paraphrased — use as lab prompts):
 
-  1. Ansible brings all the benefits of automation from
-     infrastructure management to the world of network device
-     management.
-     a) True
-     b) False
-
-  2. When working with a new network device type for the first
-     time, you should always do what?
-     a) Perform a factory reset of the device.
-     b) Consult the Ansible documentation to learn about which
-        collections and modules support it, and what the
-        requirements for those might be.
-     c) Use the ansible.netcommon.network_cli connection protocol.
-     d) Use the local connection protocol.
-
-  3. Which execution type is described by Ansible as running its
-     automation code on the remote host directly?
-     a) Remote execution
-     b) Local execution
-
-  4. Which execution type is described by Ansible as running its
-     automation code on the control node, and then sending the
-     required data over a pre-selected channel (for example, SSH or
-     an HTTP-based API)?
-     a) Remote execution
-     b) Local execution
-
-  5. Which connection protocol has (for the most part) superseded
-     the older local connection-based protocol for network devices?
-     a) ansible.netcommon.netconf
-     b) ansible.netcommon.httpapi
-     c) ansible.netcommon.network_cli
-     d) local
-
-  6. Can you gather facts for an Arista-based EOS device at the
-     beginning of a play?
-     a) Yes.
-     b) No.
-     c) Yes, but only when using the ansible.netcommon.network_cli
-        protocol.
-
-  7. All network config on Arista EOS is performed using a single
-     module.
-     a) True
-     b) False
-
-  8. Cumulus Linux does not require the ansible.netcommon.network_cli
-     protocol because of which reason?
-     a) It is not a network operating system.
-     b) It contains a full Linux implementation, including Python.
-     c) It uses the SSH protocol for management.
-     d) It does not have a CLI.
-
-  9. Good inventory management is especially important when working
-     in multi-device-type networks.
-     a) True
-     b) False
-
- 10. Ansible can support the use of bastion or jump hosts without
-     the need for special configuration or software installation.
-     a) True
-     b) False
-
+   1. Does Ansible bring infrastructure automation benefits to network device management?
+   2. What should you do first when working with a new network device type?
+   3. What is remote execution?
+   4. What is local execution?
+   5. Which protocol mostly superseded older local connection-based network automation?
+   6. Can facts be gathered for an Arista EOS device at the start of a play?
+   7. Is all Arista EOS network configuration performed with one module?
+   8. Why does Cumulus Linux not require `ansible.netcommon.network_cli`?
+   9. Why is inventory management important in multi-device networks?
+  10. Can Ansible support bastion or jump hosts without special proxy software?
 
 
 ----------------------------------------------------------------
