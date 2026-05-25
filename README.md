@@ -22,6 +22,7 @@
 
 - [About](#-about)
 - [Who This Is For](#-who-this-is-for)
+- [Tech Affiliates — How to Install Linux](#-tech-affiliates--how-to-install-linux)
 - [Companion Repos](#-companion-repos) 
 - [Certification Path](#-certification-path) 
 - [Suggested Learning Path](#-suggested-learning-path) 
@@ -50,6 +51,29 @@ All commands tested on **RHEL 9** / **Rocky Linux** / **AWS RHEL AMI**.
 - Self-learners working through Red Hat and CNCF certification objectives
 
 > No prior Red Hat experience required. CompTIA Linux+ or equivalent familiarity recommended.
+
+---
+
+## 🧰 Tech Affiliates — How to Install Linux
+
+> **Brand new to Linux and not sure how to even get it on your laptop?** Start here.
+
+A beginner-friendly, step-by-step install guide written for students **from middle school all the way to working adults**. It covers what Linux is, what a virtual machine is, what WSL is, and walks you through installing Linux on **Windows**, **Intel Mac**, and **Apple Silicon (M1/M2/M3/M4) Mac** — with troubleshooting and a full FAQ.
+
+📘 **[Open the guide → Tech-Affiliates-How-To-Install-Linux.md](./Tech-Affiliates-How-To-Install-Linux.md)**
+
+| You have... | The guide recommends... |
+|---|---|
+| 🪟 Windows 10 / 11 | WSL (10-minute install) |
+| 💻 Intel Mac | VirtualBox VM |
+| 🍏 Apple Silicon Mac (M1/M2/M3/M4) | UTM or Multipass |
+| 🧪 An old laptop | Full install / dual boot (advanced) |
+
+**Pairs with these Tech Affiliates resources:**
+
+- 🐧 [linux-ops-mastery (main repo)](https://github.com/kelvintechnical/linux-ops-mastery) — the 212+ hands-on labs you'll work through after you install Linux.
+- 🎓 [Tech-Affiliates-Comptia-Linux-Preparation](https://github.com/kelvintechnical/Tech-Affiliates-Comptia-Linux-Preparation) — the 8-week CompTIA Linux+ course (Tech Affiliates X Lenoir Community College, Kinston, NC).
+- 📅 [Course outline](https://github.com/kelvintechnical/Tech-Affiliates-Comptia-Linux-Preparation) — week-by-week schedule.
 
 ---
 
