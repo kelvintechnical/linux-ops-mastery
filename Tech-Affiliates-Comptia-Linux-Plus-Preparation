@@ -1,21 +1,23 @@
 # Tech Affiliates CompTIA Linux+ Preparation
 
-### 8-Week Workforce-Ready Linux+ Course
+### 8-Week Self-Paced Linux+ Study Plan
 
-**Tech Affiliates X Lenoir Community College Collaboration · Kinston, NC**
+**A Tech Affiliates community resource · Presented by Kelvinintech Consulting LLC · Eastern NC**
 
 ![CompTIA Linux+](https://img.shields.io/badge/CompTIA-Linux%2B%20XK0--005-FF0000?style=flat&logo=comptia&logoColor=white)
 ![Status](https://img.shields.io/badge/Status-In%20Development-orange?style=flat)
-![Cost](https://img.shields.io/badge/Cost-Free%20%2F%20Grant%20Funded-success?style=flat)
+![Cost](https://img.shields.io/badge/Cost-Free%20Public%20Resource-success?style=flat)
 ![Distros](https://img.shields.io/badge/Distros-Ubuntu%20%2B%20Rocky-blueviolet?style=flat&logo=linux)
 
 ---
 
 ## 📖 About This Course
 
-A free, 8-week, hands-on workforce development course preparing adult learners and out-of-school youth in Eastern North Carolina to pass the **CompTIA Linux+ (XK0-005)** exam and land their first IT job.
+A free, 8-week, hands-on study plan to prepare learners to pass the **CompTIA Linux+ (XK0-005)** exam and land their first IT job.
 
-This course is built and instructed by **Kelvin R. Tobias**, a former diesel mechanic turned AI Engineer, in partnership with **Lenoir Community College** and funded through state workforce development pathways.
+This course is built by **Kelvin R. Tobias**, a former diesel mechanic turned AI Engineer, and offered as a free public resource through **Kelvinintech Consulting LLC** and the **Tech Affiliates** community.
+
+**Tech Affiliates** is the monthly tech meetup founded by Kelvin, originally launched in Atlanta, GA and now active across Eastern North Carolina and online. The meetup connects learners, working professionals, and career-changers who want to break into IT without a four-year degree.
 
 Our goal is simple: in 8 weeks, take a student from never having opened a terminal to walking into a Linux job interview with confidence.
 
@@ -23,10 +25,10 @@ Our goal is simple: in 8 weeks, take a student from never having opened a termin
 
 ## 🎯 Who This Is For
 
-- Adult learners in Eastern NC looking to break into IT without a four-year degree
+- Adult learners looking to break into IT without a four-year degree
 - Out-of-school youth ages 16+ exploring tech career paths
 - Working adults seeking a career change into a $45K–$65K+ entry-level Linux role
-- Anyone in the Kinston / Lenoir County region with the drive to learn and show up
+- Anyone in Eastern NC (or anywhere online) with the drive to learn and show up
 
 > No prior Linux experience required. No prior coding experience required. We start from zero.
 
@@ -36,9 +38,9 @@ Our goal is simple: in 8 weeks, take a student from never having opened a termin
 
 - **CompTIA Linux+ (XK0-005) exam readiness** — pass the cert, get the credential
 - **A real GitHub portfolio** — every lab you complete becomes proof of skill for employers
-- **Job-ready skills** — resume, LinkedIn profile, mock interview, employer panel
+- **Job-ready skills** — resume polish, LinkedIn profile setup, interview practice
 - **Both Ubuntu AND Red Hat experience** — work-ready for any Linux job in America
-- **A community** — Tech Affiliates membership for ongoing mentorship after graduation
+- **A community** — Tech Affiliates membership for ongoing mentorship and meetup access after you finish
 
 ---
 
@@ -53,6 +55,8 @@ Our goal is simple: in 8 weeks, take a student from never having opened a termin
 | Cloud Support Associate (AWS / Azure) | $60,000 – $90,000 |
 | Mid-level Linux Administrator (2–4 yrs) | $80,000 – $100,000 |
 | DevOps Engineer (with experience) | $100,000 – $140,000+ |
+
+> Salary figures reflect publicly reported ranges from Indeed, Glassdoor, and Bureau of Labor Statistics data for 2026. Actual offers vary by region, employer, and experience.
 
 A teenager or working adult who earns Linux+ before age 25 walks into job interviews competing with people twice their age. No four-year degree required.
 
@@ -69,14 +73,26 @@ By Week 8, you can walk into any IT shop in America and speak their language. Th
 
 ---
 
+## 🛠 Before You Start
+
+You will need Linux running on your laptop before Week 1. The companion install guide walks you through it for Windows, Intel Mac, and Apple Silicon Mac:
+
+📘 **[Tech Affiliates — How to Install Linux](./Tech-Affiliates-How-To-Install-Linux.md)**
+
+If you can run `whoami` and `pwd` in a Linux terminal on your machine, you're ready.
+
+---
+
 ## 📅 8-Week Course Outline
+
+> The outline below is designed for self-paced study (~3 hours per week). Tech Affiliates meetup members can also work through it as a group at the monthly meetup or in a dedicated study channel.
 
 ### Week 1 — Welcome, Linux, and Your First Terminal
 **Domain:** Basic CLI · **Distro:** Ubuntu (via WSL)
-- Welcome circle and goal-setting
-- Install WSL on every laptop in 10 minutes
+- Linux orientation and goal-setting for the 8 weeks
+- Get WSL or your Linux VM working in about 10 minutes (see the [install guide](./Tech-Affiliates-How-To-Install-Linux.md))
 - First commands: `whoami`, `pwd`, `ls`, `cd`, `mkdir`
-- Clone the course repo, make your first git commit
+- Clone the course repo and make your first git commit
 
 ---
 
@@ -112,7 +128,7 @@ By Week 8, you can walk into any IT shop in America and speak their language. Th
 **Domain:** Networking · **Distro:** Ubuntu + Rocky for SSH demo
 - Network basics (`ip`, `ping`, `traceroute`, `ss`)
 - SSH fundamentals (`ssh`, `scp`, key-based authentication)
-- **Lab:** Pair up, run an SSH server, copy files securely between machines
+- **Lab:** Run an SSH server and copy files securely between two machines (two VMs on the same laptop works fine)
 
 ---
 
@@ -120,7 +136,7 @@ By Week 8, you can walk into any IT shop in America and speak their language. Th
 **Domain:** Scripting · **Distro:** Ubuntu
 - Bash basics (variables, conditionals, loops, exit codes)
 - Cron scheduling
-- **Lab:** Write a system health check script, push it to your GitHub
+- **Lab:** Write a system health check script and push it to your GitHub
 - This script becomes your first portfolio piece
 
 ---
@@ -129,7 +145,7 @@ By Week 8, you can walk into any IT shop in America and speak their language. Th
 **Domain:** System Ops + Troubleshooting · **Distros:** Ubuntu + Rocky
 - Storage basics (`df`, `du`, `lsblk`, `mount`)
 - Log analysis (`journalctl`, `dmesg`, `/var/log`)
-- **Lab:** "Murder mystery" — instructor breaks a VM, students diagnose with logs only
+- **Lab:** "Murder mystery" — diagnose a deliberately broken VM using logs only
 - **Milestone:** Second practice exam (target: 65%+)
 
 ---
@@ -137,10 +153,9 @@ By Week 8, you can walk into any IT shop in America and speak their language. Th
 ### Week 8 — Exam Day + Job Day
 **Outcome:** Exam-ready AND job-ready
 - Final timed Linux+ practice exam
-- Resume workshop and LinkedIn profile review
+- Resume polish and LinkedIn profile review
 - GitHub portfolio cleanup
-- Local IT employer guest panel
-- Certificate ceremony and "What's Next" roadmap
+- Tech Affiliates completion check-in and "What's Next" roadmap
 
 ---
 
@@ -149,6 +164,7 @@ By Week 8, you can walk into any IT shop in America and speak their language. Th
 | Resource | Purpose |
 | --- | --- |
 | [linux-ops-mastery](https://github.com/kelvintechnical/linux-ops-mastery) | Primary course repo with hands-on labs |
+| [Tech-Affiliates-How-To-Install-Linux](./Tech-Affiliates-How-To-Install-Linux.md) | Beginner install guide for Windows, Intel Mac, Apple Silicon Mac |
 | [accessing-your-linux-system](https://github.com/kelvintechnical/accessing-your-linux-system) | Setup guide for SSH, PuTTY, AWS EC2 |
 | [managing-linux-files-cli](https://github.com/kelvintechnical/managing-linux-files-cli) | Filesystem and CLI fundamentals |
 | WSL installation guide | https://learn.microsoft.com/en-us/windows/wsl/install |
@@ -156,7 +172,8 @@ By Week 8, you can walk into any IT shop in America and speak their language. Th
 | Rocky Linux download | https://rockylinux.org/download |
 | CompTIA Linux+ official objectives | https://www.comptia.org/certifications/linux |
 
-No textbook required. Total cost to student: **$0**.
+No textbook required. Total cost to study the material: **$0**.
+The CompTIA Linux+ exam itself is paid separately to CompTIA (the student covers this directly).
 
 ---
 
@@ -164,9 +181,11 @@ No textbook required. Total cost to student: **$0**.
 
 | Credential | Provider | Cost | When |
 | --- | --- | --- | --- |
-| Course Completion Certificate | Tech Affiliates X LCC | Free | Week 8 |
-| CompTIA Linux+ (XK0-005) | CompTIA | Voucher provided via grant | Within 30 days of completion |
-| Linux+ verified GitHub portfolio | Yours forever | Free | Built across all 8 weeks |
+| Tech Affiliates Course Completion acknowledgment | Tech Affiliates | Free | Week 8 |
+| Public Linux+ verified GitHub portfolio | Yours forever | Free | Built across all 8 weeks |
+| CompTIA Linux+ (XK0-005) certification | CompTIA | Exam fee paid by student | After completion |
+
+> 🎟 **Exam vouchers:** Tech Affiliates does not currently fund CompTIA exam vouchers. As Tech Affiliates grows partnerships with employers and workforce programs, voucher availability will be announced in the meetup. For now, students cover the exam fee directly.
 
 ---
 
@@ -178,29 +197,34 @@ Linux+ is the bus pass. Here is where it can take you:
 | --- | --- | --- |
 | Foundation | **CompTIA Linux+ (XK0-005)** | $45K–$65K entry roles |
 | Intermediate | RHCSA (EX200) | $65K–$85K |
-| Advanced | RHCE (EX294) — Ansible | $85K–$110K |
-| Cloud Native | CKA — Kubernetes | $100K–$140K+ |
+| Advanced | RHCE (EX294), Ansible | $85K–$110K |
+| Cloud Native | CKA, Kubernetes | $100K–$140K+ |
 
-All four paths are covered in the [linux-ops-mastery](https://github.com/kelvintechnical/linux-ops-mastery) repo. Graduates of this course get ongoing access to the full ladder.
+All four paths are covered in the [linux-ops-mastery](https://github.com/kelvintechnical/linux-ops-mastery) repo. Tech Affiliates members get ongoing access to the full ladder and to monthly meetup discussions about each cert.
 
 ---
 
-## 📍 Logistics
+## 📍 How This Course Runs
 
-- **Location:** Lenoir Community College, Kinston, NC
-- **Format:** 1 session per week × 3 hours × 8 weeks
-- **Cost to students:** Free (grant-funded through NC workforce development)
-- **Cohort size:** 12–15 students
-- **Hardware:** Any Windows, Mac, or Linux laptop (we use WSL on Windows machines)
-- **Next cohort:** TBD — sign up below for notifications
+- **Format:** Self-paced study plan with weekly milestones (~3 hours per week × 8 weeks)
+- **Delivery:** Free public GitHub repo + optional Tech Affiliates monthly meetup discussions
+- **Cost to learners:** Free (you only pay CompTIA directly if and when you sit the exam)
+- **Cohort:** Open community — start whenever you're ready
+- **Hardware:** Any Windows, Mac, or Linux laptop (we use WSL on Windows machines — see the [install guide](./Tech-Affiliates-How-To-Install-Linux.md))
+
+> 🤝 **Looking to partner?** If you're an employer, community college, training provider, or workforce development agency interested in sponsoring a future cohort, providing exam vouchers, or hosting an in-person session, please reach out using the contact at the bottom of this page.
 
 ---
 
 ## 🤝 About Tech Affiliates
 
-Tech Affiliates is a STEM outreach community originally founded in Atlanta, GA and now expanding to Kinston, NC. Our mission is to make tech careers accessible to people in regions where those doors usually stay closed. We focus on free training, real credentials, and real job pipelines.
+**Tech Affiliates** is the monthly tech meetup founded by **Kelvin R. Tobias**. Originally launched in Atlanta, GA, it now connects members across Eastern North Carolina and online through Facebook and LinkedIn.
 
-100+ members across Facebook and LinkedIn.
+The mission is simple: make tech careers accessible to people in regions where those doors usually stay closed. The meetup focuses on free training, real credentials, and real job pipelines — no gatekeeping, no four-year degree required.
+
+100+ members across Facebook and LinkedIn and growing.
+
+Tech Affiliates is operated under **Kelvinintech Consulting LLC**.
 
 ---
 
@@ -212,8 +236,9 @@ Founder, Kelvinintech Consulting LLC & Tech Affiliates
 Eastern NC
 
 - B.S. Software Engineering, Western Governors University (3× Excellence Award)
-- M.S. AI Engineering, Western Governors University (Dec 2026)
-- **Certifications:** CompTIA Linux+, CompTIA Security+, AWS Cloud Practitioner, ITIL 4 Foundation
+- M.S. AI Engineering, Western Governors University (Starting Dec 2026)
+- **Active Certifications:** CompTIA Linux+, CompTIA Security+, AWS Cloud Practitioner, ITIL 4 Foundation
+- **In Progress:** RHCSA → RHCE (Red Hat Certified Engineer path)
 - 10 years as a diesel mechanic before transitioning into software engineering
 - 2 years self-taught before landing his first professional role in tech
 
@@ -221,15 +246,18 @@ Eastern NC
 
 ---
 
-## 📬 Interested in Joining?
+## 📬 Interested in the Course?
 
-If you are a Kinston-area adult or teen interested in this course, or an employer interested in supporting it, reach out:
+If you're a learner ready to start, open the [main repo](https://github.com/kelvintechnical/linux-ops-mastery) and begin Week 1.
+
+If you're an employer, training provider, community college, or workforce agency interested in supporting a future Tech Affiliates cohort, reach out:
 
 📧 kelvinrtobias@gmail.com
 📞 (980) 800-6776
+🌐 [kelvinintech.com](https://kelvinintech.com/)
 
 ---
 
-**⭐ Star this repo if you support workforce development in Eastern North Carolina.**
+**⭐ Star this repo if you support free Linux workforce education.**
 
-*Tech Affiliates X Lenoir Community College Collaboration · Presented by Kelvin R. Tobias · Kinston, NC*
+*A Tech Affiliates community resource · Presented by Kelvin R. Tobias through Kelvinintech Consulting LLC · Eastern NC*
