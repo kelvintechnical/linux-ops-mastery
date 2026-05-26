@@ -232,15 +232,15 @@ Labs organized by official RHCSA EX200 exam objectives.
 
 | # | Lab | Key Commands |
 |---|-----|-------------|
-| 31 | [Configure a Static IP Address](./01-system-management/README.md#lab-01--configure-a-static-ip-address) | `nmcli con mod`, `ip addr`, `ip route` — Configure a network interface with a static IPv4 address, gateway, and DNS using `nmcli` |
-| 32 | Check Network Connectivity *(coming soon)* | `ping`, `traceroute` — Use `ping` to test connections and `traceroute` to map the path packets take across the network |
-| 33 | Display IP and Routing Info *(coming soon)* | `ip addr show`, `ip route show` — Use `ip addr show` to check IP assignments and `ip route show` to review the routing table |
-| 34 | Inspecting Listening Sockets *(coming soon)* | `ss -tuna4` — View active TCP and UDP sockets and identify open ports |
-| 35 | Text-Based Network Config nmtui *(coming soon)* | `nmtui` — Launch `nmtui` to set a static IPv4 address, subnet mask, gateway, and DNS |
-| 36 | Command-Line Network Config nmcli *(coming soon)* | `nmcli` — Use `nmcli` to modify connection settings and reload a network interface |
-| 37 | Configuring Local Host Resolution *(coming soon)* | `/etc/hosts` — Open `/etc/hosts` and manually map IP addresses to hostnames for local name resolution |
-| 38 | Configuring DNS Servers *(coming soon)* | `/etc/resolv.conf` — Examine and modify `/etc/resolv.conf` to specify external name servers and search domains |
-| 39 | Configure SSH and Key-Based Auth *(coming soon)* | `ssh-keygen`, `ssh-copy-id` — Generate an RSA key pair and deploy it for passwordless login |
+| 31 | [Configure a Static IP Address](https://github.com/kelvintechnical/static-ip-address) | `nmcli con mod`, `ip addr`, `ip route` — Configure a network interface with a static IPv4 address, gateway, and DNS using `nmcli` |
+| 32 | [Check Network Connectivity](https://github.com/kelvintechnical/network-connectivity-check) | `ping`, `traceroute` — Use `ping` to test connections and `traceroute` to map the path packets take across the network |
+| 33 | [Display IP and Routing Info](https://github.com/kelvintechnical/ip-and-routing-info) | `ip addr show`, `ip route show` — Use `ip addr show` to check IP assignments and `ip route show` to review the routing table |
+| 34 | [Inspecting Listening Sockets](https://github.com/kelvintechnical/listening-sockets) | `ss -tuna4` — View active TCP and UDP sockets and identify open ports |
+| 35 | [Text-Based Network Config nmtui](https://github.com/kelvintechnical/nmtui-network-config) | `nmtui` — Launch `nmtui` to set a static IPv4 address, subnet mask, gateway, and DNS |
+| 36 | [Command-Line Network Config nmcli](https://github.com/kelvintechnical/nmcli-network-config) | `nmcli` — Use `nmcli` to modify connection settings and reload a network interface |
+| 37 | [Configuring Local Host Resolution](https://github.com/kelvintechnical/local-host-resolution) | `/etc/hosts` — Open `/etc/hosts` and manually map IP addresses to hostnames for local name resolution |
+| 38 | [Configuring DNS Servers](https://github.com/kelvintechnical/dns-servers-config) | `/etc/resolv.conf` — Examine and modify `/etc/resolv.conf` to specify external name servers and search domains |
+| 39 | [Configure SSH and Key-Based Auth](https://github.com/kelvintechnical/ssh-key-based-auth) | `ssh-keygen`, `ssh-copy-id` — Generate an RSA key pair and deploy it for passwordless login |
 
 ---
 
@@ -250,21 +250,21 @@ Labs organized by official RHCSA EX200 exam objectives.
 
 | # | Lab | Key Commands |
 |---|-----|-------------|
-| 40 | Standard File Permissions *(coming soon)* | `chmod` — Use `chmod` to list, set, and change standard ugo/rwx permissions |
-| 41 | Changing Ownership *(coming soon)* | `chown`, `chgrp` — Reassign file and directory ownership using `chown` and `chgrp` |
-| 42 | SUID Executables *(coming soon)* | `chmod u+s`, `ls -l` — Configure the SUID bit on a file and observe how it executes with the privileges of the file owner |
+| 40 | [Standard File Permissions](https://github.com/kelvintechnical/standard-file-permissions) | `chmod` — Use `chmod` to list, set, and change standard ugo/rwx permissions |
+| 41 | [Changing Ownership](https://github.com/kelvintechnical/changing-file-ownership) | `chown`, `chgrp` — Reassign file and directory ownership using `chown` and `chgrp` |
+| 42 | [SUID Executables](https://github.com/kelvintechnical/suid-executables) | `chmod u+s`, `ls -l` — Configure the SUID bit on a file and observe how it executes with the privileges of the file owner |
 | 43 | [Configure SGID and Sticky Bit](https://github.com/kelvintechnical/sgid-sticky-bit) | `chmod g+s`, `chmod +t`, `ls -ld` — Create a directory with SGID set so new files inherit the group ownership of the parent |
-| 44 | Immutable File Attribute *(coming soon)* | `chattr +i`, `lsattr` — Use `chattr +i` to make a critical file immutable, preventing deletion even by root |
-| 45 | Append-Only File Attribute *(coming soon)* | `chattr +a`, `lsattr` — Use `chattr +a` on a log file to ensure data can only be appended and never overwritten |
-| 46 | Identifying File Attributes *(coming soon)* | `lsattr` — Use `lsattr` to list extended attributes of files on ext4 or XFS filesystems |
-| 47 | Check ACL Support *(coming soon)* | `mount`, `acl` option — Verify a filesystem is mounted with the `acl` option using the `mount` command |
-| 48 | Viewing ACLs *(coming soon)* | `getfacl` — Inspect a file's current access control list using `getfacl` |
-| 49 | Modifying ACLs *(coming soon)* | `setfacl -m` — Use `setfacl` to grant a specific user read and write access to a file |
-| 50 | Denying Access via ACLs *(coming soon)* | `setfacl` — Implement an ACL to explicitly deny access to a specific user |
-| 51 | Default Directory ACLs *(coming soon)* | `setfacl -d` — Configure a default ACL on a directory so newly created files automatically inherit permissions |
-| 52 | ACL Masks *(coming soon)* | `setfacl -m m::` — Use `setfacl` to set a mask that caps maximum allowable permissions for users and groups |
-| 53 | Removing ACLs *(coming soon)* | `setfacl -x`, `setfacl -b` — Strip specific ACL entries with `setfacl -x` or remove all ACLs with `setfacl -b` |
-| 54 | NFSv4 ACLs *(coming soon — needs NFS)* | `nfs4_getfacl`, `nfs4_setfacl` — Use `nfs4_getfacl` and `nfs4_setfacl` to display and edit permissions on an NFS v4 share |
+| 44 | [Immutable File Attribute](https://github.com/kelvintechnical/immutable-file-attribute) | `chattr +i`, `lsattr` — Use `chattr +i` to make a critical file immutable, preventing deletion even by root |
+| 45 | [Append-Only File Attribute](https://github.com/kelvintechnical/append-only-file-attribute) | `chattr +a`, `lsattr` — Use `chattr +a` on a log file to ensure data can only be appended and never overwritten |
+| 46 | [Identifying File Attributes](https://github.com/kelvintechnical/identifying-file-attributes) | `lsattr` — Use `lsattr` to list extended attributes of files on ext4 or XFS filesystems |
+| 47 | [Check ACL Support](https://github.com/kelvintechnical/acl-support-check) | `mount`, `acl` option — Verify a filesystem is mounted with the `acl` option using the `mount` command |
+| 48 | [Viewing ACLs](https://github.com/kelvintechnical/viewing-acls) | `getfacl` — Inspect a file's current access control list using `getfacl` |
+| 49 | [Modifying ACLs](https://github.com/kelvintechnical/modifying-acls) | `setfacl -m` — Use `setfacl` to grant a specific user read and write access to a file |
+| 50 | [Denying Access via ACLs](https://github.com/kelvintechnical/acl-deny-access) | `setfacl` — Implement an ACL to explicitly deny access to a specific user |
+| 51 | [Default Directory ACLs](https://github.com/kelvintechnical/default-directory-acls) | `setfacl -d` — Configure a default ACL on a directory so newly created files automatically inherit permissions |
+| 52 | [ACL Masks](https://github.com/kelvintechnical/acl-masks) | `setfacl -m m::` — Use `setfacl` to set a mask that caps maximum allowable permissions for users and groups |
+| 53 | [Removing ACLs](https://github.com/kelvintechnical/removing-acls) | `setfacl -x`, `setfacl -b` — Strip specific ACL entries with `setfacl -x` or remove all ACLs with `setfacl -b` |
+| 54 | [NFSv4 ACLs](https://github.com/kelvintechnical/nfsv4-acls) | `nfs4_getfacl`, `nfs4_setfacl` — Use `nfs4_getfacl` and `nfs4_setfacl` to display and edit permissions on an NFS v4 share |
 
 ---
 
@@ -274,19 +274,19 @@ Labs organized by official RHCSA EX200 exam objectives.
 
 | # | Lab | Key Commands |
 |---|-----|-------------|
-| 55 | Inspecting iptables *(coming soon)* | `iptables -L` — Review the default filtering chains and packet rules using `iptables -L` |
-| 56 | Exploring firewalld Zones *(coming soon)* | `firewall-cmd --get-default-zone`, `--list-all` — List available and active zones |
-| 57 | Changing Default Firewall Zone *(coming soon)* | `firewall-cmd --set-default-zone` — Reassign an active interface from the public zone to the dmz or internal zone |
-| 58 | Adding Services to Zones *(coming soon)* | `firewall-cmd --add-service`, `--permanent` — Permanently open ports for a service using `firewall-cmd --add-service` and reload |
-| 59 | Opening Custom Ports *(coming soon)* | `firewall-cmd --add-port` — Open a non-standard port by adding it directly to a zone |
-| 60 | Inspect Active Firewall Zones *(coming soon)* | `firewall-cmd --get-default-zone`, `--list-all` — Review zones and allowed services |
-| 61 | Reassign Interfaces to Zones *(coming soon)* | `firewall-cmd --change-interface` — Temporarily and permanently move a network interface between zones |
-| 62 | Allow Services Through Firewall *(coming soon)* | `firewall-cmd --permanent --add-service` — Use `firewall-cmd` to open ports for web and FTP servers |
-| 63 | Configure IP Masquerading NAT *(coming soon)* | `firewall-cmd --add-masquerade` — Enable IP masquerading on the external zone |
-| 64 | Configure IP Forwarding *(coming soon)* | `/etc/sysctl.conf`, `sysctl -p` — Edit `/etc/sysctl.conf` to enable `net.ipv4.ip_forward = 1` and apply with `sysctl -p` |
-| 65 | Configure Rich Rules *(coming soon)* | `firewall-cmd --add-rich-rule` — Use `firewall-cmd` to create a rich rule that denies traffic from a specific host |
-| 66 | Setup Port Forwarding DNAT *(coming soon)* | `firewall-cmd` rich rules — Use `firewalld` rich rules to redirect inbound traffic from port 80 to port 8008 |
-| 67 | Configure ICMP Filters *(coming soon)* | `firewall-cmd --add-icmp-block` — Block specific ICMP message types like `echo-request` to drop ping floods |
+| 55 | [Inspecting iptables](https://github.com/kelvintechnical/inspecting-iptables) | `iptables -L` — Review the default filtering chains and packet rules using `iptables -L` |
+| 56 | [Exploring firewalld Zones](https://github.com/kelvintechnical/firewalld-zones) | `firewall-cmd --get-default-zone`, `--list-all` — List available and active zones |
+| 57 | [Changing Default Firewall Zone](https://github.com/kelvintechnical/default-firewall-zone) | `firewall-cmd --set-default-zone` — Reassign an active interface from the public zone to the dmz or internal zone |
+| 58 | [Adding Services to Zones](https://github.com/kelvintechnical/firewalld-add-services) | `firewall-cmd --add-service`, `--permanent` — Permanently open ports for a service using `firewall-cmd --add-service` and reload |
+| 59 | [Opening Custom Ports](https://github.com/kelvintechnical/firewalld-custom-ports) | `firewall-cmd --add-port` — Open a non-standard port by adding it directly to a zone |
+| 60 | [Inspect Active Firewall Zones](https://github.com/kelvintechnical/active-firewall-zones) | `firewall-cmd --get-default-zone`, `--list-all` — Review zones and allowed services |
+| 61 | [Reassign Interfaces to Zones](https://github.com/kelvintechnical/reassign-interfaces-zones) | `firewall-cmd --change-interface` — Temporarily and permanently move a network interface between zones |
+| 62 | [Allow Services Through Firewall](https://github.com/kelvintechnical/firewall-allow-services) | `firewall-cmd --permanent --add-service` — Use `firewall-cmd` to open ports for web and FTP servers |
+| 63 | [Configure IP Masquerading NAT](https://github.com/kelvintechnical/ip-masquerading-nat) | `firewall-cmd --add-masquerade` — Enable IP masquerading on the external zone |
+| 64 | [Configure IP Forwarding](https://github.com/kelvintechnical/ip-forwarding) | `/etc/sysctl.conf`, `sysctl -p` — Edit `/etc/sysctl.conf` to enable `net.ipv4.ip_forward = 1` and apply with `sysctl -p` |
+| 65 | [Configure Rich Rules](https://github.com/kelvintechnical/firewalld-rich-rules) | `firewall-cmd --add-rich-rule` — Use `firewall-cmd` to create a rich rule that denies traffic from a specific host |
+| 66 | [Setup Port Forwarding DNAT](https://github.com/kelvintechnical/port-forwarding-dnat) | `firewall-cmd` rich rules — Use `firewalld` rich rules to redirect inbound traffic from port 80 to port 8008 |
+| 67 | [Configure ICMP Filters](https://github.com/kelvintechnical/icmp-filters) | `firewall-cmd --add-icmp-block` — Block specific ICMP message types like `echo-request` to drop ping floods |
 
 ---
 
@@ -296,16 +296,16 @@ Labs organized by official RHCSA EX200 exam objectives.
 
 | # | Lab | Key Commands |
 |---|-----|-------------|
-| 68 | Verify TCP Wrappers Support *(coming soon)* | `ldd /usr/sbin/sshd \| grep libwrap` — Confirm SSH is linked to TCP Wrappers |
-| 69 | Restrict Access via hosts.deny *(coming soon)* | `/etc/hosts.deny` — Edit with `ALL : ALL` to block all wrapper-aware network traffic by default |
-| 70 | Allow Specific Access via hosts.allow *(coming soon)* | `/etc/hosts.allow` — Explicitly allow SSH from localhost and a specific subnet |
-| 71 | Configure TCP Wrappers for FTP *(coming soon)* | `vsftpd`, `/etc/hosts.deny` — Install `vsftpd`, enable the service, and configure TCP Wrappers to deny a specific IP |
-| 72 | Explore PAM Config Files *(coming soon)* | `/etc/pam.d/` — Inspect `/etc/pam.d/` files to understand PAM types and control flags |
-| 73 | Read PAM Module Documentation *(coming soon)* | `/usr/share/doc/pam-*/txts/` — Review `pam_securetty.so` documentation |
-| 74 | Implement Password Complexity *(coming soon)* | `pam_pwquality.so`, `system-auth` — Review `pam_pwquality.so` in `system-auth` to see how RHEL enforces password rules |
-| 75 | Configure PAM to Limit root Access *(coming soon)* | `pam_securetty.so` — Use `pam_securetty.so` to limit root logins to only virtual terminal 6 |
-| 76 | Use PAM to Limit User Access *(coming soon)* | `/etc/nologin` — Create `/etc/nologin` with a custom message to block regular users from logging in |
-| 77 | Restrict Service Access by User List *(coming soon)* | `pam_listfile.so` — Configure `pam_listfile.so` to deny access to users defined in a text file |
+| 68 | [Verify TCP Wrappers Support](https://github.com/kelvintechnical/tcp-wrappers-support) | `ldd /usr/sbin/sshd \| grep libwrap` — Confirm SSH is linked to TCP Wrappers |
+| 69 | [Restrict Access via hosts.deny](https://github.com/kelvintechnical/hosts-deny-restrictions) | `/etc/hosts.deny` — Edit with `ALL : ALL` to block all wrapper-aware network traffic by default |
+| 70 | [Allow Specific Access via hosts.allow](https://github.com/kelvintechnical/hosts-allow-access) | `/etc/hosts.allow` — Explicitly allow SSH from localhost and a specific subnet |
+| 71 | [Configure TCP Wrappers for FTP](https://github.com/kelvintechnical/tcp-wrappers-ftp) | `vsftpd`, `/etc/hosts.deny` — Install `vsftpd`, enable the service, and configure TCP Wrappers to deny a specific IP |
+| 72 | [Explore PAM Config Files](https://github.com/kelvintechnical/pam-config-files) | `/etc/pam.d/` — Inspect `/etc/pam.d/` files to understand PAM types and control flags |
+| 73 | [Read PAM Module Documentation](https://github.com/kelvintechnical/pam-module-docs) | `/usr/share/doc/pam-*/txts/` — Review `pam_securetty.so` documentation |
+| 74 | [Implement Password Complexity](https://github.com/kelvintechnical/password-complexity-pam) | `pam_pwquality.so`, `system-auth` — Review `pam_pwquality.so` in `system-auth` to see how RHEL enforces password rules |
+| 75 | [Configure PAM to Limit root Access](https://github.com/kelvintechnical/pam-limit-root-access) | `pam_securetty.so` — Use `pam_securetty.so` to limit root logins to only virtual terminal 6 |
+| 76 | [Use PAM to Limit User Access](https://github.com/kelvintechnical/pam-limit-user-access) | `/etc/nologin` — Create `/etc/nologin` with a custom message to block regular users from logging in |
+| 77 | [Restrict Service Access by User List](https://github.com/kelvintechnical/pam-restrict-by-user-list) | `pam_listfile.so` — Configure `pam_listfile.so` to deny access to users defined in a text file |
 
 ---
 
