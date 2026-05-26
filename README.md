@@ -220,9 +220,9 @@ Labs organized by official RHCSA EX200 exam objectives.
 
 | # | Lab | Key Commands |
 |---|-----|-------------|
-| 28 | Exploring Manual Pages *(coming soon)* | `man` — Look up manual pages with `man` and practice scrolling through descriptions and syntax examples |
-| 29 | Searching Manuals by Keyword *(coming soon)* | `whatis`, `apropos` — Find documentation when you only know a keyword or purpose |
-| 30 | Navigating info Pages *(coming soon)* | `info` — Use `info` to read detailed manual pages, navigating with `n`, `p`, and `u` keys |
+| 28 | [Exploring Manual Pages](https://github.com/kelvintechnical/man-pages-exploration) | `man` — Look up manual pages with `man` and practice scrolling through descriptions and syntax examples |
+| 29 | [Searching Manuals by Keyword](https://github.com/kelvintechnical/whatis-apropos-keyword-search) | `whatis`, `apropos` — Find documentation when you only know a keyword or purpose |
+| 30 | [Navigating info Pages](https://github.com/kelvintechnical/info-pages-navigation) | `info` — Use `info` to read detailed manual pages, navigating with `n`, `p`, and `u` keys |
 
 ---
 
