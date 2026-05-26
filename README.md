@@ -97,11 +97,7 @@ Foundational Linux skills broken into focused, standalone learning resources:
 
 | Repo | Topic |
 |------|-------|
-| 🗂️ [Linux-Filesystem-Hierarchy-Standard](https://github.com/kelvintechnical/Linux-Filesystem-Hierarchy-Standard-) | What every `/` directory is, why it exists, and how to use it |
-| 📁 [bin-directory](https://github.com/kelvintechnical/bin-directory) | `/bin` — essential user command binaries available in single-user mode |
-| 📁 [sbin-directory](https://github.com/kelvintechnical/sbin-directory) | `/sbin` — system administration binaries for root and admin tasks |
-| 📁 [lib-directory](https://github.com/kelvintechnical/lib-directory) | `/lib` — essential shared libraries needed by `/bin` and `/sbin` |
-| 📁 [lib64-directory](https://github.com/kelvintechnical/lib64-directory) | `/lib64` — 64-bit shared libraries for x86_64 binaries |
+| 🗂️ [Linux-Filesystem-Hierarchy-Standard](https://github.com/kelvintechnical/Linux-Filesystem-Hierarchy-Standard) | What every `/` directory is, why it exists, and how to use it |
 
 ---
 
