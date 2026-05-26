@@ -16,6 +16,24 @@ Bullet list of standalone labs to build next, sourced from:
   - PerfectScorerPracticeExams.txt         (RHCSA 9 & 10 FULL PRACTICE EXAMS
                                             BY A PERFECT SCORER — five complete
                                             mock exams across Node1 + Node2)
+  - ch1.txt                                (Mastering Ansible, 4th Ed. — Chapter 1:
+                                            The System Architecture and Design
+                                            of Ansible)
+  - ch2.txt                                (Mastering Ansible, 4th Ed. — Chapter 2:
+                                            Migrating from Earlier Ansible
+                                            Versions / Collections & FQCNs)
+  - ch7.txt                                (Mastering Ansible, 4th Ed. — Chapter 7:
+                                            Controlling Task Conditions —
+                                            failed_when, changed_when, block/
+                                            rescue/always, loops)
+  - ch8.txt                                (Mastering Ansible, 4th Ed. — Chapter 8:
+                                            Composing Reusable Ansible Content
+                                            with Roles — includes, role structure,
+                                            dependencies, ansible-galaxy)
+  - ch13.txt                               (Mastering Ansible, 4th Ed. — Chapter 13:
+                                            Network Automation — network_cli,
+                                            Arista EOS, Cumulus Linux, jump hosts,
+                                            ansible_network_os)
 
 Already-completed and placeholder labs in linux-ops-mastery
 (as of 2026-05-22) have been excluded — no duplicates.
@@ -23,6 +41,94 @@ Already-completed and placeholder labs in linux-ops-mastery
 Date generated: 2026-05-22 (originally)
 Updated:        2026-05-22 (added PerfectScorerPracticeExams.txt
                             section, organized by README topic)
+
+
+Updated:        2026-05-23 (expanded INTENT FOR MULTIPLE-CHOICE
+                            QUESTIONS block; corrected SUMMARY COUNTS
+                            to verified bullet count; embedded
+                            template.txt as REFERENCE TEMPLATE
+                            FOR FUTURE LABS appendix)
+
+Updated:        2026-05-23 (rebuilt Mastering Ansible sections from
+                            ch1.txt, ch2.txt, ch7.txt, ch8.txt, ch13.txt;
+                            each chapter now contributes labs PLUS the
+                            verbatim multiple-choice question block from
+                            the chapter, with a NAVIGATE-AND-DISCOVER
+                            REMINDER comment between the labs and the
+                            questions so any future contributor knows the
+                            a/b/c/d format is reference-only and must be
+                            rewritten into template.txt-style discovery
+                            prompts when the lab is actually built)
+
+
+INTENT FOR MULTIPLE-CHOICE QUESTIONS  (to be implemented later)
+---------------------------------------------------------------
+**My (Kelvin's) explicit design intent for every lab in this file**
+— recorded here so future-me, future collaborators, and any AI
+agent helping build these labs can stay aligned.
+
+WHY I'M REWRITING THE Q&A FORMAT
+- Multiple-choice (a/b/c/d) questions test *recognition*, not
+  *recall* or *real skill*. On a live RHEL box, no one hands you
+  four options — you have to remember the command, type it, read
+  the output, and react.
+- The certification exams I'm preparing for (RHCSA EX200, RHCE
+  EX294, CKA, CKAD) are all 100% hands-on / performance-based.
+  There is no multiple choice on the actual exam — so training
+  with multiple choice trains the wrong muscle.
+- I want each lab's Q&A section to force the same behavior I'd
+  use under real exam pressure: open a terminal, run a discovery
+  command, read the output, and answer in my own words.
+
+THE FORMAT I WANT (REPLACES a/b/c/d EVERYWHERE)
+Every old multiple-choice block becomes a "Navigate-and-Discover"
+prompt:
+  Q. "Find out X on your own system."
+     Hint: try `ansible-doc <module>`, `man <command>`,
+            `find / -name "*pattern*" 2>/dev/null`,
+            `grep -RIn "keyword" /etc /var/log`,
+            `journalctl -u <unit>`, `systemctl cat <unit>`,
+            `<command> --help`, `<command> -h`, or
+            `<command> <subcommand> --help`.
+  A. (Free-form: what command did you run? what did it show?
+     what does that mean? — written in the user's own words.)
+
+THE template.txt-STYLE EXPLANATIONS STAY — JUST REPURPOSED
+The narrative explanations from template.txt (the "Concept",
+"Story", "Family", "Anatomy of `pvs`/`vgs`/`lvs` Output", and
+"Reading rule" sections) should still surround every lab. They
+just shift role: instead of being the *answer key* to a multiple-
+choice question, they become **scaffolding / teaching material**
+that gives me enough conceptual grounding to make the discovery
+commands meaningful. The narrative tells me *what to look for*;
+the discovery commands force me to *find it myself*.
+
+CONCRETE EXAMPLE OF THE TRANSFORMATION
+Old multiple-choice form (what we're killing):
+  Q. Which command lists all logical volumes?
+     a) lvshow   b) lvs   c) lvls   d) listvg
+
+New navigate-and-discover form (what we're building):
+  Q. On your own RHEL/Rocky/Alma system (or in the loopback
+     sandbox from Task 1), find every command shipped by the
+     `lvm2` package whose name starts with `lv`. List each one
+     and write a one-sentence description of what it does.
+     Hint: `rpm -ql lvm2 | grep -E '/lv[a-z]+$'`
+           or `dnf repoquery -l lvm2 | grep '/lv'`
+           then for each match: `man <cmd>` or `<cmd> --help`.
+
+SCOPE OF THIS REWRITE
+- Applies to ALL future labs added from this file.
+- Applies retroactively to ALL existing RHCSA/RHCE/CKA/CKAD
+  labs in linux-ops-mastery once we get to the rewrite pass.
+- The template.txt embedded at the end of this file is the
+  canonical structural reference for what each rewritten lab's
+  README should look like.
+
+STATUS: documented intent only — not yet implemented in any
+lab. This is a deliberate "design decision captured now, executed
+later" note so no future contributor (human or AI) accidentally
+adds a/b/c/d-style questions to a new lab.
 
 
 ----------------------------------------------------------------
@@ -1323,18 +1429,682 @@ Services and Networking  (3 official objectives)
      `curl -k https://app.example.com/api`)
 
 
+
+
+================================================================
+MASTERING ANSIBLE  Ch 1  —  System Architecture & Design (from ch1.txt)
+================================================================
+
+----------------------------------------------------------------
+🗂  INVENTORY ARCHITECTURE  —  from ch1.txt
+----------------------------------------------------------------
+
+- Static INI Inventory with Groups, Children, and Group-Vars
+    (mastery-hosts file with [web], [dns], [database],
+     [frontend:children]→web, [backend:children]→dns+database,
+     plus [web:vars] / [backend:vars] / [all:vars]; prove
+     ansible-inventory -i mastery-hosts --graph reflects the
+     full hierarchy)
+
+- Behavioral Inventory Variables Cheat-Sheet Playbook
+    (one playbook that overrides ansible_host, ansible_port,
+     ansible_user, ansible_ssh_private_key_file,
+     ansible_connection, ansible_python_interpreter,
+     ansible_become_method per host and prints each value back
+     with `ansible.builtin.debug var=hostvars[...]`)
+
+- Inventory Ordering: inventory / reverse_inventory / sorted /
+  reverse_sorted / shuffle
+    (one play, five runs, prove with debug task that
+     play-level `order:` keyword controls host processing
+     order — include the lexicographical mastery1 / mastery11
+     / mastery2 gotcha example)
+
+- AWS EC2 Dynamic Inventory Plugin Bring-Up
+    (install amazon.aws collection via ansible-galaxy,
+     install python3-boto3/botocore, configure `aws configure`
+     default profile, write mastery_aws_ec2.yml with
+     plugin: amazon.aws.aws_ec2 + boto_profile: default,
+     verify with `ansible-inventory -i mastery_aws_ec2.yml --graph`)
+
+- Runtime Inventory Additions with `ansible.builtin.add_host`
+    (one playbook: provision a fake "new cloud node" then
+     `add_host name=newmastery.example.name groups=web
+     ansible_host=192.168.10.30` and immediately run a task
+     against the new host inside the same play)
+
+- Inventory Limiting with `--limit` + Cross-Host hostvars Access
+    (run mastery.yaml with `--limit frontend` and prove a task
+     can still read `hostvars['backend.example.name']
+     ['ansible_port']` even though backend is masked out)
+
+- YAML vs INI Inventory Equivalence Audit
+    (convert the same [web]/[dns]/[database]/[frontend:children]
+     /[backend:children] INI inventory to a single YAML
+     inventory file and diff the `ansible-inventory --list`
+     output to prove they parse identically)
+
+- Static + Dynamic Inventory Combined (Directory-Based Inventory)
+    (point `-i inventory/` at a directory containing both a
+     static `mastery-hosts` file and the `mastery_aws_ec2.yml`
+     plugin config; prove both sources merge into one inventory
+     with `ansible-inventory -i inventory/ --graph`)
+
+----------------------------------------------------------------
+🎬  PLAYBOOK PARSING & EXECUTION ORDER  —  from ch1.txt
+----------------------------------------------------------------
+
+- Strict Play Order: pre_tasks → roles → tasks → post_tasks → handlers
+    (build the example play from the chapter with all four
+     blocks in scrambled YAML order; prove output order
+     matches the documented execution order, not file order)
+
+- Handler Flushing with `meta: flush_handlers`
+    (config-file change task notifies "restart svc" handler;
+     prove that without `meta: flush_handlers`, a later
+     "ensure service running" task can start a service that
+     the handler then immediately restarts — fix it by
+     flushing handlers between the two tasks)
+
+- Relative Path Resolution for vars_files and include
+    (recreate the chapter's directory tree:
+     a_vars_file.yaml / mastery-hosts / relative.yaml /
+     tasks/a.yaml / tasks/b.yaml; prove paths are relative
+     to the file that references them, not to the playbook
+     root)
+
+- Linear vs Free vs Debug Execution Strategies
+    (same play, 3 runs, `strategy: linear` then `free` then
+     `debug`; with `serial: 2` and an artificial `pause`
+     task on host1, prove free lets host2 race ahead, linear
+     forces lockstep, and debug drops into an interactive
+     prompt on failure)
+
+- Host Pattern Selection: groups, wildcards, regex, &, !
+    (one ad-hoc command per pattern; prove
+     `webservers:&dbservers` is intersection,
+     `webservers:!dbservers` is exclusion, and
+     `~(web|db)\.example\.com` is regex matching)
+
+- Play and Task Names with Variables — When Templating Works
+    (build the chapter's names.yaml example with `var_name`
+     defined in play vars, `task_var_name` defined via
+     set_fact, and `runtime_var_name` undefined; prove only
+     play-vars render in the visible name, set_fact-defined
+     names appear raw in output)
+
+----------------------------------------------------------------
+🔢  VARIABLE PRECEDENCE & MAGIC VARIABLES  —  from ch1.txt
+----------------------------------------------------------------
+
+- Variable Precedence Pyramid: prove all 21 levels
+    (single playbook with the same variable defined in
+     extra-vars, set_fact, include_vars, task vars, block
+     vars, role vars, vars_files, vars_prompt, host_vars,
+     group_vars, role defaults, and inventory; prove
+     extra-vars wins, role defaults always lose)
+
+- Magic Variables Tour: inventory_hostname / group_names /
+  hostvars / play_hosts / ansible_play_batch
+    (one ad-hoc playbook prints each magic variable for
+     every host; prove what's defined at parse time vs
+     execution time)
+
+- `ansible_group_priority` for Conflict Resolution
+    (build the chapter's two-group conflict: host in both
+     `web` (http_port=80) and `proxy` (http_port=8080);
+     show alphabetical sort makes `web` win, then add
+     `ansible_group_priority=10` to `proxy:vars` and prove
+     proxy now wins)
+
+- Hash Merge vs Replace via `hash_behavior`
+    (set hash_var.fred = {home: Seattle, transport: Bicycle}
+     in group_vars, then load `transport: Bus` via
+     include_vars; prove default replace mode drops `home`
+     but `hash_behavior=merge` in ansible.cfg keeps it)
+
+- Lookup Plugins: file / env / pipe / password / dnstxt
+    (one debug task per plugin; prove `lookup('file', ...)`,
+     `lookup('env', 'HOME')`, `lookup('pipe', 'date')`,
+     `lookup('password', '/tmp/p length=16')`, and
+     `lookup('dig', 'example.com')` each return live data
+     evaluated at task time)
+
+- vars_prompt for Interactive Variable Capture
+    (play prompts for a name + password (private: yes,
+     encrypt: sha512), captures the answer into a variable,
+     and uses it in a later task)
+
+----------------------------------------------------------------
+⚡  MODULE TRANSPORT, PERFORMANCE & SAFETY  —  from ch1.txt
+----------------------------------------------------------------
+
+- SSH ControlPersist + Pipelining Performance Benchmark
+    (run a 50-task playbook against 5 hosts twice: once
+     with default settings, once with `pipelining=true` in
+     `[ssh_connection]` and ControlPersist enabled in
+     ~/.ssh/config; capture wall-clock time and prove the
+     speedup)
+
+- Ansible Forks Tuning
+    (run a long playbook across 20 hosts with
+     `forks=5` (default) then `forks=20`; capture
+     before/after duration with `time`; compare the
+     parallelism difference visually with `--forks`)
+
+- Module Discovery Path Order (role library → playbook
+  library → ANSIBLE_LIBRARY → /usr/share/ansible)
+    (place a custom `debug` module shadow at each level in
+     turn and prove which one wins; demonstrate why FQCN
+     usage protects you from shadowing accidents)
+
+- Module Blacklisting with plugin_filters.yml
+    (set `plugin_filters_cfg=/etc/ansible/plugin_filters.yml`
+     in ansible.cfg, write a `module_blacklist: [debug]`
+     entry, prove a playbook using `ansible.builtin.debug`
+     now fails until the blacklist is removed)
+
+- Module Argument Formats: free-form vs key=value vs YAML hash
+    (one playbook with the same `ansible.builtin.user`
+     module called three different ways; prove all three
+     produce identical results but only the YAML hash
+     supports passing complex/nested arguments)
+
+*** NAVIGATE-AND-DISCOVER REMINDER (see INTENT block at top of file) ***
+The question stems below are paraphrased prompts only. When the
+corresponding labs above are actually built, each stem should be
+expanded into a template.txt-style navigate-and-discover lab:
+an open-ended prompt plus hint commands like `ansible-doc`, `man`,
+`find`, `grep`, `journalctl`, or `<cmd> --help` so the learner
+answers by exploring Linux, not by picking a/b/c/d.
+***********************************************************************
+
+Question Stems from ch1.txt (paraphrased — use as lab prompts):
+
+   1. Why is an inventory important to Ansible?
+   2. Do Ansible users need to manually update inventory for frequently changing infrastructure?
+   3. By default, in what order does Ansible process hosts in an inventory?
+   4. By default, in what order are Ansible tasks in a simple playbook executed?
+   5. Which variable type has the highest priority?
+   6. What are Ansible's special runtime variables called?
+   7. What would you use to access external data from a playbook?
+   8. What is Ansible's preferred default transport for most non-Windows hosts?
+   9. What can inventory variables be used for?
+  10. How can you override the default Ansible configuration?
+
+
+================================================================
+MASTERING ANSIBLE  Ch 2  —  Migration / Collections / FQCNs (from ch2.txt)
+================================================================
+
+----------------------------------------------------------------
+📦  ANSIBLE COLLECTIONS & FQCNs  —  from ch2.txt
+----------------------------------------------------------------
+
+- Clean Reinstall: Remove Ansible 2.9 / 3.x, Install Ansible 4.3
+    (uninstall via dnf/apt/pip depending on prior install
+     method, install 4.3 from pip into a sandbox; prove
+     `ansible --version` reports ansible-core 2.11.x)
+
+- Pip + virtualenv: Two Side-by-Side Ansible Versions
+    (create `ansible-2.9` and `ansible-4.3` virtualenvs,
+     install pinned versions in each via
+     `pip install 'ansible>=2.9,<2.10'` etc., switch between
+     them with `source <env>/bin/activate`, prove version
+     swap with `ansible --version`)
+
+- Build Your First Custom Collection (`masterybook.demo`)
+    (`ansible-galaxy collection init masterybook.demo`,
+     populate galaxy.yml, drop a custom module into
+     plugins/modules/remote_copy.py, run
+     `ansible-galaxy collection build` to produce the
+     `.tar.gz` artifact)
+
+- Install Your Custom Collection Locally via `collections_paths`
+    (create an ansible.cfg in a test dir with
+     `collections_paths=./collections:~/.ansible/collections:
+     /usr/share/ansible/collections`, install the tarball
+     with `ansible-galaxy collection install
+     ~/masterybook/demo/masterybook-demo-1.0.0.tar.gz
+     -p ./collections`, run a playbook that calls it via
+     FQCN)
+
+- FQCN vs Short Module Names — Shadowing Demo
+    (write a custom collection containing a module called
+     `pause` that does something destructive; prove that
+     calling `pause` resolves to `ansible.builtin.pause`
+     not your version, then prove that adding
+     `collections: [masterybook.demo]` at play level flips
+     the priority)
+
+- Collection Installation from Git URL
+    (`ansible-galaxy collection install
+     git+https://github.com/user/repo.git,branchname`,
+     verify with `ansible-galaxy collection list`, run a
+     playbook that uses a module from the freshly cloned
+     collection)
+
+- Bulk Collection Install via requirements.yml
+    (write a `requirements.yml` listing
+     `geerlingguy.k8s` (latest) + `geerlingguy.php_roles`
+     (pinned to 1.0.0); install all with
+     `ansible-galaxy install -r requirements.yml`; prove
+     each was installed at the requested version)
+
+- Semantic Versioning Walk-Through for Ansible Packages
+    (install 4.0.0 then 4.3.0 then jump to a hypothetical
+     5.0.0; document which jumps are backward-compatible
+     vs breaking and what the ansible-core dependency
+     pinning means for each)
+
+- Discover All Modules in a Collection via `ansible-doc -l`
+    (run `ansible-doc -l cisco.ios`, `-l community.aws`,
+     `-l amazon.aws`; capture into a markdown table that
+     becomes the cheat-sheet for the project)
+
+- Force-Install a Pre-Release / Dev Collection Version
+    (`ansible-galaxy collection install
+     amazon.aws:==1.4.2-dev9 --force`, prove the dev
+     version installs over the released one, then revert
+     with another `--force` to the stable channel)
+
+- Publish a Collection to Ansible Galaxy
+    (create Galaxy account via GitHub login, copy API key,
+     run `ansible-galaxy collection publish
+     masterybook-demo-1.0.0.tar.gz --token=<key>`, verify
+     it appears at galaxy.ansible.com/masterybook/demo)
+
+*** NAVIGATE-AND-DISCOVER REMINDER (see INTENT block at top of file) ***
+The question stems below are paraphrased prompts only. When the
+corresponding labs above are actually built, each stem should be
+expanded into a template.txt-style navigate-and-discover lab:
+an open-ended prompt plus hint commands like `ansible-doc`, `man`,
+`find`, `grep`, `journalctl`, or `<cmd> --help` so the learner
+answers by exploring Linux, not by picking a/b/c/d.
+***********************************************************************
+
+Question Stems from ch2.txt (paraphrased — use as lab prompts):
+
+   1. What can Ansible Collections contain?
+   2. Do Collections make module versioning independent of the Ansible engine version?
+   3. What is the relationship between the Ansible package and the automation engine?
+   4. Can you upgrade directly from Ansible 2.9 to Ansible 4.3?
+   5. Are module names guaranteed to be unique across namespaces in Ansible 4.3?
+   6. What naming format helps ensure you call the correct module?
+   7. Which file lists required Collections for easy installation?
+   8. How is your Ansible Galaxy namespace created?
+   9. What archive format are Collections stored in?
+  10. How can you list installed Collections?
+
+
+================================================================
+MASTERING ANSIBLE  Ch 7  —  Task Conditions, Error Recovery, Loops (from ch7.txt)
+================================================================
+
+----------------------------------------------------------------
+🎛  TASK CONDITIONS, ERROR RECOVERY & LOOPS  —  from ch7.txt
+----------------------------------------------------------------
+
+- `ignore_errors: true` on a Deliberately-Failing URI Task
+    (`ansible.builtin.uri` against `http://notahost.nodomain`;
+     prove the play normally aborts the host, then add
+     `ignore_errors: true` and prove subsequent tasks on
+     that host continue to run)
+
+- `failed_when` for iscsiadm Exit Code Tolerance
+    (run `/sbin/iscsiadm -m session`, register output, set
+     `failed_when: sessions.rc not in (0, 21)`; prove
+     `failed_when_result: false` appears in the verbose
+     output even when rc=21)
+
+- Multi-Condition `failed_when` as YAML List (Git Branch Delete)
+    (`git branch -D badfeature` in /srv/app, register the
+     result, fail only when rc != 0 AND stderr doesn't
+     match `branch.*not found`; demonstrate that YAML-list
+     conditions implicitly AND together)
+
+- `changed_when` to Suppress False-Positive Changes
+    (combine `failed_when` + `changed_when: gitout.rc == 0`
+     on the git-branch-delete task; prove that a no-op run
+     shows `changed: false` and a real delete shows
+     `changed: true`)
+
+- `creates` / `removes` for Command-Family Idempotency
+    (write a frobitz shell script that creates
+     /srv/whiskey/tango; replace the old stat + when
+     two-task combo with a single `ansible.builtin.script`
+     task using `args: creates: /srv/whiskey/tango`;
+     prove second run skips entirely)
+
+- Pure Data-Gathering Tasks with `changed_when: false`
+    (iscsiadm session-discovery task with combined
+     failed_when + `changed_when: false`; prove the task
+     can only be `ok` or `failed`, never `changed`)
+
+- `block` + `rescue` for Graceful Cleanup
+    (block runs a `git branch -D badfeature` task that
+     fails; rescue logs the failure to /tmp/cleanup.log
+     and runs `git reset --hard`; prove the post-block
+     "task after block" still executes)
+
+- `block` + `rescue` + `always` (Three-Section Block)
+    (rescue runs cleanup tasks, always runs a notification
+     task; verify always executes whether or not block
+     failed, by running the playbook with the failure
+     condition both met and not met)
+
+- `ignore_unreachable: true` Against an Inventory of Dead Hosts
+    (inventory with 2 fake hosts that DNS-resolve to
+     unreachable IPs; prove the play normally aborts at
+     task 1 but with `ignore_unreachable: true` task 2 is
+     still attempted)
+
+- Modern `loop:` vs Legacy `with_items:` Equivalence
+    (same playbook written both ways to create
+     /srv/whiskey/alpha and /srv/whiskey/beta; prove they
+     produce identical output and prove `with_items` still
+     works but emits a deprecation warning in modern
+     Ansible)
+
+- `until` / `retries` / `delay` Loop Waiting for /tmp/flag
+    (task uses `ansible.builtin.stat` registered to
+     `statresult` with
+     `until: statresult.stat.exists`,
+     `retries: 5`, `delay: 10`; prove the play polls every
+     10s, gives up after 5 attempts, then succeeds when
+     the flag is touched mid-loop from another shell)
+
+- Nested Loops with `product` Filter and `loop_control.loop_var`
+    (paths=[/tmp, /var/tmp] x files=[test1, test2]; first
+     write it inline using
+     `loop: "{{ paths | product(files) | list }}"`, then
+     refactor to `include_tasks: createfile.yml` with
+     `loop_control: loop_var: pathname`; prove both produce
+     identical files but show the readability tradeoff)
+
+*** NAVIGATE-AND-DISCOVER REMINDER (see INTENT block at top of file) ***
+The question stems below are paraphrased prompts only. When the
+corresponding labs above are actually built, each stem should be
+expanded into a template.txt-style navigate-and-discover lab:
+an open-ended prompt plus hint commands like `ansible-doc`, `man`,
+`find`, `grep`, `journalctl`, or `<cmd> --help` so the learner
+answers by exploring Linux, not by picking a/b/c/d.
+***********************************************************************
+
+Question Stems from ch7.txt (paraphrased — use as lab prompts):
+
+   1. Does Ansible stop processing further tasks for a host after the first failure by default?
+   2. What default statuses do `command` and `shell` usually return?
+   3. Which keyword stores task results?
+   4. Which directive changes a task's failure condition?
+   5. How can multiple conditional statements be combined?
+   6. How can changed status be suppressed?
+   7. How do tasks behave inside a `block` when an error occurs?
+   8. Which block section runs only after an error?
+   9. When does the `always` section of a block run?
+  10. What is the default variable name for the current loop item?
+
+
+================================================================
+MASTERING ANSIBLE  Ch 8  —  Roles, Includes & ansible-galaxy (from ch8.txt)
+================================================================
+
+----------------------------------------------------------------
+🧱  ROLES, INCLUDES & ANSIBLE-GALAXY  —  from ch8.txt
+----------------------------------------------------------------
+
+- Basic Task Inclusion with `ansible.builtin.include`
+    (write includer.yaml that runs one inline task then
+     includes more-tasks.yaml containing two debug tasks;
+     add a third task after the include and prove
+     execution order is inline → included-1 → included-2 →
+     after)
+
+- Passing Variables Inline to Included Tasks
+    (files.yaml takes `path` + `file` variables and runs
+     two `ansible.builtin.file` tasks (mkdir + touch);
+     include it twice with different vars in the same play
+     to create /tmp/foo/herp and /tmp/foo/derp from one
+     reusable file)
+
+- Passing Complex Hash Data to Included Tasks via dict2items
+    (refactor the above to pass `files: {herp: {path:
+     /tmp/foo}, derp: {path: /tmp/foo}}` in a single
+     include, loop over `files | dict2items` inside the
+     included file; prove one include creates both files)
+
+- Conditional Include with `when: item | bool`
+    (more-tasks.yaml iterates over `a_list: [true, false]`;
+     include with `when: item | bool` to skip the false
+     iteration of every task inside the included file;
+     prove every task gets the conditional, not just the
+     include itself)
+
+- Tagged Task Includes for Selective Execution
+    (include more-tasks.yaml twice, once with `tags: first`
+     and `vars: {data: first}`, once with `tags: second`
+     and `vars: {data: second}`; run with
+     `--tags second` and prove only the second include
+     executes)
+
+- Looping Over a Task Include with `loop_control: loop_var`
+    (outer loop uses `loop: [one, two]` +
+     `loop_control: loop_var: include_item`; inner task
+     loops over `[a, b]` using `item`; prove no variable
+     collision and 4 total executions per inclusion loop)
+
+- Handler Inclusion with `when` on the Include Statement
+    (handler block uses `include: handlers.yaml when: foo
+     | default('true') | bool`; trigger with `-e foo=false`
+     and prove the handler is skipped entirely)
+
+- `vars_files` Static Inclusion vs `include_vars` Dynamic Inclusion
+    (one play with `vars_files: [variables.yaml]` (parsed
+     at play parse time) vs another play that calls
+     `ansible.builtin.include_vars: "{{ varfile }}"` as a
+     task (evaluated at task time); prove the dynamic
+     version can use a variable defined by a previous task)
+
+- `include_vars` with `with_first_found` for OS-Specific Vars
+    (try `{{ ansible_distribution }}.yaml`,
+     `{{ ansible_os_family }}.yaml`, then `variables.yaml`
+     as a fallback chain; prove on Ubuntu vs RHEL the right
+     distro-specific file is picked first)
+
+- Loading Extra Vars from a File via `-e @file.yaml`
+    (run `ansible-playbook -e @variables.yaml` and prove
+     that the variables defined in variables.yaml become
+     extra-vars even though the file is never referenced
+     inside the playbook itself)
+
+- `import_playbook` for Composing Multi-Playbook Workflows
+    (master playbook with two `import_playbook` directives
+     pulling in installme.yaml + configureme.yaml; prove
+     each child playbook is fully run in order, and prove
+     `import_playbook` cannot take `vars:` or `when:`)
+
+- Build a Role From Scratch with `ansible-galaxy role init`
+    (`ansible-galaxy role init --init-path roles/
+     simple`; populate roles/simple/defaults/main.yaml with
+     `derp: herp`, roles/simple/tasks/main.yaml with a
+     debug task printing `var: derp`; consume from a
+     roleplay.yaml that overrides with `derp: newval`)
+
+- Role Dependencies with Variables + Tags + Conditionals
+    (roles/apache/meta/main.yaml declares
+     `dependencies: [{role: common, simple_var_a: true,
+     tags: common_demo}, {role: apache, complex_var:
+     {key1: value1}, when: backend_server == 'apache',
+     tags: [apache_demo, 8080]}]`; prove dependencies run
+     before apache itself)
+
+- pre_tasks / roles / tasks / post_tasks Handler-Flush Ordering
+    (single playbook with all four sections, each task
+     notifies the same `say hi` handler with `changed_when:
+     true`; prove the handler fires exactly 3 times — once
+     after pre_tasks, once after roles+tasks, once after
+     post_tasks)
+
+- Install Roles from Ansible Galaxy + Git + tarball + requirements.yml
+    (`ansible-galaxy role install -p roles/
+     angstwad.docker_ubuntu` from Galaxy; then install a
+     private role with `git+git@server:repo,v1,renamed`
+     syntax; then bulk-install via `ansible-galaxy install
+     -r requirements.yml`; verify each with
+     `ansible-galaxy role list -p roles/`)
+
+*** NAVIGATE-AND-DISCOVER REMINDER (see INTENT block at top of file) ***
+The question stems below are paraphrased prompts only. When the
+corresponding labs above are actually built, each stem should be
+expanded into a template.txt-style navigate-and-discover lab:
+an open-ended prompt plus hint commands like `ansible-doc`, `man`,
+`find`, `grep`, `journalctl`, or `<cmd> --help` so the learner
+answers by exploring Linux, not by picking a/b/c/d.
+***********************************************************************
+
+Question Stems from ch8.txt (paraphrased — use as lab prompts):
+
+   1. Which module runs tasks from an external task file?
+   2. Can variable data be passed to an external task file?
+   3. What is the default variable name for the current loop value?
+   4. Which loop control prevents loop variable name collisions?
+   5. When are handlers generally run?
+   6. From which external sources can Ansible load variables?
+   7. How do roles get their names?
+   8. What happens if a role is missing `tasks/main.yml`?
+   9. Can roles depend on other roles?
+  10. What happens when you specify a tag for a role?
+
+
+================================================================
+MASTERING ANSIBLE  Ch 13  —  Network Automation (from ch13.txt)
+================================================================
+
+----------------------------------------------------------------
+🌐  NETWORK AUTOMATION — SWITCHES, ROUTERS, JUMP HOSTS  —  from ch13.txt
+----------------------------------------------------------------
+
+- Choosing the Right Connection Protocol: local vs network_cli
+  vs netconf vs httpapi
+    (decision matrix for 4 device types: Cisco IOS,
+     Arista EOS, F5 BIG-IP, Cumulus Linux; pick the right
+     `ansible_connection` value for each and document why
+     `connection: local` is being deprecated)
+
+- Inventory for Cisco IOS via `ansible.netcommon.network_cli`
+    (build `[ios_devices]` group with
+     `ansible_connection: ansible.netcommon.network_cli`,
+     `ansible_network_os: cisco.ios.ios`,
+     `ansible_become: yes`,
+     `ansible_become_method: enable`; verify with
+     `cisco.ios.ios_facts`)
+
+- Save Running Config on Cisco IOS with `cisco.ios.ios_config`
+    (playbook task `cisco.ios.ios_config: save_when:
+     always` against the ios_devices group; prove it's
+     idempotent across multiple runs)
+
+- Bring Up an Arista vEOS Switch from Zero
+    (cancel ZeroTouch with `zerotouch cancel`, set admin
+     password, configure `interface management 1` with
+     IP via `ip address 10.0.50.99/8`, `write` the
+     config; prove SSH connectivity from the Ansible
+     control node)
+
+- Configure Arista EOS Interfaces with `arista.eos.eos_interfaces`
+    (enable Ethernet1, set `description: Managed by
+     Ansible`, then `arista.eos.eos_config: save_when:
+     modified`; prove second run is fully idempotent
+     showing `ok` not `changed`)
+
+- Configure Cumulus Linux Layer-2 Bridge with
+  `community.network.nclu`
+    (switch-l2-configure.yaml uses inline Jinja2 for-loop
+     across swp1..swp3: `add interface swp{i}` +
+     `add bridge ports swp{i}` + `commit: true`; verify
+     `swp1` joins the default bridge with a follow-up
+     `show interface swp1` query)
+
+- Multi-Vendor Inventory with `[switches:children]` Grouping
+    (one inventory containing both `[eos]` and `[cumulus]`
+     groups under `[switches:children]`; build a single
+     playbook that gates Cumulus-only tasks behind
+     `when: inventory_hostname in groups['cumulus']`)
+
+- Conditional Fact-Gathering for Different Network OSes
+    (one play with two fact tasks:
+     `arista.eos.eos_facts` when
+     `ansible_network_os is defined and == 'arista.eos.eos'`,
+     and `ansible.builtin.setup` when in `groups['cumulus']`;
+     prove both fact sets populate cleanly without
+     undefined-variable errors)
+
+- Jump Host / Bastion via `ansible_ssh_common_args` ProxyCommand
+    (set `ansible_ssh_common_args='-o
+     ProxyCommand="ssh -W %h:%p -q
+     jfreeman@bastion01.example.com"'` in
+     `[cumulus:vars]`, prove the playbook still runs
+     unchanged against switches that live behind the
+     bastion)
+
+- Raw-Command Fallback for Unsupported Devices via
+  `ansible.builtin.raw`
+    (TP-Link or other unmanaged switch with only SSH CLI;
+     wrap CLI commands in `ansible.builtin.raw` calls,
+     accept loss of idempotency, document this as a
+     "stepping stone to a proper module" pattern)
+
+*** NAVIGATE-AND-DISCOVER REMINDER (see INTENT block at top of file) ***
+The question stems below are paraphrased prompts only. When the
+corresponding labs above are actually built, each stem should be
+expanded into a template.txt-style navigate-and-discover lab:
+an open-ended prompt plus hint commands like `ansible-doc`, `man`,
+`find`, `grep`, `journalctl`, or `<cmd> --help` so the learner
+answers by exploring Linux, not by picking a/b/c/d.
+***********************************************************************
+
+Question Stems from ch13.txt (paraphrased — use as lab prompts):
+
+   1. Does Ansible bring infrastructure automation benefits to network device management?
+   2. What should you do first when working with a new network device type?
+   3. What is remote execution?
+   4. What is local execution?
+   5. Which protocol mostly superseded older local connection-based network automation?
+   6. Can facts be gathered for an Arista EOS device at the start of a play?
+   7. Is all Arista EOS network configuration performed with one module?
+   8. Why does Cumulus Linux not require `ansible.netcommon.network_cli`?
+   9. Why is inventory management important in multi-device networks?
+  10. Can Ansible support bastion or jump hosts without special proxy software?
+
+
 ----------------------------------------------------------------
 SUMMARY COUNTS
 ----------------------------------------------------------------
 
-  RHCSA  (from samplerhcsa2.txt)            : 11 future labs
-  RHCSA  (from samplerhcsa3 + 4.txt)        : 13 future labs
-  RHCE   (from rhcsasample.txt)             : 20 future labs
-  CKA    (from ckaexamguide.txt)            : 20 future labs
-  RHCSA 9 & 10 (PerfectScorerPracticeExams) : 97 future labs
-  CKAD   (from ckadstudyguide.txt)          : 22 future labs
+  RHCSA  (from samplerhcsa2.txt)             : 11 future labs
+  RHCSA  (from samplerhcsa3 + 4.txt)         : 13 future labs
+  RHCE   (from rhcsasample.txt)              : 20 future labs
+  CKA    (from ckaexamguide.txt)             : 20 future labs
+  RHCSA 9 & 10 (PerfectScorerPracticeExams)  : 97 future labs
+  CKAD   (from ckadstudyguide.txt)           : 23 future labs
+
+  Mastering Ansible labs (from ch1, ch2, ch7, ch8, ch13):
+    Ch 1  System Architecture & Design       : 25 labs
+    Ch 2  Migration / Collections / FQCNs    : 11 labs
+    Ch 7  Task Conditions / Loops / Rescue   : 12 labs
+    Ch 8  Roles / Includes / ansible-galaxy  : 15 labs
+    Ch 13 Network Automation                 : 10 labs
+    ──────────────────────────────────────────
+    Mastering Ansible subtotal               : 73 labs
+
   -----------------------------------------------------------
-  TOTAL                                     : 183 future labs
+  TOTAL                                      : 257 future labs
+
+  (Verified on 2026-05-23 by counting every line that starts
+   with `- ` in each section. The template.txt appendix at the
+   end of this file contains lab-checklist `- [ ]` bullets that
+   are NOT counted toward this total — they belong to the
+   reference template, not to the future-lab list.)
 
   CKAD breakdown by exam domain:
     Application Design and Build .................. 7
@@ -1370,4 +2140,699 @@ SUMMARY COUNTS
     Documentation Tools ........ 1
     Environment & Shell ........ 1
 
+================================================================
+REFERENCE TEMPLATE FOR FUTURE LABS  —  embedded copy of template.txt
+================================================================
 
+Purpose of this appendix
+------------------------
+This is a verbatim copy of template.txt from the project root,
+embedded here on 2026-05-23 so the canonical lab structure travels
+in the same file as the future-lab list. Whenever I (or any AI
+agent) build out a lab from the bullet list above, the README for
+that lab should follow the exact section layout, tone, and
+formatting shown below — Lab title block, Objective, Concept,
+"Story" sidebar, Family/anatomy tables, Reference table, Career
+Pathway sidebar, numbered tasks (Purpose / fenced commands /
+Human-Readable Breakdown / Reading it left to right / The story /
+Expected output / Switches / Troubleshoot), Decision Guide, Lab
+Checklist, Common Pitfalls, Career & Interview Strategy, Related
+Labs, and Author. The original source file at
+"c:\Users\Kelvint\OneDrive - Hillco LTD\Documents\New folder\template.txt"
+remains the working copy; this appendix is the in-file reference.
+
+Cross-reference to the INTENT block at the top of this file:
+Every Q&A block in a real lab built from this template should use
+the "navigate-and-discover" format documented in the INTENT FOR
+MULTIPLE-CHOICE QUESTIONS section above — never the legacy
+a/b/c/d format. The template structure below is correct; only the
+Q&A style needs to be transformed from multiple-choice to
+discovery-prompt as labs are rewritten.
+
+================================================================
+BEGIN template.txt  (verbatim, 2026-05-23)
+================================================================
+# Lab: Create LV `lvol1` (ext4, 280 MB) and Mount Persistently
+
+**Series:** linux-ops-mastery — RHCSA LVM & Storage Management
+**Subjects covered:** PV / VG / LV mental model, `pvcreate`, `vgcreate`, `lvcreate`, `mkfs.ext4`, `blkid`, UUID-based `/etc/fstab` entries, `mount -a`, `systemctl daemon-reload`, loopback devices for safe practice
+**Career arcs covered:** RHCSA (Storage objective — guaranteed exam question), RHCE (Ansible `community.general.lvol` module), SRE (resizing root volumes without downtime), DevOps (thin-provisioned LVs for container storage drivers)
+**Prerequisite:** Comfort with `lsblk`, `df -h`, `mount`, `/etc/fstab` basics
+**Time Estimate:** 60 to 90 minutes
+**Difficulty arc:** Task 1 foundation · 2–3 the PV→VG→LV→filesystem pipeline · 4–5 mount + persistence · 6 RHCSA exam-realistic capstone
+
+---
+
+## Objective
+
+Build the **PV → VG → LV → filesystem → mount → fstab** muscle memory so you can answer any RHCSA storage question without reaching for documentation. By the end of this lab you can take an empty block device and turn it into a persistently-mounted ext4 filesystem in seven commands.
+
+The capstone is the **RHCSA sample exam Task 12**: create a logical volume called `lvol1` of size 280 MB in volume group `vgtest`, format it ext4, and mount it persistently to `/mnt/mnt1`.
+
+> **Lab safety note:** This lab uses **loopback devices** (`losetup` + a sparse file) instead of real disks, so you can practice the full PV/VG/LV pipeline on any RHEL VM — even one without an attached EBS volume. Every command transfers identically to a real `/dev/vdb` or `/dev/nvme1n1` when you do get an extra disk.
+
+---
+
+## Concept: LVM Is an Indirection Layer Between Disks and Filesystems
+
+Without LVM, a filesystem lives directly on a partition. The partition's size is fixed at creation; resizing it later means unmounting, repartitioning, possibly destroying data, and rebooting.
+
+With LVM, three new layers sit between the disk and the filesystem:
+
+```
+   ┌─────────────────────────────────────────────────────┐
+   │  Filesystem (ext4 / xfs)        ← what users see    │
+   ├─────────────────────────────────────────────────────┤
+   │  Logical Volume (LV)            ← lvcreate          │  ┐
+   ├─────────────────────────────────────────────────────┤  │ LVM
+   │  Volume Group (VG)              ← vgcreate          │  │ layer
+   ├─────────────────────────────────────────────────────┤  │
+   │  Physical Volume (PV)           ← pvcreate          │  ┘
+   ├─────────────────────────────────────────────────────┤
+   │  Partition (/dev/sda3)          ← fdisk / parted    │
+   ├─────────────────────────────────────────────────────┤
+   │  Disk (/dev/sda)                ← the physical disk │
+   └─────────────────────────────────────────────────────┘
+```
+
+Each LVM layer is a thin abstraction over the one below it:
+
+- **PV (Physical Volume)** — a disk or partition marked "available for LVM" with a small metadata header.
+- **VG (Volume Group)** — a *pool* of one or more PVs glued together. Conceptually a soft-disk of arbitrary size.
+- **LV (Logical Volume)** — a slice carved out of the VG. *This* is where you put the filesystem.
+
+Because the VG is a pool, **the LV can grow or shrink without touching the underlying disks**. That's the whole point.
+
+> **Why this matters:** Every modern Linux installation uses LVM by default (RHEL, CentOS, Ubuntu Desktop, Fedora). When `/` runs out of space, you don't reinstall — you grow the LV and run `xfs_growfs` or `resize2fs`. Mastering LVM is what separates "I can install Linux" from "I can keep Linux running."
+
+---
+
+## 📜 Why LVM Exists — The Story
+
+In 1994, Heinz Mauelshagen ported HP-UX's Logical Volume Manager to Linux. By 1999, LVM1 was shipping in the kernel. By 2002, LVM2 (still the version we use today) replaced it with the `device-mapper` driver — the same kernel subsystem that powers `dm-crypt`, `dm-cache`, `dm-thin`, and Docker's old `devicemapper` storage driver.
+
+### The pain LVM was invented to solve
+
+- **Fixed partitions.** Before LVM, `/var/log` and `/home` were sized at install time. Run out of space in `/var/log` and your only option was to repartition the disk — which meant booting from a rescue CD, hoping `parted` could shrink your `/home`, and praying nothing went wrong.
+- **Cross-disk filesystems.** Pre-LVM, a single filesystem couldn't span multiple disks. If your data didn't fit on one disk, you sharded across mount points — `/data1`, `/data2`, `/data3` — and updated every script that touched them.
+- **Snapshots.** Without LVM, "back up the database mid-transaction" meant stopping the database, taking a copy, and starting it again. With LVM snapshots, you freeze the LV's view of the world in milliseconds, take a leisurely backup, and discard the snapshot — *while the database keeps running.*
+- **Online resizing.** Every grow/shrink required unmounting. With LVM + xfs/ext4's online growth support, you grow `/home` while users are logged into it.
+
+### The killer feature most beginners miss: thin provisioning
+
+Modern LVM2 supports **thin-provisioned LVs**: you can `lvcreate -V 1T --thin` a one-terabyte LV inside a 50 GB pool — and the LV reports as 1 TB to the filesystem, but only consumes blocks as they're written. This is the underlying technology for container storage drivers, hypervisor disk overcommit, and most "thin clones" features in commercial storage products.
+
+### Why exam-day still drills the basics
+
+RHCSA tests the **fundamentals** — `pvcreate` / `vgcreate` / `lvcreate` / `mkfs` / `mount` — because those are the muscle-memory commands you'll type once a week for the rest of your career. Snapshots and thin pools come later (RHCE-level, or vendor courses). Get the basics into your fingers and the rest is a `man` page away.
+
+> **The point of the story:** Every storage decision in modern Linux — root-on-LVM, encrypted home, container thin pools, KVM disk images — assumes you understand the PV/VG/LV stack. The 30 minutes you spend on this lab buys you 30 years of "yeah, I can resize that for you" answers.
+
+---
+
+## 👪 The LVM Family — Who Lives There
+
+LVM has more relatives than most admins realize.
+
+### By layer
+
+| Layer | Command family | What it represents |
+|---|---|---|
+| **PV** | `pvcreate`, `pvs`, `pvdisplay`, `pvscan`, `pvremove`, `pvmove` | A physical disk or partition prepared for LVM |
+| **VG** | `vgcreate`, `vgs`, `vgdisplay`, `vgextend`, `vgreduce`, `vgremove` | A pool of one or more PVs |
+| **LV** | `lvcreate`, `lvs`, `lvdisplay`, `lvextend`, `lvreduce`, `lvresize`, `lvremove`, `lvrename` | A slice of the VG that holds a filesystem |
+| **PE / LE** | (no direct command; shown in `*display`) | Physical / Logical Extents — the atomic unit of LVM allocation (4 MiB by default) |
+
+### By LV type
+
+| Type | `lvcreate` flag | Behavior | Use case |
+|---|---|---|---|
+| **Linear** | (default) | Allocate sequential extents on one or more PVs | The plain-vanilla LV. *What we'll build today.* |
+| **Striped** | `-i N` | Stripe data across N PVs RAID-0 style | Performance: parallelize I/O across disks |
+| **Mirrored** | `-m N` | Maintain N+1 copies | Redundancy: tolerate disk failures |
+| **Thin-provisioned** | `--thin --thinpool POOL --virtualsize SIZE` | Reports SIZE to filesystem; allocates extents on demand | Container storage, overcommit |
+| **Snapshot** | `-s -L SIZE ORIGIN_LV` | Copy-on-write view of another LV at one moment | Backups, rollback testing |
+| **Cache LV** | `--type cache` | Front a slow LV with a fast SSD LV | SSD acceleration for HDD storage |
+
+### By filesystem layered on top
+
+| Filesystem | mkfs command | Online grow | Online shrink | Default on RHEL |
+|---|---|---|---|---|
+| **ext4** | `mkfs.ext4` | ✅ via `resize2fs` | ✅ (requires unmount) | RHEL 6 and older — *what the exam often asks for* |
+| **xfs** | `mkfs.xfs` | ✅ via `xfs_growfs` | ❌ never | RHEL 7+ default |
+| **Btrfs** | `mkfs.btrfs` | ✅ | ✅ | Not on RHEL (removed in 8) |
+
+> **The point of the family tree:** Every storage question on the exam reduces to *"which layer is this question about?"* A "resize the filesystem" question is mostly about the FS layer (`resize2fs` / `xfs_growfs`). A "make `/home` bigger" question is the LV layer (`lvextend`) followed by the FS layer. A "add a new disk to the existing pool" question is the VG layer (`vgextend`). Recognizing which layer the question lives at narrows your command choices instantly.
+
+---
+
+## 🔬 The Anatomy of `pvs` / `vgs` / `lvs` Output — In One Diagram
+
+### What `pvs` shows you
+
+```
+$ pvs
+  PV             VG       Fmt  Attr PSize    PFree
+  /dev/loop0     vgtest   lvm2 a--  1020.00m 740.00m
+  └─────┬────┘   └──┬─┘   └─┬┘ └┬┘ └───┬───┘ └──┬──┘
+        │           │       │   │      │        │
+        │           │       │   │      │        └─ Free space in the PV (not yet allocated to any LV)
+        │           │       │   │      └─ Physical Volume size after metadata reserved
+        │           │       │   └─ Attributes: a=allocatable, u=used, --=no special flags
+        │           │       └─ Format: lvm2 (current); lvm1 is legacy
+        │           └─ Volume Group this PV belongs to (empty if PV exists but isn't joined to a VG)
+        └─ Physical Volume device path (a real disk, partition, or loopback)
+```
+
+### What `vgs` shows you
+
+```
+$ vgs
+  VG     #PV #LV #SN Attr   VSize   VFree
+  vgtest   1   1   0 wz--n- 1020.00m 740.00m
+  └─┬─┘  └┬┘ └┬┘ └┬┘ └─┬──┘ └──┬──┘ └──┬──┘
+    │     │   │   │    │       │       └─ Free extents (the VG's spare capacity)
+    │     │   │   │    │       └─ Total VG size (sum of contained PVs minus metadata)
+    │     │   │   │    └─ Attributes: w=writable, z=resizable, --=allocation policy, n=not clustered
+    │     │   │   └─ Number of snapshots in this VG
+    │     │   └─ Number of logical volumes carved out
+    │     └─ Number of physical volumes pooled
+    └─ Volume Group name
+```
+
+### What `lvs` shows you
+
+```
+$ lvs
+  LV     VG     Attr       LSize   Pool Origin Data%  Meta%  Move Log Cpy%Sync Convert
+  lvol1  vgtest -wi-ao----  280.00m
+  └─┬─┘  └─┬─┘  └────┬───┘ └──┬──┘
+    │      │         │        └─ LV size
+    │      │         └─ Attributes (10 chars). Position 1: type (-=linear, m=mirrored, s=snapshot, ...).
+    │      │                       Position 5: state (a=active, --=inactive). Position 6: device (o=open=mounted).
+    │      └─ Volume Group it lives in
+    └─ Logical Volume name (gets a symlink at /dev/<VG>/<LV>)
+```
+
+> **Reading rule:** Always inspect bottom-up — `pvs` first to confirm the disks are visible to LVM, then `vgs` to confirm they're pooled, then `lvs` to confirm the slices are carved. Any storage bug becomes obvious once you find the *first* layer that's wrong.
+
+---
+
+## 📚 LVM Reference Table
+
+| Task | Command | Notes |
+|---|---|---|
+| Initialize a disk for LVM | `pvcreate /dev/sdX` | The disk is no longer usable as a plain partition after this |
+| Create a VG | `vgcreate VGNAME /dev/sdX` | One VG can contain multiple PVs |
+| Add another disk to a VG | `vgextend VGNAME /dev/sdY` | Grow the pool |
+| Create an LV by size | `lvcreate -L 280M -n LVNAME VGNAME` | `M` = MiB (1024² bytes), not MB |
+| Create an LV by extent count | `lvcreate -l 70 -n LVNAME VGNAME` | 70 PEs × 4 MiB = 280 MiB |
+| Create an LV using free space % | `lvcreate -l 100%FREE -n LVNAME VGNAME` | Common pattern for "use all remaining space" |
+| Format ext4 | `mkfs.ext4 /dev/VGNAME/LVNAME` | Device path is `/dev/VG/LV` |
+| Get UUID | `blkid /dev/VGNAME/LVNAME` | The UUID you'll paste into `/etc/fstab` |
+| Persistent mount | `UUID=... /mnt/mnt1 ext4 defaults 0 0` in `/etc/fstab` | Then `mount -a` |
+| Grow an LV | `lvextend -L +500M /dev/VG/LV` | Then `resize2fs /dev/VG/LV` for ext4 |
+| Shrink an LV (ext4 only, with care) | unmount → `e2fsck -f` → `resize2fs SIZE` → `lvreduce` | xfs cannot shrink |
+| Remove an LV | `lvremove /dev/VG/LV` | Unmount first |
+| Tear down a VG | `vgremove VGNAME` | LVs must be removed first |
+| Strip LVM metadata | `pvremove /dev/sdX` | Final step in cleanup |
+
+> **Rule one of LVM:** Build top-down (PV → VG → LV → FS → mount), but **tear down bottom-up** (unmount → remove FS line in fstab → `lvremove` → `vgremove` → `pvremove`). Skip a step at teardown and you'll see weird "device busy" errors.
+
+---
+
+## 🎯 Career Pathway Sidebar
+
+| Level | Why this lab matters |
+|---|---|
+| **RHCSA candidate** | LVM is one of the highest-weighted Storage objectives on EX200. *"Create a 280 MB LV called lvol1 in vgtest, format ext4, mount persistently"* is the canonical exam phrasing. |
+| **RHCE candidate** | The `community.general.lvg`, `community.general.lvol`, and `community.general.filesystem` Ansible modules automate this exact workflow. |
+| **SRE / Platform** | "Root filesystem is 90% full" tickets always go to whoever can run `vgextend && lvextend && xfs_growfs` in under 60 seconds. |
+| **DevOps** | Container storage drivers (`devicemapper`, `overlay2` with backing fs) often sit on thin-pool LVs. |
+| **AI / MLOps** | Big checkpoint volumes, scratch space for distributed training, and model registry storage all live on LVM in most on-prem clusters. |
+
+---
+
+## 🔧 The 6 Tasks
+
+> This lab is grouped into six exam-realistic phases so the full **PV -> VG -> LV -> ext4 -> mount -> fstab** workflow is easier to read, rehearse, and memorize.
+
+---
+
+### Task 1 — Set up the sandbox and inspect existing storage
+
+**Purpose:** Become root, confirm the LVM/ext4 tools exist, create a safe 1 GiB loopback disk, and record the baseline storage state before changing anything.
+
+```bash
+sudo -i
+dnf install -y lvm2 e2fsprogs util-linux
+mkdir -p /root/lvm-lab && cd /root/lvm-lab
+which pvcreate vgcreate lvcreate mkfs.ext4 blkid mount losetup lsblk
+
+lsblk
+pvs
+vgs
+lvs
+
+truncate -s 1G /root/lvm-lab/disk1.img
+LOOP=$(losetup -fP --show /root/lvm-lab/disk1.img)
+echo "Using loopback: $LOOP"
+lsblk "$LOOP"
+```
+
+**Human-Readable Breakdown:** Become root, make sure the tools are installed, create a clean working directory, inspect the current disk/LVM state, then create a disposable file-backed disk and attach it as `/dev/loopN`. The loopback device behaves like a real disk for LVM practice, but it is safe to delete at the end.
+
+**Reading it left to right:** `sudo -i` opens a root shell. `dnf install` makes sure `lvm2`, `e2fsprogs`, and `util-linux` are present. `lsblk`, `pvs`, `vgs`, and `lvs` capture the before-state. `truncate` creates the backing file. `losetup -fP --show` attaches that file to the first free loop device and prints the path, which we store in `$LOOP`.
+
+**The story:** Real exam systems usually give you a real empty disk like `/dev/vdb`; a home lab often does not. Loopback devices let you practice the exact same LVM commands without touching real storage. The baseline commands are how you prove what changed and avoid overwriting the wrong device.
+
+**Expected output:**
+
+```text
+/usr/sbin/pvcreate
+/usr/sbin/vgcreate
+/usr/sbin/lvcreate
+/usr/sbin/mkfs.ext4
+/usr/sbin/blkid
+/usr/bin/mount
+/usr/sbin/losetup
+/usr/bin/lsblk
+
+Using loopback: /dev/loop0
+NAME  MAJ:MIN RM SIZE RO TYPE MOUNTPOINTS
+loop0   7:0    0   1G  0 loop
+```
+
+**Switches**
+
+| Token | Meaning |
+|---|---|
+| `truncate -s 1G` | Create a sparse 1 GiB file |
+| `losetup -fP --show FILE` | Attach FILE to the first free loop device and print the path |
+| `pvs` / `vgs` / `lvs` | Short LVM inventory commands |
+
+**Troubleshoot**
+
+| Symptom | Fix |
+|---|---|
+| `pvcreate: command not found` | Install `lvm2` and confirm repos work with `dnf repolist` |
+| `losetup: cannot find an unused loop device` | Detach stale devices with `losetup -a` then `losetup -d /dev/loopN` |
+| Old lab objects appear in `pvs` / `vgs` / `lvs` | Run the cleanup block from Task 6 before starting again |
+
+---
+
+### Task 2 — Build the PV -> VG -> LV stack
+
+**Purpose:** Convert the loopback disk into an LVM Physical Volume, pool it into a Volume Group named `vgtest`, and carve out a 280 MiB Logical Volume named `lvol1`.
+
+```bash
+pvcreate "$LOOP"
+pvs
+
+vgcreate vgtest "$LOOP"
+vgs
+
+lvcreate -L 280M -n lvol1 vgtest
+lvs -o +devices
+lsblk "$LOOP"
+```
+
+**Human-Readable Breakdown:** Mark the loopback disk as an LVM Physical Volume, create a storage pool named `vgtest`, allocate a 280 MiB LV named `lvol1`, then inspect the result.
+
+**Reading it left to right:** `pvcreate "$LOOP"` writes LVM metadata to the block device. `vgcreate vgtest "$LOOP"` creates the storage pool. `lvcreate -L 280M -n lvol1 vgtest` allocates a 280 MiB LV from that pool. `lvs -o +devices` shows the LV and the backing device/extents.
+
+**The story:** LVM's power is the separation of concerns. The PV is the raw material, the VG is the storage pool, and the LV is the usable block device. RHCSA storage tasks test whether you can keep those names and command positions straight under pressure.
+
+**Expected output:**
+
+```text
+  Physical volume "/dev/loop0" successfully created.
+  Volume group "vgtest" successfully created
+  Logical volume "lvol1" created.
+
+  LV    VG     Attr       LSize   Devices
+  lvol1 vgtest -wi-a----- 280.00m /dev/loop0(0)
+```
+
+**Switches**
+
+| Token | Meaning |
+|---|---|
+| `pvcreate DEVICE` | Marks a disk/partition as an LVM Physical Volume |
+| `vgcreate VG DEVICE` | Creates a Volume Group pool |
+| `lvcreate -L 280M` | Create an LV with an absolute size of 280 MiB |
+| `lvcreate -n lvol1` | Name the new LV `lvol1` |
+| `lvs -o +devices` | Add backing-device details to the normal LV table |
+
+**Troubleshoot**
+
+| Symptom | Fix |
+|---|---|
+| `Device ... excluded by a filter` | Use the correct disk, or wipe stale metadata with `wipefs -a "$LOOP"` if this is your lab device |
+| `Volume group "vgtest" already exists` | You have stale state; run Task 6 cleanup or choose a different VG name |
+| `Insufficient free space` | The backing disk is too small or already has extents allocated |
+
+---
+
+### Task 3 — Format the LV with ext4 and inspect the filesystem
+
+**Purpose:** Put an ext4 filesystem on `/dev/vgtest/lvol1`, give it a label, and verify the filesystem metadata before mounting it.
+
+```bash
+mkfs.ext4 -L lvol1 /dev/vgtest/lvol1
+
+blkid /dev/vgtest/lvol1
+lsblk -f "$LOOP"
+tune2fs -l /dev/vgtest/lvol1 | grep -E 'Filesystem volume name|Filesystem UUID|Block size|Block count'
+```
+
+**Human-Readable Breakdown:** The LV is only a block device until you format it. `mkfs.ext4` creates the ext4 structures, `-L lvol1` gives the filesystem a label, and `blkid`/`lsblk -f`/`tune2fs` prove the result before the mount step.
+
+**Reading it left to right:** `mkfs.ext4` creates the filesystem. `-L lvol1` applies the label. `/dev/vgtest/lvol1` is the stable friendly LV path. `blkid` shows UUID/type/label. `lsblk -f` shows the tree. `tune2fs -l` shows ext4-specific metadata.
+
+**The story:** LVM creates storage; `mkfs` makes that storage usable by files. If you skip this step, `mount` fails with a vague "wrong fs type" error. The UUID from `blkid` is also the value you will use for `/etc/fstab`.
+
+**Expected output:**
+
+```text
+Creating filesystem with 286720 1k blocks and 71680 inodes
+Filesystem UUID: 1f8a3b5c-9e1d-4a8b-bb44-2dcef091e0b7
+
+/dev/vgtest/lvol1: LABEL="lvol1" UUID="1f8a..." BLOCK_SIZE="1024" TYPE="ext4"
+```
+
+**Switches**
+
+| Token | Meaning |
+|---|---|
+| `mkfs.ext4` | Create an ext4 filesystem |
+| `-L NAME` | Apply a filesystem label |
+| `blkid DEVICE` | Print UUID, label, and filesystem type |
+| `lsblk -f` | Show block-device tree plus filesystem metadata |
+| `tune2fs -l` | Display ext-family filesystem internals |
+
+**Troubleshoot**
+
+| Symptom | Fix |
+|---|---|
+| `mkfs.ext4: command not found` | Install `e2fsprogs` |
+| `is mounted; will not make a filesystem here!` | Unmount the device first; never format a mounted filesystem |
+| `blkid` prints nothing | `mkfs.ext4` did not complete; rerun it and read the error |
+
+---
+
+### Task 4 — Mount manually, capture the UUID, and prove usability
+
+**Purpose:** Create `/mnt/mnt1`, mount the filesystem manually for a one-time test, capture the UUID for persistence, and prove the mounted filesystem can store data.
+
+```bash
+mkdir -p /mnt/mnt1
+mount /dev/vgtest/lvol1 /mnt/mnt1
+
+findmnt /mnt/mnt1
+df -hT /mnt/mnt1
+
+UUID=$(blkid -s UUID -o value /dev/vgtest/lvol1)
+echo "UUID=$UUID"
+
+echo "lvm ext4 lab $(date -Is)" > /mnt/mnt1/proof.txt
+cat /mnt/mnt1/proof.txt
+
+lvs -o +devices
+vgs
+pvs
+```
+
+**Human-Readable Breakdown:** Make the mount point, mount the LV manually, verify the mount, store the filesystem UUID in a variable, write a proof file, and inspect the LVM runtime state.
+
+**Reading it left to right:** `mkdir -p` creates the mount point. `mount DEVICE DIR` attaches the filesystem. `findmnt` asks the kernel what backs that path. `df -hT` shows size and filesystem type. `blkid -s UUID -o value` prints only the bare UUID. The proof file proves real writes land on the mounted filesystem.
+
+**The story:** Always test a mount manually before making it persistent. If manual mounting fails, fstab will fail too. UUID capture is the bridge between runtime success and boot-time persistence.
+
+**Expected output:**
+
+```text
+TARGET    SOURCE                  FSTYPE OPTIONS
+/mnt/mnt1 /dev/mapper/vgtest-lvol1 ext4   rw,relatime
+
+Filesystem               Type Size  Used Avail Use% Mounted on
+/dev/mapper/vgtest-lvol1 ext4 252M   24K  234M   1% /mnt/mnt1
+
+UUID=1f8a3b5c-9e1d-4a8b-bb44-2dcef091e0b7
+lvm ext4 lab 2026-05-23T19:10:00-04:00
+```
+
+**Switches**
+
+| Token | Meaning |
+|---|---|
+| `mkdir -p` | Create the mount point and do nothing if it already exists |
+| `mount DEVICE DIR` | Attach a filesystem to the directory tree |
+| `findmnt PATH` | Show the source device and options for a mount point |
+| `df -hT` | Human-readable filesystem capacity plus filesystem type |
+| `blkid -s UUID -o value` | Print only the UUID value |
+
+**Troubleshoot**
+
+| Symptom | Fix |
+|---|---|
+| `mount point does not exist` | Run `mkdir -p /mnt/mnt1` |
+| `wrong fs type, bad option, bad superblock` | The LV is not formatted; rerun Task 3 |
+| `findmnt` returns nothing | The mount command failed; inspect `dmesg` or rerun mount and read stderr |
+
+---
+
+### Task 5 — Make the mount persistent and verify before reboot
+
+**Purpose:** Add a UUID-based `/etc/fstab` entry, reload systemd's generated mount units, test with `mount -a`, and simulate a reboot by unmounting and remounting from fstab.
+
+```bash
+cp /etc/fstab /etc/fstab.bak.$(date +%F-%H%M%S)
+echo "UUID=$UUID  /mnt/mnt1  ext4  defaults  0 0" | tee -a /etc/fstab
+
+tail -n 3 /etc/fstab
+systemctl daemon-reload
+mount -a
+
+findmnt /mnt/mnt1
+df -hT /mnt/mnt1
+
+umount /mnt/mnt1
+mount -a
+findmnt /mnt/mnt1
+cat /mnt/mnt1/proof.txt
+```
+
+**Human-Readable Breakdown:** Back up fstab, append a UUID-based line, reload systemd so it notices the fstab-generated mount unit, run `mount -a` to test before rebooting, then unmount and remount through `mount -a` to simulate the boot path.
+
+**Reading it left to right:** `cp /etc/fstab` creates a rollback point. `tee -a /etc/fstab` appends the persistent line. `systemctl daemon-reload` refreshes systemd's generated `.mount` units. `mount -a` tests the file. `umount` plus another `mount -a` proves fstab alone can bring it back.
+
+**The story:** A bad fstab line can boot a machine into emergency mode. That is why `mount -a` is mandatory after every fstab edit. If it fails now, you can fix it now.
+
+**Expected fstab line:**
+
+```text
+UUID=1f8a3b5c-9e1d-4a8b-bb44-2dcef091e0b7  /mnt/mnt1  ext4  defaults  0 0
+```
+
+**Switches**
+
+| Field | Meaning |
+|---|---|
+| `UUID=...` | Stable filesystem identifier |
+| `/mnt/mnt1` | Mount point |
+| `ext4` | Filesystem type |
+| `defaults` | Standard mount options |
+| `0 0` | No dump; no automatic fsck in this lab |
+
+**Troubleshoot**
+
+| Symptom | Fix |
+|---|---|
+| `mount -a` says UUID not found | Re-run `blkid -s UUID -o value /dev/vgtest/lvol1` and fix fstab |
+| `unknown filesystem type` | fstab type typo; use `ext4` |
+| `systemd` warns fstab changed | Run `systemctl daemon-reload` |
+| `target is busy` during `umount` | Leave the directory first: `cd /root/lvm-lab`, then retry |
+
+---
+
+### Task 6 — Capstone, document the stack, and clean up
+
+**Task statement:** *"Create a logical volume called `lvol1` of size 280 MB in the `vgtest` volume group. Mount the ext4 file system persistently to `/mnt/mnt1`."*
+
+**Purpose:** Run the full RHCSA answer from a blank slate, verify the layer stack, and tear it down cleanly when you are done practicing.
+
+```bash
+sudo -i
+mkdir -p /root/lvm-lab && cd /root/lvm-lab
+truncate -s 1G /root/lvm-lab/disk1.img
+LOOP=$(losetup -fP --show /root/lvm-lab/disk1.img)
+echo "Using loopback: $LOOP"
+
+pvcreate "$LOOP"
+vgcreate vgtest "$LOOP"
+lvcreate -L 280M -n lvol1 vgtest
+
+mkfs.ext4 -L lvol1 /dev/vgtest/lvol1
+mkdir -p /mnt/mnt1
+
+UUID=$(blkid -s UUID -o value /dev/vgtest/lvol1)
+echo "UUID=$UUID  /mnt/mnt1  ext4  defaults  0 0" | tee -a /etc/fstab
+systemctl daemon-reload
+mount -a
+
+lvs -o +devices
+findmnt /mnt/mnt1
+df -hT /mnt/mnt1
+grep mnt1 /etc/fstab
+```
+
+**Human-Readable Breakdown:** Create the safe disk, build the LVM stack, format ext4, create the mount point, write the UUID-based fstab line, reload systemd, mount everything from fstab, and verify with `lvs`, `findmnt`, `df`, and `grep`.
+
+**Layer stack you built:**
+
+```text
+/mnt/mnt1                         <- mount point users access
+└── ext4 filesystem               <- mkfs.ext4 -L lvol1
+    └── /dev/vgtest/lvol1         <- logical volume (280 MiB)
+        └── vgtest                <- volume group / storage pool
+            └── /dev/loop0        <- physical volume (practice disk)
+                └── disk1.img     <- sparse backing file for lab safety
+```
+
+**The story:** This is the **5-minute exam answer**. Memorize the spine: `pvcreate -> vgcreate -> lvcreate -> mkfs.ext4 -> mkdir -> blkid -> fstab -> daemon-reload -> mount -a -> verify`. The names and sizes change, but the order does not.
+
+**Expected verification output:**
+
+```text
+  LV    VG     Attr       LSize   Devices
+  lvol1 vgtest -wi-ao---- 280.00m /dev/loop0(0)
+
+TARGET    SOURCE                  FSTYPE OPTIONS
+/mnt/mnt1 /dev/mapper/vgtest-lvol1 ext4   rw,relatime
+
+Filesystem               Type Size  Used Avail Use% Mounted on
+/dev/mapper/vgtest-lvol1 ext4 252M   24K  234M   1% /mnt/mnt1
+
+UUID=1f8a3b5c-9e1d-4a8b-bb44-2dcef091e0b7  /mnt/mnt1  ext4  defaults  0 0
+```
+
+**Cleanup**
+
+```bash
+sed -i '/\/mnt\/mnt1/d' /etc/fstab
+systemctl daemon-reload
+umount /mnt/mnt1
+rmdir /mnt/mnt1
+lvremove -y /dev/vgtest/lvol1
+vgremove -y vgtest
+pvremove -y "$LOOP"
+losetup -d "$LOOP"
+rm -f /root/lvm-lab/disk1.img
+```
+
+**Troubleshoot**
+
+| Symptom | Fix |
+|---|---|
+| `Volume group "vgtest" has insufficient free space` | The practice disk is too small or already allocated; use a fresh 1 GiB loopback |
+| Capstone fails at `mount -a` | UUID typo; re-capture with `blkid -s UUID -o value /dev/vgtest/lvol1` |
+| Cleanup says device is busy | `cd /root/lvm-lab`, close shells under `/mnt/mnt1`, then retry `umount` |
+
+---
+
+## 🔍 LVM Storage Decision Guide
+
+```
+Got a storage task to solve?
+  │
+  ├── "Make a new filesystem and mount it persistently"
+  │       └── ✅ Full pipeline: pvcreate → vgcreate → lvcreate → mkfs → mkdir → fstab → mount -a
+  │
+  ├── "Make / bigger" / "Make /home bigger"
+  │       └── ✅ vgextend (if more disk needed) → lvextend → resize2fs (ext) / xfs_growfs (xfs)
+  │
+  ├── "Take a backup snapshot of a live database"
+  │       └── ✅ lvcreate -s -L 1G -n backup /dev/VG/LV
+  │
+  ├── "Add a new disk to existing storage pool"
+  │       └── ✅ pvcreate /dev/newdisk → vgextend VG /dev/newdisk
+  │
+  ├── "Shrink /home (rare and risky)"
+  │       └── ✅ Only with ext4: unmount → e2fsck -f → resize2fs SIZE → lvreduce -L SIZE
+  │       └── ❌ Never with xfs — it cannot shrink
+  │
+  └── "Replace a dying disk in the VG"
+          └── ✅ pvmove /dev/dyingdisk → vgreduce → pvremove → physically swap → pvcreate new → vgextend
+```
+
+---
+
+## ✅ Lab Checklist (6 Tasks)
+
+- [ ] 01 Set up the sandbox, confirm tooling, inspect baseline storage, and create the loopback disk
+- [ ] 02 Build the LVM stack: `pvcreate` -> `vgcreate vgtest` -> `lvcreate -L 280M -n lvol1`
+- [ ] 03 Format `/dev/vgtest/lvol1` with ext4 and inspect UUID/label/filesystem metadata
+- [ ] 04 Mount manually at `/mnt/mnt1`, capture the UUID, and write a proof file
+- [ ] 05 Add the UUID-based `/etc/fstab` line, run `systemctl daemon-reload`, and verify with `mount -a`
+- [ ] 06 Run the RHCSA capstone, document the layer stack, and clean up bottom-up
+
+---
+
+## ⚠️ Common Pitfalls
+
+| Mistake | Symptom | Fix |
+|---|---|---|
+| Forgot `mkfs.ext4` after `lvcreate` | `mount: wrong fs type, bad option, bad superblock` | Format first |
+| Used device path in fstab instead of UUID | Boot fails after disk reorder | Use `UUID=...` |
+| Skipped `mount -a` test before reboot | System won't boot; emergency mode | Always `mount -a` after fstab edit |
+| Teardown out of order | `device busy` errors | Bottom-up: fstab → umount → rmdir → lv → vg → pv → loop |
+| `M` vs `m` confusion in `lvcreate -L` | None (both work — `M` = `m` = MiB) | Just be consistent |
+| `MB` (decimal) vs `MiB` (binary) confusion | Slight size mismatch | `mkfs` reports usable size after journal + reserves |
+| Forgot `systemctl daemon-reload` after fstab edit | Mount unit shows stale state | Always reload |
+| `mkfs.ext4` on a mounted device | `will not make a filesystem here!` | Unmount first |
+| Used `/dev/dm-N` in scripts | Numbers change across boots | Use `/dev/VG/LV` symlink instead |
+| `lvremove` before unmount | "Logical volume in use" | Unmount, then `lvremove` |
+
+---
+
+## 🎯 Career & Interview Strategy
+
+**RHCSA candidate**
+- "Create a 280 MB LV called lvol1 in vgtest and mount it persistently" is a near-guaranteed exam question. Memorize the Task 6 capstone block — type it in 5 minutes from blank slate.
+
+**RHCE candidate**
+- Same workflow via Ansible: `community.general.lvg`, `community.general.lvol`, `community.general.filesystem`, and `ansible.posix.mount`. Practice writing a playbook that recreates Task 6.
+
+**SRE / Platform interview**
+- Be ready to walk through "growing /home without downtime": `pvcreate /dev/sdc → vgextend vgname /dev/sdc → lvextend -L +20G /dev/vgname/home → xfs_growfs /home` (or `resize2fs` for ext4). One disk, one VG, one LV, one filesystem grow — five commands, zero downtime.
+
+**DevOps**
+- Container storage drivers (`devicemapper`, modern `overlay2` with backing fs) sit on LVM. Knowing how to inspect and grow the underlying thin pool is bread-and-butter for Kubernetes node operations.
+
+**AI / MLOps**
+- Big checkpoint volumes, scratch space for distributed training, and dataset caches are often LVM. The PV/VG/LV mental model also transfers directly to ZFS (zpool/dataset) and EBS-based cloud storage.
+
+---
+
+## 🔗 Related Labs
+
+| Lab | Connection |
+|---|---|
+| Lab — Scheduling Jobs (systemd timer, Mon–Fri 2 AM) | Sibling RHCSA scheduled-tasks vs. storage exam question |
+| Configure Persistent Mounts fstab *(coming soon)* | The fstab-only piece of this lab, decoupled from LVM |
+| Extend Logical Volume *(coming soon)* | The next-day question — "grow lvol1 to 500 MB without losing data" |
+| Resize Filesystem After Extend *(coming soon)* | `xfs_growfs` / `resize2fs` after `lvextend` |
+| Create and Activate Swap Space *(coming soon)* | Same workflow as this lab but `mkswap` + `swapon` instead of `mkfs.ext4` + `mount` |
+
+---
+
+## 👤 Author
+
+**Kelvin R. Tobias**
+[kelvinintech.com](https://kelvinintech.com) Â· [GitHub](https://github.com/kelvintechnical) Â· [LinkedIn](https://www.linkedin.com/in/kelvin-r-tobias-211949219)
+
+
+================================================================
+END template.txt  (verbatim)
+================================================================

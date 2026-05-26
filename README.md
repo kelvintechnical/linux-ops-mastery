@@ -22,9 +22,12 @@
 
 - [About](#-about)
 - [Who This Is For](#-who-this-is-for)
-- [Companion Repos](#-companion-repos)
-- [Certification Path](#-certification-path)
-- [RHCSA Labs](#-rhcsa-ex200-labs)
+- [Tech Affiliates — How to Install Linux](#-tech-affiliates--how-to-install-linux)
+- [Companion Repos](#-companion-repos) 
+- [Certification Path](#-certification-path) 
+- [Suggested Learning Path](#-suggested-learning-path) 
+- [Roadmap (212+ labs)](#-roadmap) 
+- [RHCSA Labs](#-rhcsa-ex200-labs) 
 - [RHCE Labs](#-rhce-ex294-labs)
 - [CKA Labs](#-cka-labs)
 - [How to Use This Repo](#-how-to-use-this-repo)
@@ -48,6 +51,29 @@ All commands tested on **RHEL 9** / **Rocky Linux** / **AWS RHEL AMI**.
 - Self-learners working through Red Hat and CNCF certification objectives
 
 > No prior Red Hat experience required. CompTIA Linux+ or equivalent familiarity recommended.
+
+---
+
+## 🧰 Tech Affiliates — How to Install Linux
+
+> **Brand new to Linux and not sure how to even get it on your laptop?** Start here.
+
+A beginner-friendly, step-by-step install guide written for students **from middle school all the way to working adults**. It covers what Linux is, what a virtual machine is, what WSL is, and walks you through installing Linux on **Windows**, **Intel Mac**, and **Apple Silicon (M1/M2/M3/M4) Mac** — with troubleshooting and a full FAQ.
+
+📘 **[Open the guide → Tech-Affiliates-How-To-Install-Linux.md](./Tech-Affiliates-How-To-Install-Linux.md)**
+
+| You have... | The guide recommends... |
+|---|---|
+| 🪟 Windows 10 / 11 | WSL (10-minute install) |
+| 💻 Intel Mac | VirtualBox VM |
+| 🍏 Apple Silicon Mac (M1/M2/M3/M4) | UTM or Multipass |
+| 🧪 An old laptop | Full install / dual boot (advanced) |
+
+**Pairs with these Tech Affiliates resources:**
+
+- 🐧 [linux-ops-mastery (main repo)](https://github.com/kelvintechnical/linux-ops-mastery) — the 212+ hands-on labs you'll work through after you install Linux.
+- 🎓 [Tech-Affiliates-Comptia-Linux-Preparation](https://github.com/kelvintechnical/Tech-Affiliates-Comptia-Linux-Preparation) — the 8-week CompTIA Linux+ course (Tech Affiliates X Lenoir Community College, Kinston, NC).
+- 📅 [Course outline](https://github.com/kelvintechnical/Tech-Affiliates-Comptia-Linux-Preparation) — week-by-week schedule.
 
 ---
 
@@ -84,11 +110,51 @@ Foundational Linux skills broken into focused, standalone learning resources:
 | Foundation | CompTIA Linux+ | XK0-005 | ✅ Complete |
 | Intermediate | RHCSA | EX200 | 🔄 In Progress |
 | Advanced | RHCE (Ansible) | EX294 | 🔜 Planned |
-| Cloud Native | CKA (Kubernetes) | CKA | 🔜 Planned |
-
----
-
-## 🧪 RHCSA EX200 Labs
+| Cloud Native | CKA (Kubernetes) | CKA | 🔜 Planned | 
+ 
+--- 
+ 
+## 🗺️ Suggested Learning Path 
+ 
+> Labs in this repo are globally numbered. **Work through the modules in order** — each module unlocks the next. 
+> For the full curriculum (every planned RHCSA/RHCE/CKA/CKAD lab including 183+ future labs), see the **[Roadmap](./roadmap.md)**. 
+ 
+| Module | Labs | Focus | Time | 
+|---|---|---|---| 
+| **1. Shells & Text Fluency** | 01–27 | stdout/stderr/pipes, file operations, find/grep/sed/awk, vi | ~2 weeks | 
+| **2. Documentation & Networking** | 28–39 | man/whatis/apropos, nmcli, /etc/hosts, DNS, SSH key auth | ~1 week | 
+| **3. Permissions, ACLs, Firewall** | 40–67 | chmod/chown, SUID/SGID, getfacl/setfacl, firewalld zones + NAT | ~2 weeks | 
+| **4. TCP Wrappers, PAM, SELinux** | 68–84 | hosts.allow/deny, pam_pwquality/securetty, sestatus, semanage, restorecon, sealert | ~2 weeks | 
+| **5. Boot, Systemd, Logging** | 85–106 | GRUB, rd.break root reset, systemctl, journalctl, rsyslog | ~1 week | 
+| **6. Storage, LVM, Mounts** | 107–136 | partitioning, mkfs.ext4/xfs, fstab UUID/LABEL, pvcreate→vgcreate→lvcreate, autofs | ~2 weeks | 
+| **7. Packages, Users, Sudo** | 137–183 | rpm/dnf, custom repos, useradd/groupadd, chage, visudo, /etc/skel | ~1 week | 
+| **8. Processes, Archives, Cron** | 184–207 | ps/top/nice/renice/kill, tar/gzip/bzip2/xz, crontab, at, anacron | ~1 week | 
+| **9. GPG, Remote Admin, Security** | 208–220 | gpg keygen/encrypt, ssh/scp, telnet/nmap, bastion hardening | ~3 days | 
+| **10. Web, Tuning, Scripting, Containers** | 221–227 | httpd + SELinux contexts, tuned-adm, argument-validating bash, podman | ~3 days | 
+| **11+. RHCE → CKA → CKAD** | — | Ansible playbooks/roles/vault, Kubernetes admin, Kubernetes app dev | see [Roadmap](./roadmap.md) | 
+ 
+> **About this order:** within each module, labs are sequenced foundation → advanced. Across modules, prerequisites flow forward — you can't fully grok LVM (Module 6) until you have `find`/`grep` from Module 1, and you can't do SELinux (Module 4) until you've configured standard permissions in Module 3. **Skip at your own risk.** 
+> 
+> **About the by-category tables below:** they're the *reference index*, not the *study order*. Use them when you need a specific command — not as a curriculum. 
+ 
+--- 
+ 
+## 🗺️ Roadmap 
+ 
+The labs in this README are the *currently scoped* curriculum. The full multi-cert plan — **212+ labs** across RHCSA, RHCE (Ansible), CKA, and CKAD — lives in **[roadmap.md](./roadmap.md)**, organized by exam objective with status flags (✅ Done · 🚧 In Progress · 📅 Planned) and per-category future-lab IDs (`LVM-F01`, `NET-F03`, `CKAD-DES-F02`...). 
+ 
+| Track | Labs in Roadmap | 
+|---|---| 
+| 🐧 RHCSA EX200 | 150 (5 done · 8 in progress · 137 planned) | 
+| 🤖 RHCE EX294 (Ansible) | 20 planned | 
+| ☸️ CKA (Kubernetes Administrator) | 20 planned | 
+| 🚢 CKAD (Kubernetes App Developer) | 22 planned | 
+ 
+> See [roadmap.md](./roadmap.md) for the full per-lab breakdown, including the 13 labs already in [`labs/`](./labs/) with file links. 
+ 
+--- 
+ 
+## 🧪 RHCSA EX200 Labs 
 
 Labs organized by official RHCSA EX200 exam objectives.
 
