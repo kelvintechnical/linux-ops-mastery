@@ -86,6 +86,8 @@ Foundational Linux skills broken into focused, standalone learning resources:
 | 🌐 [accessing-your-linux-system](https://github.com/kelvintechnical/accessing-your-linux-system) | Console access, SSH, PuTTY, AWS EC2 |
 | 🗂 [managing-linux-files-cli](https://github.com/kelvintechnical/managing-linux-files-cli) | File system, file management, links, I/O redirection, pipes |
 
+**Ansible (RHCE prep):** Hands-on labs aligned with *Mastering Ansible, 4th Edition* — inventory through network automation — are listed under **[RHCE EX294 Labs](#-rhce-ex294-labs)** (subsection *Mastering Ansible — full chapter labs*).
+
 > 💡 **Start here if you're new to Linux** — these repos build the foundation before diving into RHCSA-level material.
 
 ---
@@ -315,13 +317,13 @@ Labs organized by official RHCSA EX200 exam objectives.
 
 | # | Lab | Key Commands |
 |---|-----|-------------|
-| 78 | Managing SELinux Modes *(coming soon)* | `sestatus`, `setenforce` — Check SELinux status with `sestatus` and toggle between enforcing and permissive using `setenforce` |
-| 79 | Viewing SELinux Contexts *(coming soon)* | `ls -Z`, `ps -eZ` — Use `ls -Z` to view file contexts and `ps -eZ` to view contexts of running processes |
-| 80 | Temporary Context Changes *(coming soon)* | `chcon` — Use `chcon` to temporarily modify the SELinux type context of a custom directory |
-| 81 | Persistent Context Restoration *(coming soon)* | `semanage fcontext`, `restorecon` — Use `semanage fcontext` to define persistent rules and apply them with `restorecon` |
-| 82 | Toggling SELinux Booleans *(coming soon)* | `getsebool`, `setsebool -P` — Search available booleans, check their status, and make persistent changes with `setsebool -P` |
-| 83 | SELinux User Mapping *(coming soon)* | `semanage login` — Map a Linux user account to a restricted SELinux user type such as `guest_u` or `staff_u` |
-| 84 | Troubleshooting SELinux *(coming soon)* | `audit.log`, `sealert` — Trigger a policy violation, locate it in `audit.log`, and analyze using `sealert` |
+| 78 | [Managing SELinux Modes](https://github.com/kelvintechnical/selinux-modes-management) | `sestatus`, `setenforce` — Check SELinux status with `sestatus` and toggle between enforcing and permissive using `setenforce` |
+| 79 | [Viewing SELinux Contexts](https://github.com/kelvintechnical/selinux-viewing-contexts) | `ls -Z`, `ps -eZ` — Use `ls -Z` to view file contexts and `ps -eZ` to view contexts of running processes |
+| 80 | [Temporary Context Changes](https://github.com/kelvintechnical/selinux-temporary-contexts) | `chcon` — Use `chcon` to temporarily modify the SELinux type context of a custom directory |
+| 81 | [Persistent Context Restoration](https://github.com/kelvintechnical/selinux-persistent-contexts) | `semanage fcontext`, `restorecon` — Use `semanage fcontext` to define persistent rules and apply them with `restorecon` |
+| 82 | [Toggling SELinux Booleans](https://github.com/kelvintechnical/selinux-booleans) | `getsebool`, `setsebool -P` — Search available booleans, check their status, and make persistent changes with `setsebool -P` |
+| 83 | [SELinux User Mapping](https://github.com/kelvintechnical/selinux-user-mapping) | `semanage login` — Map a Linux user account to a restricted SELinux user type such as `guest_u` or `staff_u` |
+| 84 | [Troubleshooting SELinux](https://github.com/kelvintechnical/selinux-troubleshooting) | `audit.log`, `sealert` — Trigger a policy violation, locate it in `audit.log`, and analyze using `sealert` |
 
 ---
 
@@ -331,11 +333,11 @@ Labs organized by official RHCSA EX200 exam objectives.
 
 | # | Lab | Key Commands |
 |---|-----|-------------|
-| 85 | Modify GRUB Timeout *(coming soon)* | `/etc/default/grub`, `GRUB_TIMEOUT` — Edit `GRUB_TIMEOUT` in `/etc/default/grub` to adjust bootloader countdown |
-| 86 | Enable Verbose Kernel Messages *(coming soon)* | `GRUB_CMDLINE_LINUX` — Remove the `quiet` keyword from `GRUB_CMDLINE_LINUX` to show verbose startup output |
-| 87 | Generate New GRUB Config *(coming soon)* | `grub2-mkconfig -o /boot/grub2/grub.cfg` — Run `grub2-mkconfig` to apply changes persistently |
-| 88 | Reset Root Password via Boot *(coming soon)* | GRUB interrupt, `rd.break`, `chroot`, `passwd` — Append `rd.break` to interrupt boot before filesystem mount and reset root password |
-| 89 | Chroot into Rescue Filesystem *(coming soon — partial)* | `chroot /mnt/sysimage` — Use `chroot /mnt/sysimage` to change root and make repairs to the installed system |
+| 85 | [Modify GRUB Timeout](https://github.com/kelvintechnical/grub-timeout) | `/etc/default/grub`, `GRUB_TIMEOUT` — Edit `GRUB_TIMEOUT` in `/etc/default/grub` to adjust bootloader countdown |
+| 86 | [Enable Verbose Kernel Messages](https://github.com/kelvintechnical/verbose-kernel-messages) | `GRUB_CMDLINE_LINUX` — Remove the `quiet` keyword from `GRUB_CMDLINE_LINUX` to show verbose startup output |
+| 87 | [Generate New GRUB Config](https://github.com/kelvintechnical/grub-mkconfig) | `grub2-mkconfig -o /boot/grub2/grub.cfg` — Run `grub2-mkconfig` to apply changes persistently |
+| 88 | [Reset Root Password via Boot](https://github.com/kelvintechnical/reset-root-password-boot) | GRUB interrupt, `rd.break`, `chroot`, `passwd` — Append `rd.break` to interrupt boot before filesystem mount and reset root password |
+| 89 | [Chroot into Rescue Filesystem](https://github.com/kelvintechnical/chroot-rescue-filesystem) | `chroot /mnt/sysimage` — Use `chroot /mnt/sysimage` to change root and make repairs to the installed system |
 
 ---
 
@@ -345,16 +347,16 @@ Labs organized by official RHCSA EX200 exam objectives.
 
 | # | Lab | Key Commands |
 |---|-----|-------------|
-| 90 | Check Default Boot Target *(coming soon)* | `systemctl get-default` — Use `systemctl get-default` to verify if system boots into graphical or multi-user target |
-| 91 | Change Default Boot Target *(coming soon)* | `systemctl set-default` — Configure system to permanently boot into text-based environment |
-| 92 | System Reboots and Shutdowns *(coming soon)* | `systemctl reboot`, `systemctl poweroff` — Use `systemctl reboot` and `systemctl poweroff` to safely transition system state |
-| 93 | List All System Units *(coming soon)* | `systemctl list-units --all` — Run `systemctl list-units --all` to display state of all systemd units |
-| 94 | Check Service Status *(coming soon)* | `systemctl status` — Verify running status, PID, and recent logs of a daemon using `systemctl status` |
-| 95 | Start and Stop Services *(coming soon)* | `systemctl start`, `systemctl stop` — Control active services on the fly |
-| 96 | Enable Services at Boot *(coming soon)* | `systemctl enable` — Ensure services survive restart using `systemctl enable` to link to the default target |
-| 97 | Disable Services at Boot *(coming soon)* | `systemctl disable` — Prevent a service from launching automatically using `systemctl disable` |
-| 98 | Mask System Services *(coming soon)* | `systemctl mask` — Use `systemctl mask` to prevent a conflicting daemon from being started accidentally |
-| 99 | Create and Manage systemd Unit Files *(coming soon)* | Unit file syntax, `systemctl daemon-reload` |
+| 90 | [Check Default Boot Target](https://github.com/kelvintechnical/default-boot-target) | `systemctl get-default` — Use `systemctl get-default` to verify if system boots into graphical or multi-user target |
+| 91 | [Change Default Boot Target](https://github.com/kelvintechnical/change-default-boot-target) | `systemctl set-default` — Configure system to permanently boot into text-based environment |
+| 92 | [System Reboots and Shutdowns](https://github.com/kelvintechnical/reboot-shutdown-systemd) | `systemctl reboot`, `systemctl poweroff` — Use `systemctl reboot` and `systemctl poweroff` to safely transition system state |
+| 93 | [List All System Units](https://github.com/kelvintechnical/list-system-units) | `systemctl list-units --all` — Run `systemctl list-units --all` to display state of all systemd units |
+| 94 | [Check Service Status](https://github.com/kelvintechnical/service-status-check) | `systemctl status` — Verify running status, PID, and recent logs of a daemon using `systemctl status` |
+| 95 | [Start and Stop Services](https://github.com/kelvintechnical/start-stop-services) | `systemctl start`, `systemctl stop` — Control active services on the fly |
+| 96 | [Enable Services at Boot](https://github.com/kelvintechnical/enable-services-at-boot) | `systemctl enable` — Ensure services survive restart using `systemctl enable` to link to the default target |
+| 97 | [Disable Services at Boot](https://github.com/kelvintechnical/disable-services-at-boot) | `systemctl disable` — Prevent a service from launching automatically using `systemctl disable` |
+| 98 | [Mask System Services](https://github.com/kelvintechnical/mask-system-services) | `systemctl mask` — Use `systemctl mask` to prevent a conflicting daemon from being started accidentally |
+| 99 | [Create and Manage systemd Unit Files](https://github.com/kelvintechnical/systemd-unit-files) | Unit file syntax, `systemctl daemon-reload` |
 
 ---
 
@@ -364,7 +366,7 @@ Labs organized by official RHCSA EX200 exam objectives.
 
 | # | Lab | Key Commands |
 |---|-----|-------------|
-| 100 | Analyze Boot Performance *(coming soon)* | `systemd-analyze blame` — Run `systemd-analyze blame` to identify services slowing down the boot process |
+| 100 | [Analyze Boot Performance](https://github.com/kelvintechnical/analyze-boot-performance) | `systemd-analyze blame` — Run `systemd-analyze blame` to identify services slowing down the boot process |
 | 101 | Query Logs with journalctl *(coming soon)* | `journalctl -u`, `-p`, `--since`, `--until` — Use `journalctl` to read and filter system logs by priority using `-p warning` |
 | 102 | Configure Persistent Journal Logs *(coming soon)* | `/var/log/journal` — Create `/var/log/journal` directory to force systemd to write logs persistently to disk |
 | 103 | Understand Log Routing *(coming soon)* | `/etc/rsyslog.conf` — Review `/etc/rsyslog.conf` to identify where different system and kernel messages are logged |
@@ -650,34 +652,34 @@ Labs organized by official RHCE EX294 exam objectives. Requires RHCSA as a prere
 
 ### 📡 Ansible Fundamentals
 
-> Install Ansible, configure inventory, and run ad-hoc commands.
+> Install Ansible, configure inventory, run ad-hoc commands, and work with collections (ansible-core + Galaxy).
 
 | # | Lab | Key Commands |
 |---|-----|-------------|
-| 01 | Ansible Installation and Inventory *(coming soon)* | `ansible`, `ansible.cfg`, `inventory` |
-| 02 | Ansible Ad-Hoc Commands *(coming soon)* | `ansible -m`, `ping`, `command`, `shell` |
+| 01 | [Ansible Architecture & Inventory](https://github.com/kelvintechnical/ansible-architecture-and-inventory) | `ansible`, `ansible.cfg`, `inventory`, `ansible-inventory`, `group_vars`, `host_vars` |
+| 02 | [Ansible Collections & Migration](https://github.com/kelvintechnical/ansible-collections-and-migration) | `ansible-galaxy collection`, FQCN, `requirements.yml`, porting legacy playbooks |
 
 ---
 
 ### 📝 Ansible Playbooks
 
-> Write and execute YAML playbooks with tasks, handlers, and variables.
+> Write YAML plays, control task flow, and use Jinja2 in templates and conditionals.
 
 | # | Lab | Key Commands |
 |---|-----|-------------|
-| 03 | Write Your First Playbook *(coming soon)* | YAML syntax, `hosts`, `tasks`, `become` |
-| 04 | Playbook Variables and Handlers *(coming soon)* | `vars`, `notify`, `handlers`, `register` |
+| 03 | [Task Conditions, Blocks & Loops](https://github.com/kelvintechnical/ansible-task-conditions-loops) | `when`, `failed_when`, `changed_when`, `block`/`rescue`/`always`, `loop` |
+| 04 | Write Your First Playbook *(coming soon)* | YAML syntax, `hosts`, `tasks`, `become` |
 
 ---
 
 ### 🎭 Ansible Roles
 
-> Structure reusable Ansible content using roles.
+> Structure reusable Ansible content using roles, handlers, and Galaxy.
 
 | # | Lab | Key Commands |
 |---|-----|-------------|
-| 05 | Create and Use Ansible Roles *(coming soon)* | `ansible-galaxy init`, role directory structure |
-| 06 | Use Roles from Ansible Galaxy *(coming soon)* | `ansible-galaxy install`, `requirements.yml` |
+| 05 | [Ansible Roles](https://github.com/kelvintechnical/ansible-roles) | `ansible-galaxy init`, `tasks/`, `handlers/`, `defaults/` vs `vars/`, `notify` |
+| 06 | Use Roles from Ansible Galaxy *(coming soon)* | `ansible-galaxy role install`, `requirements.yml` |
 
 ---
 
@@ -687,7 +689,7 @@ Labs organized by official RHCE EX294 exam objectives. Requires RHCSA as a prere
 
 | # | Lab | Key Commands |
 |---|-----|-------------|
-| 07 | Create and Deploy Jinja2 Templates *(coming soon)* | `template` module, `{{ variable }}`, `{% for %}` |
+| 07 | [Jinja2 Templates in Ansible](https://github.com/kelvintechnical/ansible-jinja2-templates) | `ansible.builtin.template`, `{{ }}`, `{% if %}`, `{% for %}`, filters, `validate:` |
 
 ---
 
@@ -697,7 +699,63 @@ Labs organized by official RHCE EX294 exam objectives. Requires RHCSA as a prere
 
 | # | Lab | Key Commands |
 |---|-----|-------------|
-| 08 | Encrypt Secrets with Ansible Vault *(coming soon)* | `ansible-vault create`, `encrypt`, `decrypt`, `--ask-vault-pass` |
+| 08 | [Ansible Vault — Secrets at Rest](https://github.com/kelvintechnical/ansible-vault-secrets) | `ansible-vault create`, `encrypt_string`, `--vault-id`, `no_log`, mixing encrypted YAML |
+
+---
+
+### 🧯 Ansible Troubleshooting
+
+> Debug playbooks, inspect configuration, and recover from failed automation runs.
+
+| # | Lab | Key Commands |
+|---|-----|-------------|
+| 09 | [Troubleshooting Ansible](https://github.com/kelvintechnical/ansible-troubleshooting) | `--syntax-check`, `--check`, `--diff`, `-vvv`, `ansible-doc`, `ansible-config dump` |
+
+---
+
+### 🏢 Automation Platform & Windows
+
+> Run Ansible in controller-style workflows and automate Windows targets.
+
+| # | Lab | Key Commands |
+|---|-----|-------------|
+| 10 | [Windows Automation](https://github.com/kelvintechnical/ansible-windows-automation) | WinRM, `ansible.windows`, IIS automation, Windows facts |
+| 11 | [AWX / Tower](https://github.com/kelvintechnical/ansible-awx-tower) | AWX Operator, projects, credentials, job templates, REST launch |
+
+---
+
+### 🚀 Advanced Ansible Patterns
+
+> Extend Ansible, roll changes safely, provision infrastructure, and automate networks.
+
+| # | Lab | Key Commands |
+|---|-----|-------------|
+| 12 | [Extending Ansible with Modules and Plugins](https://github.com/kelvintechnical/ansible-extending-modules-plugins) | `AnsibleModule`, `library/`, `filter_plugins/`, collections |
+| 13 | [Rolling Deployments](https://github.com/kelvintechnical/ansible-rolling-deployments) | `serial`, `max_fail_percentage`, `wait_for`, load-balancer drain/add |
+| 14 | [Infrastructure Provisioning](https://github.com/kelvintechnical/ansible-infrastructure-provisioning) | `amazon.aws.ec2_instance`, dynamic inventory, `add_host`, `wait_for_connection` |
+| 15 | [Network Automation](https://github.com/kelvintechnical/ansible-network-automation) | `network_cli`, network collections, facts, config backup, drift remediation |
+
+---
+
+### 🎓 Mastering Ansible (4th Ed.) — full chapter labs
+
+> Thirteen standalone repos mapped to the book’s chapters — architecture through network automation. Clone each repo’s `README.md` as the lab guide.
+
+| Ch | Lab | Key topics |
+|----|-----|------------|
+| 1 | [Ansible Architecture & Inventory](https://github.com/kelvintechnical/ansible-architecture-and-inventory) | Config resolution, static inventory, `group_vars` / `host_vars`, `ansible all -m ping` |
+| 2 | [Collections & Migration](https://github.com/kelvintechnical/ansible-collections-and-migration) | Collections, `ansible-galaxy collection install`, FQCN, `requirements.yml` |
+| 3 | [Ansible Vault](https://github.com/kelvintechnical/ansible-vault-secrets) | Encrypt files & inline strings, multi `--vault-id`, `no_log` |
+| 4 | [Windows Automation](https://github.com/kelvintechnical/ansible-windows-automation) | WinRM, `ansible.windows`, WSL control node, IIS capstone |
+| 5 | [AWX / Tower](https://github.com/kelvintechnical/ansible-awx-tower) | Kubernetes + AWX Operator, Projects, Job Templates, REST API launch |
+| 6 | [Jinja2 Templates](https://github.com/kelvintechnical/ansible-jinja2-templates) | Conditionals, loops, filters, real `httpd`/`template` + `validate:` |
+| 7 | [Task Conditions & Loops](https://github.com/kelvintechnical/ansible-task-conditions-loops) | `when`, `failed_when`, `block`/`rescue`, `loop`, idempotent `command:` |
+| 8 | [Ansible Roles](https://github.com/kelvintechnical/ansible-roles) | `ansible-galaxy init`, handlers, multi-group role application |
+| 9 | [Troubleshooting Ansible](https://github.com/kelvintechnical/ansible-troubleshooting) | `-v`…`-vvvv`, `log_path`, `--check`/`--diff`, `--start-at-task` |
+| 10 | [Extending Ansible](https://github.com/kelvintechnical/ansible-extending-modules-plugins) | Custom module, filter plugin, dynamic inventory script, `collection build` |
+| 11 | [Rolling Deployments](https://github.com/kelvintechnical/ansible-rolling-deployments) | `serial`, `delegate_to`, `throttle`, `max_fail_percentage` |
+| 12 | [Infrastructure Provisioning](https://github.com/kelvintechnical/ansible-infrastructure-provisioning) | `amazon.aws`, Azure, OpenStack, `community.docker`, multi-cloud skeleton |
+| 13 | [Network Automation](https://github.com/kelvintechnical/ansible-network-automation) | `network_cli`, `ansible_network_os`, IOS/EOS commands & guarded `ios_config` |
 
 ---
 
