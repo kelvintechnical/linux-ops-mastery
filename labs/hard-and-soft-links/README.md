@@ -1,15 +1,15 @@
 # Lab 09: Hard and Soft Links — `ln`, `ln -s`, `readlink`, `find -inum`
 
 - **Series:** linux-ops-mastery — File Operations & Shell Fundamentals
-- **Career arcs covered:** RHCSA EX200 (filesystem hierarchy, systemd `mask`, /etc symlinks), RHCE EX294 (Ansible `file: state=link`), CKA (volume symlinks, `/var/log/containers/`), RHCA — RH342 (forensic inode tracking)
-- **Prerequisite:** Lab 08 (`cp`, `cp -a`, `cp --preserve=context`)
+- **Career arcs covered:** RHCSA EX200 (symlinks in `/etc`, systemd `mask` = link to `/dev/null`, alternatives), RHCE EX294 (`ansible.builtin.file: state=link`, `state=hard`), CKA (`/var/log/containers/` symlinks, kubelet volume links), RHCA — RH342 (forensic inode tracking with `find -inum`)
+- **Prerequisite:** Lab 00 (Ansible control node) + Lab 08 (`cp`, `cp -a`)
 - **Time Estimate:** 35–50 minutes
-- **Tasks:** 3 (ADHD spec)
-- **Practice Directory (lab-wide rotation #09):** `/root`
-- **Sandbox:** `/tmp/link-lab`
-- **Traps rehearsed this lab:** **T17** (mask vs disable confusion — masked = symlink to `/dev/null`) · **T16** (Editing unit file without daemon-reload)
+- **Tasks:** 5 (ADHD 3-1-1 spec — 3 RHCSA + 1 Ansible + 1 Verification capstone)
+- **Practice Directory (lab-wide rotation #09):** `/var/log` (real symlinks live here — `/var/log/journal` etc)
+- **Sandbox:** `/srv/link-lab`
+- **Traps rehearsed this lab:** **T17** (`systemctl mask` = symlink to `/dev/null` — `disable` is different) · **T18** (`ln` (no `-s`) creates a HARD link — fails across filesystems and on directories) · **T19** (Dangling symlinks return success from `ls -l` but `cat` fails with "No such file" — use `test -e` not `test -L`)
 
-> **This lab's practice directory is: `/root`** — every task references it in at least two commands.
+> **This lab's practice directory is: `/var/log`** — we read its real symlinks. The sandbox is `/srv/link-lab` where we create, break, and inspect links.
 
 ---
 
@@ -18,16 +18,16 @@
 ```bash
 echo "🖥️  ENV:   ${ENV:-DECLARE_ME}"
 echo "💿  DISK:  $(lsblk 2>/dev/null | awk '$NF=="disk"{print "/dev/"$1}' | paste -sd, -)"
-echo "🌐  NIC:   $(ip -o addr show 2>/dev/null | awk '$2!="lo"{print $2}' | sort -u | paste -sd, -)"
 echo "🔐  SE:    $(getenforce 2>/dev/null || echo n/a)"
 echo "📦  OS:    $(cat /etc/redhat-release 2>/dev/null || grep PRETTY_NAME /etc/os-release)"
 echo "🕒  TIME:  $(date -Is)"
 echo "👤  USER:  $(whoami)@$(hostname)"
-echo "⚠️  TRAP REMINDERS THIS LAB: T17 T16"
-echo "📁  PRACTICE DIR: /root"
+echo "⚠️  TRAP REMINDERS THIS LAB: T17 T18 T19"
+echo "📁  PRACTICE DIR: /var/log"
 echo ""
-echo "💡 /root contents (we read; we add lab-only files):"
-ls -la /root 2>/dev/null | head -n 10
+echo "💡 Real symlinks in /var/log (read-only):"
+find /var/log -maxdepth 2 -type l 2>/dev/null | head -5
+ls -l /etc/localtime    # famous real-world symlink
 ```
 
 > **STOP — paste header output before running setup.**
@@ -36,812 +36,988 @@ ls -la /root 2>/dev/null | head -n 10
 
 ## 🎯 Objective
 
-Master both kinds of links: **hard links** (multiple names → same inode) and **soft/symbolic links** (a file containing a path). By the end you will know exactly when each one applies, how `rm` behaves on each, and you will understand the systemd `mask` trap (T17) because `systemctl mask SVC` is literally `ln -s /dev/null /etc/systemd/system/SVC`.
+Build, inspect, and break both kinds of Linux links. By the end you will:
+
+- Make a **hard link** with `ln` and see its inode is identical to the original
+- Make a **soft link** (symlink) with `ln -s` and see it has its own inode that points at a path
+- Break a hard link's "source" and observe the data persists (hard links are equal partners)
+- Break a soft link's target and observe the symlink dangles (`ls -l` shows it, `cat` fails)
+- Use `find -inum` to find every hard link to a given inode
+- Replicate with `ansible.builtin.file: state=link` and `state=hard`
 
 ---
 
-## 🧠 Concept: Two Very Different Things, Both Called "Link"
+## 🛠️ Setup — run once before Task 1
 
-| Property | Hard link | Soft link (symlink) |
-|---|---|---|
-| Created with | `ln SRC LINK` | `ln -s SRC LINK` |
-| Stores | A directory entry pointing to the **same inode** | A small file containing **the path string** |
-| Inode | Same as source (verify with `ls -li`) | Different — its own inode |
-| Across filesystems? | **No** (inodes are per-FS) | **Yes** |
-| To directories? | **No** (would create cycles; only root can override and you should not) | **Yes** |
-| Survives `rm` of source? | **Yes** — both names still point to the inode | **No** — symlink becomes "dangling" |
-| Link count (`ls -l` column 2) | Increments | Source unchanged |
-| Permissions on the link | Ignored (uses inode's mode) | `lrwxrwxrwx` always (perms come from target) |
-| Identified in `ls -l` by | Nothing visible — looks like a regular file | `l` type char + `name -> target` |
-
+```bash
+sudo mkdir -p /srv/link-lab
+echo "original content" | sudo tee /srv/link-lab/data.txt
+sudo mkdir -p /root/rhcsa_journal/lab09
+ls -li /srv/link-lab/
 ```
-ln    /root/orig   /root/hard-copy        # hard link — second name for same inode
-ln -s /root/orig   /root/soft-copy        # soft link — file containing the path "/root/orig"
-
-rm /root/orig
-# hard-copy: still has the data (link count was 2, now 1)
-# soft-copy: DANGLING — readlink works, cat does not
-```
-
-### Why this matters — the systemd `mask` insight
-
-```
-$ systemctl mask httpd
-Created symlink /etc/systemd/system/httpd.service → /dev/null
-
-$ ls -l /etc/systemd/system/httpd.service
-lrwxrwxrwx. 1 root root 9 May 27 14:55 httpd.service -> /dev/null
-
-$ systemctl unmask httpd
-Removed /etc/systemd/system/httpd.service
-```
-
-`systemctl mask` is **literally a symlink to /dev/null**. systemd treats "service file is a symlink to /dev/null" as "this service is forbidden — refuse to start it even manually." Trap **T17**: people confuse `disable` (won't auto-start on boot, but `systemctl start` still works) with `mask` (cannot start at all). Knowing the symlink mechanism makes T17 unforgettable.
 
 ---
 
-## 🚦 Lab-Wide Setup — Run This BEFORE Task 1
+## Task 1 — Soft Links: `ln -s`, `readlink`, Symlink Behavior
+
+**Practice directory this task:** `/var/log` (real symlinks), `/srv/link-lab` (write)
+
+### 🔁 Warm-Up — Commands from Previous Labs
 
 ```bash
-sudo -i
-mkdir -p /tmp/link-lab
-cd /tmp/link-lab
-
-cat > /tmp/link-lab/THIS_DIRECTORY.txt <<'EOF'
-/root — Home directory for the root user
-
-/root is the root user's home directory. It is NOT /home/root because /home
-can be mounted from another disk or NFS, and root must be able to log in
-even when /home is unavailable.
-
-Why it exists: keeping root's home on the root partition guarantees that
-single-user mode, rd.break recovery, and emergency boots all give root a
-working home directory.
-
-What lives inside it: root's dotfiles (.bashrc, .bash_history, .ssh/),
-admin scripts, and — by RHCSA convention — task output files like
-/root/output.txt that grading checks. This lab uses /root/link-demo/
-for that exact pattern.
-
-Why RHCSA cares: nearly every capstone task writes a final file under
-/root. Symlinks in /root/.ssh/ are a common pattern (config -> shared
-config). systemctl mask creates symlinks under /etc/systemd/system/
-which is conceptually adjacent to "system root configuration."
-EOF
-
-cat /tmp/link-lab/THIS_DIRECTORY.txt
-
-mkdir -p /root/link-demo
-echo "version 1.0 — original content" > /root/link-demo/original.txt
-
-ls -ld /root /root/link-demo
-ls -li /root/link-demo/original.txt
+sudo mkdir -p /root/rhcsa_journal/lab09/task1
+date -Is | sudo tee /root/rhcsa_journal/lab09/task1/start.txt
+ls -li /srv/link-lab/data.txt | sudo tee -a /root/rhcsa_journal/lab09/task1/start.txt
+ls -l /etc/localtime | sudo tee -a /root/rhcsa_journal/lab09/task1/start.txt
 echo "exit was: $?"
 ```
 
-> **STOP — paste output before Task 1.**
+### Purpose
 
----
+Create a symbolic link with `ln -s`, observe that it has its own inode and shows up as `l` in `ls -l` column 1, follow the link with `readlink`, and observe the size column = number of bytes in the target path string.
 
-# The 3 Tasks
-
----
-
-## Task 1 — Hard Links: Multiple Names, One Inode
-
-### a) Directory Context
-
-**Practice directory this task:** `/root/link-demo` (sandbox for hard link experiments).
-We will create hard links, prove they share an inode, watch the link count change, and prove a hard link survives `rm` of the original.
-
-### b) 🔁 Warm-Up — Commands from Previous Labs
+### Main Command Block
 
 ```bash
-cd /tmp/link-lab
-date -Is | tee task01-warmup.log
-ls -li /root/link-demo/ 2>&1 | tee -a task01-warmup.log
-stat --format='Inode:%i Links:%h Size:%s' /root/link-demo/original.txt | tee -a task01-warmup.log
-echo "Warm-up done by $(whoami) at $(date -Is)"
-echo "exit was: $?"
-```
+# Create the symlink: ln -s TARGET LINKNAME
+sudo ln -s /srv/link-lab/data.txt /srv/link-lab/soft-link
 
-### c) Purpose
+# Inspect
+ls -li /srv/link-lab/
+# data.txt:   ` ... 12345 -rw-r--r--  1 root root  17 ... data.txt `
+# soft-link:  ` ... 12346 lrwxrwxrwx  1 root root  22 ... soft-link -> /srv/link-lab/data.txt `
 
-Create hard links, verify they share an inode, watch the link count rise and fall, and demonstrate that removing the "original" leaves the data intact via any remaining hard link.
+# Note: inode of soft-link != inode of data.txt; size of soft-link = 22 (bytes of target path)
 
-### d) Main Command Block
+# Follow the symlink
+readlink /srv/link-lab/soft-link
+readlink -f /srv/link-lab/soft-link    # canonical absolute path (follows chain)
 
-```bash
-cd /root/link-demo
+# Reading the symlink reads the target's content
+cat /srv/link-lab/soft-link
+[ "$(cat /srv/link-lab/soft-link)" = "$(cat /srv/link-lab/data.txt)" ] && echo "contents identical"
 
-ln original.txt hard1.txt
-ln original.txt hard2.txt
+# Real-world example
+ls -l /etc/localtime
+readlink /etc/localtime
 
-echo "=== After 2 hard links: ==="
-ls -li original.txt hard1.txt hard2.txt
-stat --format='Name:%n Inode:%i Links:%h' original.txt hard1.txt hard2.txt
-
-echo ""
-echo "=== Modify hard1 — content visible through ALL names ==="
-echo "version 2.0 — written through hard1" >> hard1.txt
-cat original.txt
-cat hard2.txt
-
-echo ""
-echo "=== Find all paths sharing this inode ==="
-INODE=$(stat --format='%i' original.txt)
-echo "Searching for inode $INODE under /root..."
-find /root -inum "$INODE" 2>/dev/null
-
-echo ""
-echo "=== Remove the 'original' — data survives ==="
-rm -v original.txt
-ls -li hard1.txt hard2.txt
-cat hard1.txt
-stat --format='Name:%n Inode:%i Links:%h' hard1.txt
-
-echo ""
-echo "=== Cross-FS hard link attempt (should fail) ==="
-ln hard1.txt /tmp/link-lab/hardlink-attempt.txt 2>&1 || echo "Expected fail — cross-FS hard link is impossible"
-# /root and /tmp may or may not be on the same FS; if on same FS this succeeds, if separate it fails
-ls -li /tmp/link-lab/hardlink-attempt.txt 2>/dev/null
-```
-
-### e) Human-Readable Breakdown
-
-- `ln SRC LINK` (no `-s`) — create a hard link; SRC and LINK now share the same inode.
-- `ls -li` — list with **inode number** in the first column.
-- `stat --format='%i %h'` — print inode (%i) and hard link count (%h).
-- `find /root -inum N` — find every path on `/root`'s filesystem that points to inode N. This is how forensic admins find every name for a file.
-- `rm original.txt` — removes the directory entry. The inode itself only goes away when the link count hits 0.
-- Cross-FS attempt fails because inodes are per-filesystem. (On many RHEL setups `/root` and `/tmp` are on the same FS, so this may actually succeed — check `df /root /tmp/link-lab`.)
-
-### f) Reading It Left to Right
-
-`find /root -inum "$INODE" 2>/dev/null`
-
-1. `find` — the finder.
-2. `/root` — start here.
-3. `-inum N` — match inode number N (set above via `stat --format='%i'`).
-4. `2>/dev/null` — suppress permission-denied noise from subdirectories.
-
-The interesting property: this only searches `/root`'s filesystem, because inodes are scoped to a filesystem. If `/var` or `/home` were on a separate FS, you'd need to re-run `find` from there.
-
-### g) The Story
-
-Hard links are the original Unix file abstraction. A "file" is really an inode (data + metadata). The names you see in directories are just labels pointing at inodes. The link count tells you how many labels exist. `rm` removes one label and decrements the count; when the count hits zero, the kernel finally frees the data.
-
-This is why `rm` is so cheap and why deleted-but-still-open files keep their disk space until every file descriptor closes. It's also why `tar` and `rsync` worry about hard links: if you have two names for the same inode, a naive copy stores the data twice unless the tool detects the hard link.
-
-### h) Expected Output
-
-```text
-=== After 2 hard links: ===
-12345678 -rw-r--r--. 3 root root 31 May 27 15:00 original.txt
-12345678 -rw-r--r--. 3 root root 31 May 27 15:00 hard1.txt
-12345678 -rw-r--r--. 3 root root 31 May 27 15:00 hard2.txt
-Name:original.txt Inode:12345678 Links:3
-Name:hard1.txt    Inode:12345678 Links:3
-Name:hard2.txt    Inode:12345678 Links:3
-
-=== Modify hard1 — content visible through ALL names ===
-version 1.0 — original content
-version 2.0 — written through hard1
-version 1.0 — original content
-version 2.0 — written through hard1
-
-=== Find all paths sharing this inode ===
-Searching for inode 12345678 under /root...
-/root/link-demo/original.txt
-/root/link-demo/hard1.txt
-/root/link-demo/hard2.txt
-
-=== Remove the 'original' — data survives ===
-removed 'original.txt'
-12345678 -rw-r--r--. 2 root root 75 May 27 15:00 hard1.txt
-12345678 -rw-r--r--. 2 root root 75 May 27 15:00 hard2.txt
-version 1.0 — original content
-version 2.0 — written through hard1
-Name:hard1.txt Inode:12345678 Links:2
-
-=== Cross-FS hard link attempt ===
-(either succeeds if /root and /tmp are same FS, OR:)
-ln: failed to create hard link '/tmp/link-lab/hardlink-attempt.txt' => 'hard1.txt': Invalid cross-device link
-Expected fail — cross-FS hard link is impossible
-```
-
-### i) Switches Table
-
-| Token | Meaning |
-|---|---|
-| `ln SRC LINK` | Create hard link |
-| `ln -v` | Verbose |
-| `ls -li` | Long listing with inode column |
-| `stat --format='%i'` | Inode number |
-| `stat --format='%h'` | Hard link count |
-| `find -inum N` | Match inode N |
-| `rm -v FILE` | Verbose remove |
-| `df PATH` | Show filesystem mounted at PATH (to check if two paths share an FS) |
-
-### j) 🧠 Concept Card
-
-| ✅ | Concept | What it does |
-|---|---|---|
-|   | Hard link | Second directory entry pointing to same inode |
-|   | Inode | The actual file (data + metadata) |
-|   | Link count | How many names point to this inode |
-|   | `ls -li` | Show inodes |
-|   | `find -inum` | Find every name for an inode |
-|   | `rm` semantics | Decrement link count; free inode when count = 0 |
-|   | Cross-FS limit | Hard links cannot cross filesystems |
-|   | No-dir rule | Hard links to directories are forbidden (no cycles) |
-| 🪤 **Trap Risk (T16)** | Editing unit file without daemon-reload | If you ever `ln` a unit file into `/etc/systemd/system/`, `systemctl` won't see it until `systemctl daemon-reload`. The link is on disk but systemd's in-memory state is stale |
-
-### k) 🧹 Cleanup
-
-```bash
-LAB=lab09
-TASK=task1
-JDIR="/root/rhcsa_journal/${LAB}/${TASK}"
-mkdir -p "$JDIR"
-cat > "$JDIR/done.txt" <<EOF
-LAB:    ${LAB}
-TASK:   ${TASK}
-DATE:   $(date -Is)
-USER:   $(whoami)@$(hostname)
-STATUS: COMPLETE
-EOF
-cat > "$JDIR/notes.txt" <<'EOF'
-TOPIC:    Hard links — shared inode, link count, find -inum, rm survival
-COMMANDS: ln, ls -li, stat --format='%i %h', find -inum, rm -v
-TRAPS:    T16 (daemon-reload reminder)
-MISSED:   —
-NEXT:     task2 — soft links (ln -s), dangling links, readlink
-EOF
-echo "Journal written: $(ls -la $JDIR)"
-
-cd /root/link-demo
-rm -v hard1.txt hard2.txt 2>/dev/null
-rm -f /tmp/link-lab/hardlink-attempt.txt
-rm -f /tmp/link-lab/task01-warmup.log
-ls /root/link-demo
-echo "exit was: $?"
-```
-
-### l) Troubleshoot Table
-
-| Symptom | Fix |
-|---|---|
-| `ln: hard link not allowed for directory` | Expected — use `ln -s` for dirs |
-| `ln: Invalid cross-device link` | `/root` and `/tmp` are different FS; use `ln -s` or `cp` instead |
-| Inodes differ for source and link | You used `ln -s` (soft link) — drop the `-s` for hard |
-| Link count is 1 after `ln` | The link command failed silently; check with `ls -li` |
-
-### m) STOP
-
-> **STOP — paste output before Task 2.**
-
-### n) 🔁 Persistence Check
-
-| What was configured | Verification command | Why it matters |
-|---|---|---|
-| `/root/link-demo/original.txt` re-created for Task 2 | `ls /root/link-demo` | (Task 2 needs a source — we will recreate it) |
-| Journal task1 | `cat /root/rhcsa_journal/lab09/task1/done.txt` | Reboot-proof |
-| No leftover hard links | `find /root -inum N` (the old inode is gone or pointing to nothing) | Confirms cleanup |
-
----
-
-## Task 2 — Soft Links: Path Strings, Dangling Links, `readlink`
-
-### a) Directory Context
-
-**Practice directory this task:** `/root/link-demo` (sandbox) and `/root/.ssh` style scenarios.
-Soft links can cross filesystems, point to directories, and **break** when the target disappears.
-
-### b) 🔁 Warm-Up — Commands from Previous Labs
-
-```bash
-cd /tmp/link-lab
-date -Is | tee task02-warmup.log
-echo "version 2.1 — new original for soft link drill" > /root/link-demo/original.txt
-ls -li /root/link-demo/original.txt | tee -a task02-warmup.log
-echo "Warm-up done by $(whoami) at $(date -Is)"
-echo "exit was: $?"
-```
-
-### c) Purpose
-
-Create symbolic links, read them with `readlink`, watch one **dangle** when its target is removed, and observe how cross-filesystem and to-directory cases work (both forbidden for hard links).
-
-### d) Main Command Block
-
-```bash
-cd /root/link-demo
-
-ln -s original.txt soft-relative.txt
-ln -s /root/link-demo/original.txt soft-absolute.txt
-ln -s /root/link-demo dir-link
-
-echo "=== Soft links — note size (= length of target path) and 'l' type ==="
-ls -l soft-relative.txt soft-absolute.txt dir-link
-
-echo ""
-echo "=== readlink — what does the symlink CONTAIN? ==="
-readlink soft-relative.txt
-readlink soft-absolute.txt
-readlink dir-link
-readlink -f soft-relative.txt   # resolved canonical path
-readlink -f dir-link
-
-echo ""
-echo "=== Cross-FS soft link (always works) ==="
-ln -s /root/link-demo/original.txt /tmp/link-lab/cross-fs.lnk
-ls -l /tmp/link-lab/cross-fs.lnk
-cat /tmp/link-lab/cross-fs.lnk
-
-echo ""
-echo "=== cat through the symlink ==="
-cat soft-relative.txt
-cat soft-absolute.txt
-ls dir-link/
-
-echo ""
-echo "=== DANGLE the symlinks ==="
-mv original.txt original.txt.moved
-ls -l soft-relative.txt soft-absolute.txt
-cat soft-relative.txt 2>&1 || echo "Dangling symlink — cat fails"
-readlink soft-relative.txt    # still prints the (now-broken) target
-readlink -f soft-relative.txt 2>/dev/null || echo "readlink -f fails: target missing"
-
-echo ""
-echo "=== Restore by recreating target ==="
-mv original.txt.moved original.txt
-cat soft-relative.txt
-```
-
-### e) Human-Readable Breakdown
-
-- `ln -s SRC LINK` — create a symlink. The link is a tiny file that contains the string `SRC`.
-- `ln -s original.txt soft-relative.txt` — the link contains the **relative** string `original.txt`. Resolves from the link's directory.
-- `ln -s /root/link-demo/original.txt soft-absolute.txt` — the link contains the **absolute** path. Resolves from root.
-- `ln -s /root/link-demo dir-link` — symlinks CAN point to directories.
-- `readlink LINK` — show the path stored in the symlink (no resolution).
-- `readlink -f LINK` — resolve to the canonical path on disk.
-- `mv original.txt original.txt.moved` — moving the target makes both symlinks "dangle." `ls -l` may show them in red.
-- Cross-FS: soft links work across filesystems because the link only stores a path string, not an inode reference.
-
-### f) Reading It Left to Right
-
-`ln -s /root/link-demo/original.txt soft-absolute.txt`
-
-1. `ln` — link command.
-2. `-s` — make it a soft/symbolic link (not hard).
-3. `/root/link-demo/original.txt` — target path (stored as a literal string inside the link).
-4. `soft-absolute.txt` — name of the new link.
-
-The kernel never validates the target at creation. You can `ln -s /this/does/not/exist foo` and it works — the link points at a non-existent file from the start. Reading or writing through it fails.
-
-### g) The Story
-
-Soft links are the duct tape of Unix. Used for:
-
-- **API compatibility**: `/usr/bin/python` → `python3.9` so scripts don't break across upgrades.
-- **Versioning**: `/opt/app/current → /opt/app/v2.3.1`; atomically swap `current` to roll back.
-- **Filesystem hierarchy**: on modern RHEL, `/bin → usr/bin`, `/lib → usr/lib`, etc., are all symlinks.
-- **systemd masking** (T17): `/etc/systemd/system/httpd.service → /dev/null`.
-- **systemd enable**: `/etc/systemd/system/multi-user.target.wants/sshd.service → /usr/lib/systemd/system/sshd.service` (this is literally what `systemctl enable` does).
-- **Kubernetes**: `/var/log/containers/<pod>.log → /var/log/pods/<pod>/<container>.log`.
-
-Dangling symlinks are not always bugs — sometimes they're placeholders for files that exist only on certain hosts (kickstart trick) or pointers to dynamic content.
-
-### h) Expected Output
-
-```text
-=== Soft links ===
-lrwxrwxrwx. 1 root root 12 May 27 15:10 soft-relative.txt -> original.txt
-lrwxrwxrwx. 1 root root 30 May 27 15:10 soft-absolute.txt -> /root/link-demo/original.txt
-lrwxrwxrwx. 1 root root 15 May 27 15:10 dir-link -> /root/link-demo
-
-=== readlink ===
-original.txt
-/root/link-demo/original.txt
-/root/link-demo
-/root/link-demo/original.txt
-/root/link-demo
-
-=== Cross-FS ===
-lrwxrwxrwx. 1 root root 30 May 27 15:10 /tmp/link-lab/cross-fs.lnk -> /root/link-demo/original.txt
-version 2.1 — new original for soft link drill
-
-=== cat through symlink ===
-version 2.1 — new original for soft link drill
-version 2.1 — new original for soft link drill
-original.txt
-hard1.txt        (if hard links from Task 1 are still around)
-...
-
-=== DANGLE ===
-lrwxrwxrwx. 1 root root 12 May 27 15:10 soft-relative.txt -> original.txt
-lrwxrwxrwx. 1 root root 30 May 27 15:10 soft-absolute.txt -> /root/link-demo/original.txt
-cat: soft-relative.txt: No such file or directory
-Dangling symlink — cat fails
-original.txt
-readlink -f fails: target missing
-
-=== Restored ===
-version 2.1 — new original for soft link drill
-```
-
-Notice: `ls -l` STILL shows the symlink itself when target is missing. `readlink` STILL prints the stored path. Only resolution-requiring operations (`cat`, `readlink -f`, `stat <link>`) fail.
-
-### i) Switches Table
-
-| Token | Meaning |
-|---|---|
-| `ln -s SRC LINK` | Create soft/symbolic link |
-| `ln -sn SRC EXISTING_LINK` | Replace existing link without dereferencing |
-| `ln -sf SRC LINK` | Force overwrite if LINK exists |
-| `readlink LINK` | Print stored target string |
-| `readlink -f LINK` | Print canonical (resolved) path |
-| `realpath LINK` | Same as `readlink -f`, more strict |
-| `ls -l` | Shows `l` type and `->` |
-| `cat LINK` | Follows symlink to read target |
-
-### j) 🧠 Concept Card
-
-| ✅ | Concept | What it does |
-|---|---|---|
-|   | Soft link | File containing a path string |
-|   | Cross-FS works | Yes (unlike hard links) |
-|   | To directories | Yes (unlike hard links) |
-|   | Dangling link | Target moved or deleted — link still exists |
-|   | `readlink` | Read stored path |
-|   | `readlink -f` | Resolve to canonical path |
-|   | `ln -sf` | Force overwrite |
-|   | Relative vs absolute target | Both work; relative survives directory moves better |
-| 🪤 **Trap Risk (T17)** | mask vs disable | Disabled = no auto-start, but `systemctl start` works. **Masked** = symlink to `/dev/null`, won't start AT ALL. Verify with `ls -l /etc/systemd/system/<svc>.service` — if it points to `/dev/null`, it's masked |
-
-### k) 🧹 Cleanup
-
-```bash
-LAB=lab09
-TASK=task2
-JDIR="/root/rhcsa_journal/${LAB}/${TASK}"
-mkdir -p "$JDIR"
-cat > "$JDIR/done.txt" <<EOF
-LAB:    ${LAB}
-TASK:   ${TASK}
-DATE:   $(date -Is)
-USER:   $(whoami)@$(hostname)
-STATUS: COMPLETE
-EOF
-cat > "$JDIR/notes.txt" <<'EOF'
-TOPIC:    Soft links — ln -s, cross-FS, dirs, dangling, readlink
-COMMANDS: ln -s, ln -sf, readlink, readlink -f, realpath
-TRAPS:    T17 (mask = symlink to /dev/null)
-MISSED:   —
-NEXT:     task3 — systemctl mask capstone + daemon-reload
-EOF
-echo "Journal written: $(ls -la $JDIR)"
-
-cd /root/link-demo
-rm -f soft-relative.txt soft-absolute.txt dir-link
-rm -f /tmp/link-lab/cross-fs.lnk /tmp/link-lab/task02-warmup.log
-echo "exit was: $?"
-```
-
-### l) Troubleshoot Table
-
-| Symptom | Fix |
-|---|---|
-| `cat LINK` says `No such file` | Target is gone — `readlink LINK` to see what it expects |
-| `ln -s` fails with "File exists" | Use `ln -sf` to overwrite |
-| Symlink color is red in `ls` | Dangling — target missing or unreadable |
-| `readlink -f` returns same path | LINK is not a symlink; check `ls -l` for `l` type char |
-
-### m) STOP
-
-> **STOP — paste output before Task 3.**
-
-### n) 🔁 Persistence Check
-
-| What was configured | Verification command | Why it matters |
-|---|---|---|
-| Sandbox dir-link removed | `test -L /root/link-demo/dir-link \|\| echo CLEAN` | Confirms no stray symlinks under /root |
-| `original.txt` survives | `cat /root/link-demo/original.txt` | Source for Task 3 |
-| Journal task2 | `cat /root/rhcsa_journal/lab09/task2/done.txt` | Reboot-proof |
-
----
-
-## Task 3 — Capstone: `systemctl mask` Is a Symlink (T17 + T16)
-
-### a) Directory Context
-
-**Practice directory this task:** `/etc/systemd/system/` (the canonical symlink directory) and `/root/link-demo` (where we keep our journal/evidence).
-We will mask a harmless test service, prove it created a symlink to `/dev/null`, observe the daemon-reload requirement (T16), and unmask cleanly.
-
-### b) 🔁 Warm-Up — Commands from Previous Labs
-
-```bash
-cd /tmp/link-lab
-date -Is | tee task03-warmup.log
-ls -l /etc/systemd/system/ 2>&1 | head -n 10 | tee -a task03-warmup.log
-echo "Warm-up done by $(whoami) at $(date -Is)"
-echo "exit was: $?"
-```
-
-### c) Purpose
-
-Connect everything: hard link concepts, symlink concepts, systemd's use of symlinks for `enable` and `mask`, and the `daemon-reload` requirement. Use a harmless test service (`crond` if present, or a dummy unit).
-
-### d) Main Command Block
-
-```bash
-SVC="crond.service"
-if ! systemctl list-unit-files 2>/dev/null | grep -q "^${SVC}"; then
-  echo "crond not present — using systemd-tmpfiles-clean.service for the demo"
-  SVC="systemd-tmpfiles-clean.service"
-fi
-echo "Test service: $SVC"
-
-echo ""
-echo "=== Initial state ==="
-systemctl is-enabled "$SVC"
-systemctl status "$SVC" --no-pager | head -n 5
-
-echo ""
-echo "=== systemctl enable creates a symlink in *.target.wants/ ==="
-systemctl enable "$SVC" 2>&1 | head -n 5
-find /etc/systemd/system -name "$SVC" -ls 2>/dev/null
-
-echo ""
-echo "=== systemctl mask creates a symlink to /dev/null ==="
-systemctl mask "$SVC" 2>&1 | head -n 3
-ls -l /etc/systemd/system/"$SVC"
-readlink /etc/systemd/system/"$SVC"
-
-echo ""
-echo "=== Proof: it IS a symlink to /dev/null ==="
-stat --format='Name:%n Type:%F Target:%N' /etc/systemd/system/"$SVC"
-
-echo ""
-echo "=== Try to start a masked service — fails ==="
-systemctl start "$SVC" 2>&1 | head -n 3 || echo "Expected fail: masked"
-
-echo ""
-echo "=== Unmask: remove the /dev/null symlink ==="
-systemctl unmask "$SVC" 2>&1 | head -n 3
-ls -l /etc/systemd/system/"$SVC" 2>&1 || echo "Symlink removed"
-
-echo ""
-echo "=== Verify state is sane ==="
-systemctl is-enabled "$SVC"
-
-echo ""
-echo "=== T16 demonstration: drop a custom unit, forget daemon-reload ==="
-cat > /etc/systemd/system/lab09-test.service <<'EOF'
-[Unit]
-Description=Lab 09 test service (does nothing)
-
-[Service]
-Type=oneshot
-ExecStart=/bin/true
-
-[Install]
-WantedBy=multi-user.target
-EOF
-echo ""
-echo "Without daemon-reload — systemd does not see it yet:"
-systemctl status lab09-test.service --no-pager 2>&1 | head -n 5
-
-echo ""
-echo "After daemon-reload:"
-systemctl daemon-reload
-systemctl status lab09-test.service --no-pager 2>&1 | head -n 5
-
-echo ""
-echo "Save evidence to /root/link-demo/:"
+# Capture
 {
-  echo "TEST SERVICE: $SVC"
-  echo "Mask resolved: $(systemctl is-enabled $SVC 2>&1)"
-  ls -l /etc/systemd/system/"$SVC" 2>&1 || echo "(symlink removed — unmasked)"
-  echo ""
-  echo "Custom unit:"
-  ls -l /etc/systemd/system/lab09-test.service
-} > /root/link-demo/task03-evidence.txt
-cat /root/link-demo/task03-evidence.txt
+  echo "=== inodes (should differ) ==="; ls -li /srv/link-lab/data.txt /srv/link-lab/soft-link
+  echo "=== readlink ==="; readlink /srv/link-lab/soft-link
+  echo "=== readlink -f ==="; readlink -f /srv/link-lab/soft-link
+  echo "=== /etc/localtime example ==="; ls -l /etc/localtime; readlink /etc/localtime
+} 2>&1 | sudo tee /root/rhcsa_journal/lab09/task1/transcript.txt
 ```
 
-### e) Human-Readable Breakdown
+### Human-Readable Breakdown
 
-- Pick a safe test service (`crond` or `systemd-tmpfiles-clean`).
-- `systemctl enable SVC` — creates a symlink in `multi-user.target.wants/`.
-- `systemctl mask SVC` — creates a **second** symlink in `/etc/systemd/system/<svc>` pointing to `/dev/null`. systemd refuses to start anything pointed at `/dev/null`.
-- `readlink` proves the target is `/dev/null`.
-- `systemctl unmask SVC` — removes the `/dev/null` symlink.
-- Drop a custom unit file. `systemctl status` reports it as "Unit not found" UNTIL `systemctl daemon-reload` (T16). After daemon-reload it shows the proper "loaded; inactive (dead)" state.
-- Save evidence to `/root/link-demo/task03-evidence.txt` so the journal entry is reboot-proof.
+A symlink is a tiny file whose **content is a path**. The kernel notices "this file is a symlink" and substitutes the target whenever something tries to open it. Key properties:
 
-### f) Reading It Left to Right
+- Has its **own inode** — `ls -li` shows two different numbers
+- Column 1 of `ls -l` is `l` (lowercase L)
+- The "size" column = byte length of the path string (`/srv/link-lab/data.txt` = 22 chars = 22 bytes)
+- Mode column is always `lrwxrwxrwx` — mode is ignored, the target's mode is what matters
+- Can point ACROSS filesystems
+- Can point at DIRECTORIES
+- Can DANGLE (target removed → link still exists, but reading it errors with `ENOENT`)
 
-`find /etc/systemd/system -name "$SVC" -ls 2>/dev/null`
+`readlink` prints the literal target string. `readlink -f` (or `realpath`) follows the chain to the canonical absolute path.
 
-1. `find` — finder.
-2. `/etc/systemd/system` — systemd's admin-managed unit dir.
-3. `-name "$SVC"` — match the service file name.
-4. `-ls` — print results in `ls -l`-style format including inode.
-5. `2>/dev/null` — suppress noise.
+### Reading It Left to Right
 
-You'll see one or more lines like:
+`ln -s TARGET LINK`
+
+- `ln` — link tool
+- `-s` — soft (symbolic) link; without `-s` you get a hard link
+- `TARGET` — what the link points at (can be relative or absolute)
+- `LINK` — the name of the new symlink
+
+`lrwxrwxrwx`
+
+- `l` — symbolic link
+- `rwxrwxrwx` — the symlink's mode (always all-rwx; ignored by kernel)
+
+### The Story
+
+Every RHEL admin uses symlinks daily without naming them — `/etc/localtime` is a symlink to `/usr/share/zoneinfo/America/New_York`, `/usr/lib/systemd/system/multi-user.target.wants/sshd.service` is a symlink to `/usr/lib/systemd/system/sshd.service`, and `systemctl mask SERVICE` creates a symlink from `/etc/systemd/system/SERVICE` to `/dev/null` (T17). Reading these structures fluently is RHCSA-grade.
+
+### Expected Output
 
 ```
-12345  0 lrwxrwxrwx 1 root root 32 ... /etc/systemd/system/multi-user.target.wants/crond.service -> /usr/lib/systemd/system/crond.service
+$ ls -li /srv/link-lab/
+total 4
+12345 -rw-r--r--. 1 root root 17 May 27 15:01 data.txt
+12346 lrwxrwxrwx. 1 root root 22 May 27 15:02 soft-link -> /srv/link-lab/data.txt
+^^^^^                                                ^^^^^
+different inode                                      ls -l shows the arrow
+
+$ readlink /srv/link-lab/soft-link
+/srv/link-lab/data.txt
+
+$ readlink -f /srv/link-lab/soft-link
+/srv/link-lab/data.txt
 ```
 
-That arrow tells the whole story. `enable` = symlink. `mask` = symlink to `/dev/null`. systemd is built on symlinks.
+### Switches Table
 
-### g) The Story
-
-Every confusing systemd behavior makes sense once you understand it's symlinks underneath:
-
-- "Why doesn't my service auto-start?" → No symlink in `*.target.wants/`. Fix: `systemctl enable`.
-- "Why can't I start my service?" → Symlink to `/dev/null` in `/etc/systemd/system/`. Fix: `systemctl unmask`.
-- "Why doesn't systemd see my new .service file?" → On-disk state changed; in-memory state did not. Fix: `systemctl daemon-reload` (**T16**).
-- "Why is `disable` different from `mask`?" → `disable` removes the wants-symlink (auto-start gone). `mask` ADDS a /dev/null symlink (cannot start at all). **T17** in one sentence.
-
-RHCSA grading: if a task says "Permanently prevent service X from starting," `systemctl mask` is the answer. `systemctl disable` is the wrong answer because someone could still run `systemctl start`.
-
-### h) Expected Output
-
-```text
-Test service: crond.service
-
-=== Initial state ===
-enabled
-● crond.service - Command Scheduler
-   Loaded: loaded (/usr/lib/systemd/system/crond.service; enabled; vendor preset: enabled)
-   Active: active (running) since ...
-
-=== systemctl enable creates a symlink in *.target.wants/ ===
-(no output if already enabled, or:)
-Created symlink /etc/systemd/system/multi-user.target.wants/crond.service → /usr/lib/systemd/system/crond.service
-   12345 0 lrwxrwxrwx ... /etc/systemd/system/multi-user.target.wants/crond.service -> /usr/lib/systemd/system/crond.service
-
-=== systemctl mask creates a symlink to /dev/null ===
-Created symlink /etc/systemd/system/crond.service → /dev/null.
-lrwxrwxrwx. 1 root root 9 May 27 15:25 /etc/systemd/system/crond.service -> /dev/null
-/dev/null
-
-=== Proof: it IS a symlink to /dev/null ===
-Name:/etc/systemd/system/crond.service Type:symbolic link Target:'/etc/systemd/system/crond.service' -> '/dev/null'
-
-=== Try to start a masked service — fails ===
-Failed to start crond.service: Unit crond.service is masked.
-Expected fail: masked
-
-=== Unmask: remove the /dev/null symlink ===
-Removed /etc/systemd/system/crond.service.
-ls: cannot access '/etc/systemd/system/crond.service': No such file or directory
-Symlink removed
-
-=== T16 demonstration ===
-Without daemon-reload — systemd does not see it yet:
-● lab09-test.service
-   Loaded: not-found (Reason: Unit lab09-test.service not found.)
-   Active: inactive (dead)
-
-After daemon-reload:
-● lab09-test.service - Lab 09 test service (does nothing)
-   Loaded: loaded (/etc/systemd/system/lab09-test.service; disabled; vendor preset: disabled)
-   Active: inactive (dead)
-```
-
-### i) Switches Table
-
-| Token | Meaning |
-|---|---|
-| `systemctl enable SVC` | Symlink unit into wants dir |
-| `systemctl disable SVC` | Remove wants symlink |
-| `systemctl mask SVC` | Symlink unit → /dev/null in admin dir |
-| `systemctl unmask SVC` | Remove the /dev/null symlink |
-| `systemctl daemon-reload` | Reread unit files from disk |
-| `systemctl is-enabled SVC` | State: enabled / disabled / masked / static |
-| `systemctl list-unit-files \| grep SVC` | List unit + state |
-| `find -ls` | Print find results in ls -l format |
-| `stat --format='%F %N'` | File type + name (resolving symlinks) |
-
-### j) 🧠 Concept Card
-
-| ✅ | Concept | What it does |
+| Switch | Meaning | Why it matters |
 |---|---|---|
-|   | `systemctl enable` = symlink | In `*.target.wants/` |
-|   | `systemctl mask` = symlink to /dev/null | In `/etc/systemd/system/` |
-|   | `systemctl is-enabled` | Shows the state |
-|   | Custom unit dir | `/etc/systemd/system/` (admin); `/usr/lib/systemd/system/` (package) |
-|   | Precedence | `/etc/systemd/system/` overrides `/usr/lib/` |
-|   | unit file edits need reload | systemd caches the parsed unit files in memory |
-| 🪤 **Trap Risk (T17)** | mask vs disable confusion | Always verify with `ls -l /etc/systemd/system/<svc>`. If it points to `/dev/null`, it's masked. `disable` does NOT create that symlink |
-| 🪤 **Trap Risk (T16)** | Editing unit file without daemon-reload | After ANY change to a unit file (drop-in, edit, copy, link), run `systemctl daemon-reload`. The exam grades the **live** state, not the disk state |
+| `ln -s TARGET LINK` | Create symbolic link | The base case |
+| `ln -sf` | Force; replace LINK if it exists | Re-pointing a symlink |
+| `ln -snf` | `-s -n -f` — don't follow LINK if it's a dir | Required when LINK is itself a symlink to a dir |
+| `readlink PATH` | Print literal target | Quick "what does this link point to?" |
+| `readlink -f PATH` | Canonical absolute path (follow chain) | Useful for scripts |
+| `realpath PATH` | Equivalent to `readlink -f` | Some prefer this name |
 
-### k) 🧹 Cleanup
+### 🧠 Concept Card
+
+| Concept | One-Line |
+|---|---|
+| Symlink | Tiny file whose content is a path |
+| Own inode | Yes — different from target |
+| Cross-filesystem | Yes — can link across `/`, `/home`, `/var` |
+| Directory target | Yes — `ln -s /var /tmp/var-link` works |
+| Dangling | Yes — target removed, link remains but reads fail |
+| `readlink -f` | Resolve the full chain |
+
+| 🪤 Trap Risk | What goes wrong | How to avoid |
+|---|---|---|
+| **T17** | `systemctl mask` creates a symlink to `/dev/null`; unmask = remove symlink. Easy to confuse with `disable` | Use `systemctl list-unit-files` to see what's masked; `mask` → linked to /dev/null |
+| **T19** | A dangling symlink looks fine in `ls -l` but `cat` errors | Use `test -e` (exists, follows symlinks) instead of `test -L` (is a symlink) for "is the data there?" |
+
+### 🔁 Persistence Check
 
 ```bash
-LAB=lab09
-TASK=task3
-JDIR="/root/rhcsa_journal/${LAB}/${TASK}"
-mkdir -p "$JDIR"
-cat > "$JDIR/done.txt" <<EOF
-LAB:    ${LAB}
-TASK:   ${TASK}
-DATE:   $(date -Is)
-USER:   $(whoami)@$(hostname)
-STATUS: COMPLETE
-EOF
-cat > "$JDIR/notes.txt" <<'EOF'
-TOPIC:    systemctl mask = symlink to /dev/null; daemon-reload requirement
-COMMANDS: systemctl enable/disable/mask/unmask/daemon-reload, readlink, find -ls
-TRAPS:    T17 + T16 (both rehearsed)
-MISSED:   —
-NEXT:     Lab 10 — mv (rename + move) (/var practice dir)
-EOF
-echo "Journal written: $(ls -la $JDIR)"
-
-systemctl unmask "$SVC" 2>/dev/null
-rm -f /etc/systemd/system/lab09-test.service
-systemctl daemon-reload
-rm -rf /root/link-demo
-rm -rf /tmp/link-lab
-echo "exit was: $?"
+test -L /srv/link-lab/soft-link && echo "is a symlink"
+test -e /srv/link-lab/soft-link && echo "target reachable"
+[ "$(cat /srv/link-lab/soft-link)" = "$(cat /srv/link-lab/data.txt)" ] && echo "content matches"
 ```
 
-### l) Troubleshoot Table
+### 📓 Journal Write
+
+```bash
+sudo tee /root/rhcsa_journal/lab09/task1/done.txt > /dev/null <<EOF
+lab=09 task=1
+when=$(date -Is)
+practice_dir=/var/log
+data_inode=$(stat -c '%i' /srv/link-lab/data.txt)
+softlink_inode=$(stat -c '%i' /srv/link-lab/soft-link)
+target=$(readlink /srv/link-lab/soft-link)
+EOF
+cat /root/rhcsa_journal/lab09/task1/done.txt
+```
+
+### 🧹 Cleanup
+
+Leave the symlink — Task 3 breaks it deliberately.
+
+### Troubleshoot Table
 
 | Symptom | Fix |
 |---|---|
-| `systemctl mask` says "already masked" | Already done; verify with `ls -l /etc/systemd/system/$SVC` |
-| Service still running after mask | `mask` only prevents future starts; `systemctl stop` to stop now |
-| `systemctl status` says "not-found" after dropping new unit | Forgot `daemon-reload` (T16) |
-| `unmask` says "Removed" but `is-enabled` is wrong | Run `daemon-reload` after unmask too |
+| `ln: failed to create symbolic link: File exists` | LINK name already exists — use `-f` to force, or pick a new name |
+| `readlink` returns nothing | Argument is not a symlink — check `ls -l` |
+| Reading symlink errors with `ENOENT` | Target was removed — symlink dangles (T19) |
 
-### m) STOP
+> **STOP — confirm two different inodes in done.txt before Task 2.**
 
-> **STOP — paste output before declaring Lab 09 complete.**
+---
 
-### n) 🔁 Persistence Check
+## Task 2 — Hard Links: `ln`, Inode Equality, Link Count
 
-| What was configured | Verification command | Why it matters |
+**Practice directory this task:** `/srv/link-lab` (write)
+
+### 🔁 Warm-Up — Commands from Previous Labs
+
+```bash
+sudo mkdir -p /root/rhcsa_journal/lab09/task2
+date -Is | sudo tee /root/rhcsa_journal/lab09/task2/start.txt
+ls -li /srv/link-lab/data.txt | sudo tee -a /root/rhcsa_journal/lab09/task2/start.txt
+echo "exit was: $?"
+```
+
+### Purpose
+
+Create a hard link with `ln` (no `-s`), observe the inode is **identical** to the source, watch the link count (`stat -c '%h'`) jump from 1 to 2, then find all hard links to that inode with `find -inum`.
+
+### Main Command Block
+
+```bash
+# Before: data.txt link count is 1
+stat -c 'inode=%i links=%h' /srv/link-lab/data.txt
+
+# Create the hard link
+sudo ln /srv/link-lab/data.txt /srv/link-lab/hard-link
+
+# After: link count is 2 on BOTH names (they're the same inode)
+stat -c 'inode=%i links=%h' /srv/link-lab/data.txt
+stat -c 'inode=%i links=%h' /srv/link-lab/hard-link
+
+# Confirm same inode
+ls -li /srv/link-lab/data.txt /srv/link-lab/hard-link
+
+# Find all paths pointing at that inode
+inode=$(stat -c '%i' /srv/link-lab/data.txt)
+sudo find /srv/link-lab -inum $inode
+
+# Make a second hard link, link count becomes 3
+sudo ln /srv/link-lab/data.txt /srv/link-lab/hard-link-2
+stat -c 'links=%h' /srv/link-lab/data.txt
+
+# Modifying through ANY hard link affects ALL (because they ARE the same file)
+sudo sh -c 'echo "added line" >> /srv/link-lab/hard-link'
+cat /srv/link-lab/data.txt
+cat /srv/link-lab/hard-link-2
+
+# Try to hard-link a directory — fails (T18)
+sudo ln /srv/link-lab /srv/link-lab-dir-link 2>&1 | head -1
+
+# Try to hard-link across filesystems — fails (T18)
+sudo ln /srv/link-lab/data.txt /tmp/cross-fs-hard 2>&1 | head -1   # may work if /tmp is on same fs; if not, EXDEV
+
+# Capture
+{
+  echo "=== before ==="; stat -c 'inode=%i links=%h' /srv/link-lab/data.txt
+  echo "=== after first hard link ==="
+  sudo ln -f /srv/link-lab/data.txt /srv/link-lab/hard-link
+  ls -li /srv/link-lab/data.txt /srv/link-lab/hard-link
+  echo "=== link count after two hard links ==="
+  sudo ln -f /srv/link-lab/data.txt /srv/link-lab/hard-link-2
+  stat -c 'inode=%i links=%h' /srv/link-lab/data.txt
+  echo "=== find -inum ==="
+  sudo find /srv/link-lab -inum $(stat -c '%i' /srv/link-lab/data.txt)
+} 2>&1 | sudo tee /root/rhcsa_journal/lab09/task2/transcript.txt
+```
+
+### Human-Readable Breakdown
+
+A hard link is a second **name** for the same inode. The inode is the data; the filename is just a label pointing at it. Key properties:
+
+- **Same inode** — `ls -li` shows identical numbers
+- Column 1 of `ls -l` is `-` (regular file), NOT `l`
+- The "size" matches because there is one set of data bytes
+- Link count (`stat -c '%h'`) = number of hard links to this inode
+- Cannot cross filesystems (each filesystem has its own inode table)
+- Cannot hard-link a directory on most filesystems (would create loops)
+- All hard links are **equal partners** — there's no "original" — `rm` of any one decrements the link count by 1; data is freed only when count hits 0
+
+`find -inum N` searches by inode number — the canonical way to find all hard links to a given file.
+
+### Reading It Left to Right
+
+`ln TARGET LINK`
+
+- `ln` — link tool
+- (no `-s`) — hard link
+- `TARGET` — existing file (the inode you want to alias)
+- `LINK` — new filename pointing at the same inode
+
+`stat -c '%h' FILE`
+
+- `stat` — file metadata
+- `-c '%h'` — hard link count
+
+`find /srv/link-lab -inum 12345`
+
+- `find` — search
+- `/srv/link-lab` — start path
+- `-inum 12345` — match by inode number
+
+### The Story
+
+A grader: "find all paths in `/var/log` that share an inode with `/var/log/messages`." Answer: `find /var/log -inum $(stat -c '%i' /var/log/messages)`. Real systems use hard links for things like log rotation snapshots, `make install` pseudo-installs, and rsync's `--link-dest=` incremental backups.
+
+### Expected Output
+
+```
+$ stat -c 'inode=%i links=%h' /srv/link-lab/data.txt
+inode=12345 links=1
+
+$ sudo ln /srv/link-lab/data.txt /srv/link-lab/hard-link
+$ ls -li /srv/link-lab/data.txt /srv/link-lab/hard-link
+12345 -rw-r--r--. 2 root root 17 May 27 15:01 /srv/link-lab/data.txt
+12345 -rw-r--r--. 2 root root 17 May 27 15:01 /srv/link-lab/hard-link
+^^^^^               ^^
+same inode         link count: 2
+
+$ sudo find /srv/link-lab -inum 12345
+/srv/link-lab/data.txt
+/srv/link-lab/hard-link
+/srv/link-lab/hard-link-2
+```
+
+When you try to hard-link a directory:
+
+```
+ln: /srv/link-lab: hard link not allowed for directory
+```
+
+### Switches Table
+
+| Switch | Meaning | Why it matters |
 |---|---|---|
-| Service is unmasked | `systemctl is-enabled $SVC` (NOT "masked") | Confirms we cleaned up |
-| Custom unit removed | `test -e /etc/systemd/system/lab09-test.service \|\| echo CLEAN` | No stray units |
-| daemon-reload run | `systemctl daemon-reload; echo $?` (0) | systemd in-memory matches disk |
-| All 3 journal entries | `find /root/rhcsa_journal/lab09 -name done.txt \| wc -l` (expect 3) | Reboot-proof |
+| `ln TARGET LINK` | Create hard link | Same inode, different name |
+| `ln -f` | Force | Replace LINK if it exists |
+| `find -inum N` | Find by inode | Locate all hard links |
+| `stat -c '%i'` | Inode number | Programmatic compare |
+| `stat -c '%h'` | Hard link count | Detect aliasing |
 
-> **Reboot question:** "If we rebooted with `$SVC` masked, would it auto-start?" — Answer: no. The mask symlink survives reboot (it's in `/etc/systemd/system/` on the root partition). systemd reads it on boot and refuses to start. That's the ENTIRE point of `mask` vs `disable`.
+### 🧠 Concept Card
+
+| Concept | One-Line |
+|---|---|
+| Hard link | Second filename for the same inode (= same file) |
+| Same inode | `stat -c %i` matches; `ls -li` shows same number |
+| Link count | `stat -c %h` = number of hard links |
+| `find -inum N` | Find all paths pointing at inode N |
+| Cross-fs forbidden | Each filesystem has its own inode table |
+| Directories forbidden | Would create cycles |
+
+| 🪤 Trap Risk | What goes wrong | How to avoid |
+|---|---|---|
+| **T18** | `ln` (no `-s`) fails across filesystems with `EXDEV` | Use `ln -s` for cross-fs; check with `df` if confused |
+| **T18-b** | `ln` of a directory fails with `EPERM` | Only `ln -s` works for directories |
+| Aliasing surprise | `rm data.txt` doesn't free space because `hard-link` still references the inode | Check link count with `stat -c %h` before assuming `rm` frees data |
+
+### 🔁 Persistence Check
+
+```bash
+[ "$(stat -c '%i' /srv/link-lab/data.txt)" = "$(stat -c '%i' /srv/link-lab/hard-link)" ] && echo "same inode"
+[ "$(stat -c '%h' /srv/link-lab/data.txt)" -ge 2 ] && echo "link count >= 2"
+sudo find /srv/link-lab -inum "$(stat -c '%i' /srv/link-lab/data.txt)" | wc -l
+```
+
+### 📓 Journal Write
+
+```bash
+sudo tee /root/rhcsa_journal/lab09/task2/done.txt > /dev/null <<EOF
+lab=09 task=2
+when=$(date -Is)
+inode=$(stat -c '%i' /srv/link-lab/data.txt)
+link_count=$(stat -c '%h' /srv/link-lab/data.txt)
+found_paths=$(sudo find /srv/link-lab -inum "$(stat -c '%i' /srv/link-lab/data.txt)" | wc -l)
+EOF
+cat /root/rhcsa_journal/lab09/task2/done.txt
+```
+
+### 🧹 Cleanup
+
+Leave hard links; Task 3 deletes the original and observes what happens.
+
+### Troubleshoot Table
+
+| Symptom | Fix |
+|---|---|
+| `ln: failed to create hard link 'X' => 'Y': Invalid cross-device link` | EXDEV — `/srv` and `/tmp` on different filesystems; use `ln -s` |
+| `ln: 'X': hard link not allowed for directory` | Use `ln -s` for directories |
+
+> **STOP — confirm `link_count >= 2` in done.txt before Task 3.**
 
 ---
 
-## 🪤 Trap Registry Update — End of Lab 09
+## Task 3 — Break the Source: Hard Link Survives, Symlink Dangles
 
-| Trap ID | Category | Rehearsed? | If hit, repeat in |
-|---|---|---|---|
-| T17 | systemd | ✅ | — |
-| T16 | systemd | ✅ | — |
+**Practice directory this task:** `/srv/link-lab` (write)
 
-3-lab trap window (07+08+09): **T07, T43, T32, T31, T17, T16** = **6 unique traps** ✓
+### 🔁 Warm-Up — Commands from Previous Labs
 
-Next lab (10) traps: **T25** (firewalld --permanent without --reload) · **T34** (cron.d file needs username field — 6 fields total).
+```bash
+sudo mkdir -p /root/rhcsa_journal/lab09/task3
+date -Is | sudo tee /root/rhcsa_journal/lab09/task3/start.txt
+ls -li /srv/link-lab/ | sudo tee -a /root/rhcsa_journal/lab09/task3/start.txt
+echo "exit was: $?"
+```
+
+### Purpose
+
+Remove the original `data.txt`. Watch the hard link continue to read normally (it's the same inode — equal partner). Watch the symlink dangle (target is gone, `ls -l` still shows the link, but `cat` errors).
+
+### Main Command Block
+
+```bash
+# Before delete
+ls -li /srv/link-lab/
+cat /srv/link-lab/data.txt
+cat /srv/link-lab/hard-link
+cat /srv/link-lab/soft-link
+
+# Remove the "original" filename
+sudo rm /srv/link-lab/data.txt
+
+# After delete
+ls -li /srv/link-lab/
+
+echo "=== try the hard link (should WORK) ==="
+cat /srv/link-lab/hard-link            # works
+stat -c 'links=%h' /srv/link-lab/hard-link
+
+echo "=== try the soft link (should DANGLE) ==="
+ls -l /srv/link-lab/soft-link          # ls shows it but in red (dangling)
+cat /srv/link-lab/soft-link 2>&1 || echo "(read failed — symlink dangles)"
+test -e /srv/link-lab/soft-link && echo "target exists" || echo "TARGET MISSING (symlink dangles)"
+test -L /srv/link-lab/soft-link && echo "still a symlink"
+readlink /srv/link-lab/soft-link        # still returns the (now-missing) target string
+
+# Repair: restore via hard link
+sudo ln /srv/link-lab/hard-link /srv/link-lab/data.txt
+ls -li /srv/link-lab/
+
+# Capture
+{
+  echo "=== after rm of data.txt ===";   ls -li /srv/link-lab/
+  echo "=== hard-link cat ==="; cat /srv/link-lab/hard-link
+  echo "=== soft-link cat ==="; cat /srv/link-lab/soft-link 2>&1 || echo "(dangling)"
+  echo "=== test -e on dangling ==="
+  test -e /srv/link-lab/soft-link && echo "exists" || echo "MISSING"
+  test -L /srv/link-lab/soft-link && echo "is symlink"
+  echo "=== repaired via hard link ==="
+  sudo ln /srv/link-lab/hard-link /srv/link-lab/data.txt 2>/dev/null
+  ls -li /srv/link-lab/
+} 2>&1 | sudo tee /root/rhcsa_journal/lab09/task3/transcript.txt
+```
+
+### Human-Readable Breakdown
+
+When you `rm /srv/link-lab/data.txt`, the kernel:
+
+1. Decrements the link count on inode 12345 (the underlying data)
+2. Frees the data ONLY when the count hits 0
+
+Since `hard-link` and `hard-link-2` still reference inode 12345, the count drops to 2 (or 1 if only one hard link remained) — NOT to 0. The data is intact. You can keep reading it through the other names.
+
+The **symlink** is independent. It still exists as its own inode (`12346`). Its content is the path string `/srv/link-lab/data.txt`. When you try to read the symlink, the kernel looks up that path... and finds `ENOENT`. The symlink itself is fine; its target is gone. `ls -l` still shows the link (often in red). `test -L` returns true (it IS a symlink). `test -e` returns false (the *target* doesn't exist). That's the difference between "is this a symlink?" and "is its target reachable?"
+
+### Reading It Left to Right
+
+`rm /srv/link-lab/data.txt`
+
+- `rm` — remove
+- decrements link count on the inode; frees data when count = 0
+
+`test -L PATH` and `test -e PATH`
+
+- `test` — condition test
+- `-L` — is PATH a symlink? (does NOT follow)
+- `-e` — does the file PATH refers to exist? (FOLLOWS symlinks)
+
+### The Story
+
+A grader's nasty question: "the file `/data/config.yml` was deleted; symlink `/etc/myservice/config.yml -> /data/config.yml` now dangles. Recover the file." If you had a hard link to `/data/config.yml` elsewhere (say in `/backup/`), you could restore by `ln /backup/config.yml /data/config.yml` — the data was never freed, the link count never hit 0. That's the operational value of hard links: redundant names protect against accidental `rm` of a single name.
+
+### Expected Output
+
+```
+$ sudo rm /srv/link-lab/data.txt
+$ ls -li /srv/link-lab/
+total 8
+12345 -rw-r--r--. 2 root root 28 May 27 15:05 hard-link
+12345 -rw-r--r--. 2 root root 28 May 27 15:05 hard-link-2
+12346 lrwxrwxrwx. 1 root root 22 May 27 15:02 soft-link -> /srv/link-lab/data.txt
+                                                                                  ^
+                                                                                  (red in terminal: dangling)
+
+$ cat /srv/link-lab/hard-link
+original content
+added line
+
+$ cat /srv/link-lab/soft-link
+cat: /srv/link-lab/soft-link: No such file or directory
+
+$ test -e /srv/link-lab/soft-link && echo "exists" || echo "MISSING"
+MISSING
+```
+
+### Switches Table
+
+| Switch | Meaning | Why it matters |
+|---|---|---|
+| `rm FILE` | Remove (decrement link count) | Frees data when count hits 0 |
+| `test -L PATH` | Is PATH a symlink? | Does NOT follow |
+| `test -e PATH` | Does PATH's target exist? | FOLLOWS symlinks |
+| `test -f PATH` | Is PATH a regular file? | Follows symlinks; false for dangling |
+
+### 🧠 Concept Card
+
+| Concept | One-Line |
+|---|---|
+| Hard link delete | Decrements link count; data freed only when count = 0 |
+| Symlink dangle | `ls -l` still shows it; reading errors with ENOENT |
+| `test -L` | Is symlink (no follow) |
+| `test -e` | Target exists (follow) |
+| Recovery | Restore via remaining hard link with `ln` |
+
+| 🪤 Trap Risk | What goes wrong | How to avoid |
+|---|---|---|
+| **T19** | `test -L symlink` returns true even when dangling; script proceeds; later `cat` fails | Use `test -e` to check the data, `test -L` to check link-ness |
+| Symlink rot | Service starts before its symlink target file exists | Use `test -e` in scripts; treat dangling as a hard failure |
+
+### 🔁 Persistence Check
+
+```bash
+test -e /srv/link-lab/hard-link && echo "hard-link reachable"
+test -e /srv/link-lab/soft-link && echo "soft-link target reachable" || echo "soft-link DANGLES (expected)"
+test -L /srv/link-lab/soft-link && echo "soft-link still a symlink"
+[ "$(stat -c '%i' /srv/link-lab/hard-link)" = "$(stat -c '%i' /srv/link-lab/data.txt)" ] && echo "data.txt restored via hard link"
+```
+
+### 📓 Journal Write
+
+```bash
+sudo tee /root/rhcsa_journal/lab09/task3/done.txt > /dev/null <<EOF
+lab=09 task=3
+when=$(date -Is)
+hard_link_survived=$(test -e /srv/link-lab/hard-link && echo yes || echo no)
+soft_link_dangled=$(test ! -e /srv/link-lab/soft-link -a -L /srv/link-lab/soft-link && echo yes || echo no)
+recovered_via_hard_link=$(test -e /srv/link-lab/data.txt && echo yes || echo no)
+EOF
+cat /root/rhcsa_journal/lab09/task3/done.txt
+```
+
+### 🧹 Cleanup
+
+Leave the lab; Task 4 makes new links via Ansible.
+
+### Troubleshoot Table
+
+| Symptom | Fix |
+|---|---|
+| `hard-link` content also gone after `rm data.txt` | Link count must have hit 0 — confirm with `stat -c '%h'` BEFORE rm |
+| `ls -l` doesn't show dangling symlinks in red | `--color=auto` may be disabled; `ls -l --color=always` to force |
+
+> **STOP — confirm `hard_link_survived=yes` and `soft_link_dangled=yes` in done.txt before Task 4.**
 
 ---
 
-## 🎓 What You Now Own
+## Task 4 — Ansible: `state=link` and `state=hard` via `ansible.builtin.file`
 
-1. `ln SRC LINK` — hard link (shared inode, same FS only, no dirs).
-2. `ln -s SRC LINK` — symbolic link (path string, any FS, any target).
-3. `readlink` / `readlink -f` — read stored target / canonical path.
-4. `find -inum N` — find every name for an inode.
-5. `ls -li` — see inodes in the listing.
-6. `stat --format='%i %h %F %N'` — inode, link count, type, target.
-7. **systemctl enable** = symlink in `*.target.wants/`.
-8. **systemctl mask** = symlink to `/dev/null`.
-9. **systemctl daemon-reload** required after ANY unit file change.
-10. The "verify with `ls -l`" muscle memory that defeats T17 (mask vs disable confusion).
+**Practice directory this task:** `/srv/link-lab`
+
+### 🔁 Warm-Up — Commands from Previous Labs
+
+```bash
+sudo mkdir -p /root/rhcsa_journal/lab09/task4/playbooks
+date -Is | sudo tee /root/rhcsa_journal/lab09/task4/start.txt
+ansible --version | head -1 | sudo tee -a /root/rhcsa_journal/lab09/task4/start.txt
+echo "exit was: $?"
+```
+
+If `ansible --version` fails — **Lab 00**.
+
+### Purpose
+
+Replicate Task 1 + Task 2 with `ansible.builtin.file`. Use `state: link` for symlinks (with `src:` = target), `state: hard` for hard links. Prove idempotence on re-run.
+
+### Main Command Block
+
+Ensure we have an origin file (Task 3 may have left `data.txt` restored via hard link; if not, recreate):
+
+```bash
+test -e /srv/link-lab/data.txt || (echo "ansible origin" | sudo tee /srv/link-lab/data.txt)
+```
+
+Write the playbook:
+
+```bash
+sudo tee /root/rhcsa_journal/lab09/task4/playbooks/links.yml > /dev/null <<'EOF'
+---
+- name: Lab 09 Task 4 — create symlink and hard link via ansible.builtin.file
+  hosts: localhost
+  become: true
+  gather_facts: false
+
+  vars:
+    origin: /srv/link-lab/data.txt
+    soft: /srv/link-lab/ansible-soft
+    hard: /srv/link-lab/ansible-hard
+
+  tasks:
+    - name: Ensure origin file exists (idempotent guard)
+      ansible.builtin.copy:
+        content: "ansible origin\n"
+        dest: "{{ origin }}"
+        owner: root
+        group: root
+        mode: '0644'
+        force: false
+
+    - name: Create soft (symbolic) link
+      ansible.builtin.file:
+        src: "{{ origin }}"
+        dest: "{{ soft }}"
+        state: link
+        force: true
+      register: soft_result
+
+    - name: Create hard link
+      ansible.builtin.file:
+        src: "{{ origin }}"
+        dest: "{{ hard }}"
+        state: hard
+        force: true
+      register: hard_result
+
+    - name: Show results
+      ansible.builtin.debug:
+        msg:
+          - "soft changed: {{ soft_result.changed }}"
+          - "hard changed: {{ hard_result.changed }}"
+EOF
+```
+
+Check-mode first:
+
+```bash
+ansible-playbook --check --diff /root/rhcsa_journal/lab09/task4/playbooks/links.yml \
+  2>&1 | sudo tee /root/rhcsa_journal/lab09/task4/check.log
+```
+
+Apply:
+
+```bash
+ansible-playbook /root/rhcsa_journal/lab09/task4/playbooks/links.yml \
+  2>&1 | sudo tee /root/rhcsa_journal/lab09/task4/apply.log
+```
+
+Idempotence proof:
+
+```bash
+ansible-playbook /root/rhcsa_journal/lab09/task4/playbooks/links.yml \
+  2>&1 | sudo tee /root/rhcsa_journal/lab09/task4/rerun.log
+grep '^localhost' /root/rhcsa_journal/lab09/task4/rerun.log
+```
+
+### Human-Readable Breakdown
+
+`ansible.builtin.file` is the same module we used in Lab 07 — but now with `state: link` and `state: hard`. The arguments:
+
+| Argument | For symlink | For hard link |
+|---|---|---|
+| `src:` | Target path the link points at | Existing file to hard-link |
+| `dest:` | The link name | The new hard-link name |
+| `state: link` | Symlink | — |
+| `state: hard` | — | Hard link |
+| `force: true` | Replace dest if it exists (file, dir, or other link) | Same |
+
+`force: true` is what makes the playbook idempotent: without it, if `dest` already exists as something else, the task fails. With it, the module replaces. On the second run, the link already exists with the correct `src:` — module detects this and returns `changed=False`.
+
+`state: hard` requires `src:` to exist; if it doesn't, the module errors. That's why the first task in the play uses `force: false` on the origin file — to ensure it exists without overwriting if it already does.
+
+### Reading It Left to Right
+
+```yaml
+ansible.builtin.file:
+  src: /srv/link-lab/data.txt
+  dest: /srv/link-lab/ansible-soft
+  state: link
+  force: true
+```
+
+- `src:` — target (what the link points at)
+- `dest:` — link name (the file being created)
+- `state: link` — symbolic link
+- `force: true` — replace if dest already exists
+
+```yaml
+ansible.builtin.file:
+  src: /srv/link-lab/data.txt
+  dest: /srv/link-lab/ansible-hard
+  state: hard
+  force: true
+```
+
+- `state: hard` — hard link
+- Otherwise identical syntax
+
+### The Story
+
+A grader: "Create `/etc/myservice/config -> /opt/myservice/etc/config` as a symlink, owned by root, idempotent." Ansible answer is exactly the playbook above (paths swapped). Second run = `changed=0`. Real-world Ansible roles use `state: link` constantly — for systemd target/wants links, alternatives, and config drop-ins.
+
+### Expected Output
+
+First apply:
+
+```
+TASK [Ensure origin file exists] ***
+ok: [localhost]
+
+TASK [Create soft (symbolic) link] ***
+changed: [localhost]
+
+TASK [Create hard link] ***
+changed: [localhost]
+
+PLAY RECAP ***
+localhost : ok=4 changed=2 unreachable=0 failed=0
+```
+
+Idempotence rerun:
+
+```
+TASK [Create soft (symbolic) link] ***
+ok: [localhost]                    <-- NOT changed; symlink already points at the right src
+
+TASK [Create hard link] ***
+ok: [localhost]                    <-- NOT changed; hard link already exists
+
+PLAY RECAP ***
+localhost : ok=4 changed=0 unreachable=0 failed=0
+```
+
+### Switches Table
+
+| Switch / Key | Meaning | Why it matters |
+|---|---|---|
+| `state: link` | Symbolic link | Equivalent to `ln -s` |
+| `state: hard` | Hard link | Equivalent to `ln` |
+| `force: true` | Replace dest if it exists | Idempotence helper |
+| `src:` | Target path | Required for both link states |
+| `dest:` | Link name | Required |
+
+### 🧠 Concept Card
+
+| Concept | One-Line |
+|---|---|
+| `ansible.builtin.file: state=link` | RHCE answer for `ln -s` |
+| `ansible.builtin.file: state=hard` | RHCE answer for `ln` (no `-s`) |
+| `force: true` | Replace existing dest — enables idempotence |
+| Idempotence | Module checks current state of dest; only changes if mismatched |
+
+| 🪤 Trap Risk | What goes wrong | How to avoid |
+|---|---|---|
+| **Wrapping `command: ln -s` instead of using `ansible.builtin.file: state=link`** | RHCE cardinal sin | Use the module |
+| Forgetting `force: true` | Existing dest causes task failure | Always `force: true` for re-applicable link tasks |
+| `state: hard` to non-existent src | Module errors | Ensure src exists first (use a dependent task) |
+
+### 🔁 Persistence Check
+
+```bash
+test -L /srv/link-lab/ansible-soft && echo "ansible-soft is symlink"
+[ "$(readlink /srv/link-lab/ansible-soft)" = "/srv/link-lab/data.txt" ] && echo "symlink target correct"
+[ "$(stat -c '%i' /srv/link-lab/ansible-hard)" = "$(stat -c '%i' /srv/link-lab/data.txt)" ] && echo "hard link same inode"
+grep -c 'changed=0' /root/rhcsa_journal/lab09/task4/rerun.log
+```
+
+### 📓 Journal Write
+
+```bash
+sudo tee /root/rhcsa_journal/lab09/task4/done.txt > /dev/null <<EOF
+lab=09 task=4
+when=$(date -Is)
+playbook=/root/rhcsa_journal/lab09/task4/playbooks/links.yml
+soft_target=$(readlink /srv/link-lab/ansible-soft)
+hard_inode_match=$([ "$(stat -c '%i' /srv/link-lab/ansible-hard)" = "$(stat -c '%i' /srv/link-lab/data.txt)" ] && echo yes || echo no)
+idempotent_rerun_changed_0=$(grep -c 'changed=0' /root/rhcsa_journal/lab09/task4/rerun.log)
+EOF
+cat /root/rhcsa_journal/lab09/task4/done.txt
+```
+
+### 🧹 Cleanup
+
+Leave links; Task 5 verifies them.
+
+### Troubleshoot Table
+
+| Symptom | Fix |
+|---|---|
+| `src 'X' is not readable` | Origin file doesn't exist; check `ls -l` of the src path |
+| Second run shows `changed=1` | Dest exists but mismatched — re-check `readlink` and `stat -c %i` |
+
+> **STOP — confirm `hard_inode_match=yes` in done.txt before Task 5.**
+
+---
+
+## Task 5 — RHCSA Verification Capstone: Prove the Links Behave Correctly
+
+**Practice directory this task:** `/srv/link-lab`
+
+### 🔁 Warm-Up — Commands from Previous Labs
+
+```bash
+sudo mkdir -p /root/rhcsa_journal/lab09/task5
+date -Is | sudo tee /root/rhcsa_journal/lab09/task5/start.txt
+echo "exit was: $?"
+```
+
+### Purpose
+
+Use **only** RHCSA inspection commands to prove:
+
+1. `ansible-soft` is a symlink whose target is `/srv/link-lab/data.txt`
+2. `ansible-hard` shares an inode with `/srv/link-lab/data.txt`
+3. `find -inum` shows both `data.txt` and `ansible-hard` (and any other hard links)
+4. Reading either link yields identical content
+
+### Main Command Block
+
+Three+ RHCSA inspection commands:
+
+```bash
+# 1) Symlink inspection
+ls -li /srv/link-lab/ansible-soft
+readlink /srv/link-lab/ansible-soft
+test -L /srv/link-lab/ansible-soft && echo "is symlink"
+test -e /srv/link-lab/ansible-soft && echo "target reachable"
+
+# 2) Hard-link inspection
+ls -li /srv/link-lab/ansible-hard /srv/link-lab/data.txt
+stat -c 'inode=%i links=%h' /srv/link-lab/ansible-hard
+
+# 3) find -inum cross-check
+inode=$(stat -c '%i' /srv/link-lab/data.txt)
+sudo find /srv/link-lab -inum "$inode"
+
+# 4) Content compare
+diff <(cat /srv/link-lab/ansible-soft) <(cat /srv/link-lab/data.txt) && echo "SOFT_CONTENT_MATCH"
+diff <(cat /srv/link-lab/ansible-hard) <(cat /srv/link-lab/data.txt) && echo "HARD_CONTENT_MATCH"
+
+# Capture
+{
+  echo "=== symlink ==="
+  ls -li /srv/link-lab/ansible-soft
+  readlink /srv/link-lab/ansible-soft
+  echo "=== hard link inode match ==="
+  ls -li /srv/link-lab/ansible-hard /srv/link-lab/data.txt
+  echo "=== find -inum ==="
+  sudo find /srv/link-lab -inum "$(stat -c '%i' /srv/link-lab/data.txt)"
+  echo "=== content compare ==="
+  diff <(cat /srv/link-lab/ansible-soft) <(cat /srv/link-lab/data.txt) && echo "SOFT_CONTENT_MATCH"
+  diff <(cat /srv/link-lab/ansible-hard) <(cat /srv/link-lab/data.txt) && echo "HARD_CONTENT_MATCH"
+} 2>&1 | sudo tee /root/rhcsa_journal/lab09/task5/evidence.txt
+```
+
+### Human-Readable Breakdown
+
+The audit:
+
+- `ls -li` — show inode + type-bit + link count + symlink arrow
+- `readlink` — show literal symlink target
+- `test -L` and `test -e` — symlink-ness and reachability (catches T19)
+- `stat -c '%i'` — inode number for compare
+- `find -inum N` — find all hard links to inode N
+
+Together they prove: "the symlink points at the right path; the hard link shares the right inode; the link count agrees; content is identical."
+
+### Reading It Left to Right
+
+`diff <(cat A) <(cat B)`
+
+- `diff` — diff
+- `<(cmd)` — process substitution; runs `cmd` and gives a fake filename
+- `cat A` / `cat B` — both files
+- Result: diff is silent (clean exit) when the two files have identical contents
+
+`find /srv/link-lab -inum "$inode"`
+
+- `find` — search
+- `-inum N` — match by inode number; finds all hard links to that inode
+
+### The Story
+
+You hand a grader `evidence.txt` and it reads: "`ansible-soft` is a symlink to `data.txt` (readlink), `ansible-hard` shares the same inode as `data.txt` (find -inum), and reading any of them yields identical content (diff)." That's the auditor's full link report.
+
+### Expected Output
+
+```
+=== symlink ===
+12350 lrwxrwxrwx. 1 root root 22 May 27 15:08 /srv/link-lab/ansible-soft -> /srv/link-lab/data.txt
+/srv/link-lab/data.txt
+
+=== hard link inode match ===
+12345 -rw-r--r--. 3 root root 28 May 27 15:05 /srv/link-lab/ansible-hard
+12345 -rw-r--r--. 3 root root 28 May 27 15:05 /srv/link-lab/data.txt
+
+=== find -inum ===
+/srv/link-lab/data.txt
+/srv/link-lab/hard-link
+/srv/link-lab/ansible-hard
+
+=== content compare ===
+SOFT_CONTENT_MATCH
+HARD_CONTENT_MATCH
+```
+
+### Switches Table
+
+| Switch | Meaning | Why it matters |
+|---|---|---|
+| `ls -li` | Long listing with inode column | Side-by-side inode compare |
+| `readlink PATH` | Print symlink target | Symlink content |
+| `test -L` | Is symlink (no follow) | Symlink-ness |
+| `test -e` | Target reachable (follow) | Catches T19 dangling |
+| `find -inum N` | All paths with inode N | Find all hard links |
+| `diff <(cat A) <(cat B)` | Compare two file contents | Quick content check |
+
+### 🧠 Concept Card
+
+| Concept | One-Line |
+|---|---|
+| Audit triangle | `ls -li` + `readlink` + `find -inum` |
+| Reboot reasoning | `/srv/` persists; inode numbers may change on relabel but link relationships do not |
+| Auditor reflex | ≥3 RHCSA inspection commands; check both symlinks AND hard links |
+
+| 🪤 Trap Risk | What goes wrong | How to avoid |
+|---|---|---|
+| **Trusting `ansible-playbook`'s changed=1 without inspecting state** | Whole point of the verification capstone | Verify with `ls -li`, `readlink`, `find -inum` |
+| **T19 again** | `test -L` returns true but data unreachable | Always pair `-L` with `-e` |
+
+### 🔁 Persistence Check (Reboot Reasoning)
+
+```bash
+echo "REBOOT REASONING:"                                                                | sudo tee /root/rhcsa_journal/lab09/task5/reboot.txt
+echo "1. /srv/ persists; inode numbers persist; link relationships persist."           | sudo tee -a /root/rhcsa_journal/lab09/task5/reboot.txt
+echo "2. Symlink content (the target PATH string) is stored in the symlink inode."     | sudo tee -a /root/rhcsa_journal/lab09/task5/reboot.txt
+echo "3. Hard links survive because they ARE the file — same inode, same data."        | sudo tee -a /root/rhcsa_journal/lab09/task5/reboot.txt
+test -L /srv/link-lab/ansible-soft && echo "soft link persists"                        | sudo tee -a /root/rhcsa_journal/lab09/task5/reboot.txt
+test -e /srv/link-lab/ansible-hard && echo "hard link persists"                        | sudo tee -a /root/rhcsa_journal/lab09/task5/reboot.txt
+test -f /root/rhcsa_journal/lab09/task4/playbooks/links.yml && echo "playbook persists" | sudo tee -a /root/rhcsa_journal/lab09/task5/reboot.txt
+```
+
+### 📓 Journal Write
+
+```bash
+sudo tee /root/rhcsa_journal/lab09/task5/done.txt > /dev/null <<EOF
+lab=09 task=5
+when=$(date -Is)
+evidence=/root/rhcsa_journal/lab09/task5/evidence.txt
+reboot=/root/rhcsa_journal/lab09/task5/reboot.txt
+soft_match=$(grep -c '^SOFT_CONTENT_MATCH$' /root/rhcsa_journal/lab09/task5/evidence.txt)
+hard_match=$(grep -c '^HARD_CONTENT_MATCH$' /root/rhcsa_journal/lab09/task5/evidence.txt)
+status=lab09-complete
+EOF
+cat /root/rhcsa_journal/lab09/task5/done.txt
+```
+
+### 🧹 Cleanup (No Regression)
+
+```bash
+# Remove the entire sandbox
+sudo rm -rf /srv/link-lab
+ls -d /srv/link-lab 2>&1 | grep -q "No such" && echo "sandbox cleaned"
+
+# Journal stays
+ls /root/rhcsa_journal/lab09/
+```
+
+### Troubleshoot Table
+
+| Symptom | Fix |
+|---|---|
+| `SOFT_CONTENT_MATCH` missing | Symlink points at wrong path — re-run Task 4 |
+| `HARD_CONTENT_MATCH` missing | Hard link not pointing at the same inode — re-run Task 4 with correct `src:` |
+| `find -inum` returns only the origin | Hard links not created; re-run Task 4 |
+
+> **STOP — record `status=lab09-complete` in done.txt. Lab 09 is finished.**
+
+---
+
+## ✅ Lab 09 Complete When
+
+```bash
+ls /root/rhcsa_journal/lab09/task{1,2,3,4,5}/done.txt
+grep -l 'lab09-complete' /root/rhcsa_journal/lab09/task5/done.txt
+test -f /root/rhcsa_journal/lab09/task4/playbooks/links.yml
+grep -cE '(SOFT|HARD)_CONTENT_MATCH' /root/rhcsa_journal/lab09/task5/evidence.txt
+```
+
+All four must succeed. You can build, inspect, break, and replicate both link kinds in shell and Ansible.

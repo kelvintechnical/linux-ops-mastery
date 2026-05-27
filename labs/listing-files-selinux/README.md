@@ -1,15 +1,15 @@
-﻿# Lab 06: Listing Files and SELinux Contexts — `ls -l`, `ls -Z`, `ps -eZ`
+﻿# Lab 06: Listing Files and SELinux Contexts — `ls -l`, `ls -lZ`, `restorecon`, `sefcontext`
 
 - **Series:** linux-ops-mastery — File Operations & Shell Fundamentals
-- **Career arcs covered:** RHCSA EX200 (SELinux objectives, file permissions), RHCE EX294 (Ansible file/copy with `setype:`), CKA (pod SELinux contexts), RHCA — RH362 (Identity Mgmt + SELinux audit)
-- **Prerequisite:** Lab 05 (`pwd`, `cd`, `ls -l`)
+- **Career arcs covered:** RHCSA EX200 (`ls -l`, `ls -lZ`, file labels), RHCE EX294 (`community.general.sefcontext`, `ansible.posix.selinux`), CKA (container SELinux types like `container_file_t`), RHCA — RH358 (custom fcontext for web roots and ports)
+- **Prerequisite:** Lab 00 (Ansible control node) + Lab 05 (navigation)
 - **Time Estimate:** 35–50 minutes
-- **Tasks:** 3 (ADHD spec — exactly 3 dense tasks per `readmetemplate/cursor-adhd-lab-prompt.txt`)
+- **Tasks:** 5 (ADHD 3-1-1 spec — 3 RHCSA + 1 Ansible + 1 Verification capstone)
 - **Practice Directory (lab-wide rotation #06):** `/etc`
-- **Sandbox:** `/tmp/lsZ-lab`
-- **Traps rehearsed this lab:** **T01** (Setting permissive instead of fixing the real context) · **T02** (semanage fcontext without restorecon -Rv afterward)
+- **Sandbox:** `/srv/lab06` (a non-default location so SELinux labels matter)
+- **Traps rehearsed this lab:** **T01** (Forgetting `-Z` means you missed the SELinux column — invisible bug) · **T02** (`restorecon` without `-Rv` silently does nothing or only fixes one file) · **T03** (`chcon` is temporary — survives current boot but lost on relabel; only `semanage fcontext`/`sefcontext` is permanent)
 
-> **This lab's practice directory is: `/etc`** — every task references it in at least two commands.
+> **This lab's practice directory is: `/etc`** — every task references it in at least two commands. `/srv/lab06` is the sandbox where we deliberately mislabel and fix.
 
 ---
 
@@ -23,653 +23,941 @@ echo "🔐  SE:    $(getenforce 2>/dev/null || echo n/a)"
 echo "📦  OS:    $(cat /etc/redhat-release 2>/dev/null || grep PRETTY_NAME /etc/os-release)"
 echo "🕒  TIME:  $(date -Is)"
 echo "👤  USER:  $(whoami)@$(hostname)"
-echo "⚠️  TRAP REMINDERS THIS LAB: T01 T02"
+echo "⚠️  TRAP REMINDERS THIS LAB: T01 T02 T03"
 echo "📁  PRACTICE DIR: /etc"
+echo ""
+echo "💡 SELinux quick-look on /etc:"
+ls -dZ /etc
+sestatus | head -3
 ```
 
-> **STOP — paste header output before running setup.**
->
-> ⚠️ **ENV WARN — AMI users:** if `getenforce` returns `Disabled` or `Permissive`, run `sudo setenforce 1` if possible. If SELinux is fully disabled in `/etc/selinux/config`, flag this lab as ⚠️ **partially blocked** and plan to redo Task 3 on a baremetal or Rocky/RHEL AMI.
+> **STOP — confirm `getenforce` prints `Enforcing` before continuing. Permissive mode will lie to you about labels.**
 
 ---
 
 ## 🎯 Objective
 
-Read a Linux long listing column-by-column, then layer SELinux context awareness on top. By the end of this lab you can identify the owner, group, permissions, link count, SELinux user, role, type, and MLS level of any file — and you can connect a running process's context to the file context it can access.
+Read the 10 fields of an `ls -l` listing fluently, read the 5 fields of an `ls -lZ` SELinux context fluently, and fix a mislabeled file using the **permanent** RHCSA path (`semanage fcontext` → `restorecon`) and the **permanent** RHCE path (`community.general.sefcontext` → playbook). By the end you will:
+
+- Identify file type (`d`, `-`, `l`, `c`, `b`, `s`, `p`) from column 1 of `ls -l`
+- Read DAC (mode, owner, group) AND MAC (SELinux user:role:type:level) in one glance
+- Know why `chcon` is the wrong tool for a permanent fix and `sefcontext`/`semanage fcontext` is the right one
+- Write an Ansible playbook that declares an fcontext rule and applies it
 
 ---
 
-## 🧠 Concept: Two Permission Models on Top of Each Other
-
-| Layer | Tool | Question it answers |
-|---|---|---|
-| **DAC** (Discretionary Access Control) | `ls -l`, `chmod`, `chown` | "Does the file's mode allow the user/group to read/write/execute?" |
-| **MAC** (Mandatory Access Control) | `ls -Z`, `semanage`, `chcon`, `restorecon` | "Does SELinux policy allow this *process context* to touch this *file context*?" |
-
-A process must pass **both** checks. SELinux only matters when DAC says "yes" — but SELinux can still block what DAC permits.
-
-### Reading `ls -l` left to right
-
-```
--rw-r--r--. 1 root root  1234 May 27 13:45 /etc/hostname
-└┬┘└──┬───┘ │ └─┬┘ └─┬┘   │      │            │
-type   mode  │   │     │     size   mtime         path
-            link  user group
-            count
-```
-
-### Reading `ls -Z` left to right
-
-```
-system_u:object_r:net_conf_t:s0 /etc/hostname
-   │        │         │       │
-  user     role      type    level (MLS / MCS)
-```
-
-The **type** (`net_conf_t`, `etc_t`, `httpd_sys_content_t`, ...) is the one that matters 95% of the time on RHCSA.
-
----
-
-## 🚦 Lab-Wide Setup — Run This BEFORE Task 1
+## 🛠️ Setup — run once before Task 1
 
 ```bash
-sudo -i
-mkdir -p /tmp/lsZ-lab
-cd /tmp/lsZ-lab
-
-cat > /tmp/lsZ-lab/THIS_DIRECTORY.txt <<'EOF'
-/etc — System-wide configuration files
-
-Every daemon, service, and subsystem reads its configuration from /etc. No
-binaries live here — only text files and scripts. Backing up /etc is
-effectively backing up the system's identity.
-
-Why it exists: separating mutable configuration from immutable binaries
-makes upgrades, audits, and recoveries straightforward. /usr/bin/sshd
-never changes between minor releases, but /etc/ssh/sshd_config does.
-
-What lives inside it: networking (/etc/hosts, /etc/resolv.conf), users
-(/etc/passwd, /etc/shadow), services (/etc/systemd, /etc/httpd), security
-(/etc/selinux, /etc/pam.d), and hundreds of per-package config trees.
-
-Why RHCSA cares: nearly every exam objective touches /etc. Every SELinux
-context type you will encounter on the exam (etc_t, net_conf_t,
-shadow_t, ssh_home_t, httpd_config_t) is anchored here.
-EOF
-
-cat /tmp/lsZ-lab/THIS_DIRECTORY.txt
-sestatus 2>/dev/null || echo "SELinux tooling not available — install policycoreutils-python-utils"
-echo "exit was: $?"
+sudo mkdir -p /srv/lab06
+echo "lab06 content" | sudo tee /srv/lab06/page.html
+sudo mkdir -p /root/rhcsa_journal/lab06
+ls -lZ /srv/lab06/
 ```
 
-> **STOP — paste output before Task 1.**
+You should see something like `unconfined_u:object_r:var_t:s0` on `/srv/lab06/page.html`. That's the **wrong** label if we wanted this to serve as a web root — Apache expects `httpd_sys_content_t`. We'll deliberately use that mismatch as the lab's running example.
 
 ---
 
-# The 3 Tasks
-
----
-
-## Task 1 — Decode the Long Listing on `/etc`
-
-### a) Directory Context
+## Task 1 — Read the 10 Fields of `ls -l` (DAC)
 
 **Practice directory this task:** `/etc`
-`/etc` has every type of entry you will see on RHCSA: regular files, directories, symlinks, files owned by different users, files with restrictive modes, and files with various SELinux types.
 
-### b) 🔁 Warm-Up — Commands from Previous Labs
+### 🔁 Warm-Up — Commands from Previous Labs
 
 ```bash
-cd /tmp/lsZ-lab
-pwd
-ls -ld /etc /tmp/lsZ-lab > task01-warmup.log 2>&1
-cat task01-warmup.log
-echo "etc entries: $(ls /etc 2>/dev/null | wc -l)"
-ls /etc | head -n 5 | tee task01-etc-head.txt
-echo "Warm-up done by $(whoami) at $(date -Is)"
+sudo mkdir -p /root/rhcsa_journal/lab06/task1
+cd /srv/lab06
+date -Is | sudo tee /root/rhcsa_journal/lab06/task1/start.txt
+pwd | sudo tee -a /root/rhcsa_journal/lab06/task1/start.txt
+ls -l /etc | head -5 | sudo tee -a /root/rhcsa_journal/lab06/task1/start.txt
 echo "exit was: $?"
 ```
 
-### c) Purpose
+### Purpose
 
-Read every column of `ls -l` output on real `/etc` files and prove you understand each piece.
+Decode the 10-column `ls -l` output, distinguish files from links from directories from special files, and capture the listing to the journal.
 
-### d) Main Command Block
-
-```bash
-cd /tmp/lsZ-lab
-ls -l /etc/hostname /etc/hosts /etc/passwd /etc/shadow /etc/resolv.conf 2>&1 | tee task01-etc-long.txt
-ls -la /etc/ssh > task01-ssh.txt 2>&1
-ls -ld /etc /etc/ssh /etc/systemd > task01-dirs.txt 2>&1
-cat task01-etc-long.txt
-echo "---"
-head -n 5 task01-ssh.txt
-echo "---"
-cat task01-dirs.txt
-echo "line counts: $(wc -l task01-*.txt)"
-```
-
-### e) Human-Readable Breakdown
-
-- `ls -l /etc/hostname /etc/hosts ...` — long listing for 5 critical files.
-- `2>&1 | tee FILE` — capture both stdout and stderr to the file AND the screen (e.g. `/etc/shadow` may not be readable for non-root; the error goes into the same file as the success lines).
-- `ls -la /etc/ssh` — long listing including hidden entries (none in `/etc/ssh` normally, but the pattern matters).
-- `ls -ld /etc /etc/ssh /etc/systemd` — metadata for the directories themselves.
-
-### f) Reading It Left to Right
-
-`ls -l /etc/hostname /etc/hosts /etc/passwd /etc/shadow /etc/resolv.conf 2>&1 | tee task01-etc-long.txt`
-
-1. `ls -l` — long format.
-2. Five `/etc/*` files as targets.
-3. `2>&1` — merge stderr into stdout (capture permission-denied errors in the same stream).
-4. `| tee FILE` — print to screen AND write to file.
-
-A single line of output:
-
-```
--rw-r--r--. 1 root root 9 May 27 13:45 /etc/hostname
-```
-
-| Column | Meaning |
-|---|---|
-| `-` | Regular file (vs `d` for dir, `l` for symlink, `c` for char device) |
-| `rw-r--r--` | Owner read+write, group read, other read |
-| `.` | SELinux context exists (would be `+` for ACL, blank for neither) |
-| `1` | Hard link count |
-| `root` | Owner user |
-| `root` | Owner group |
-| `9` | Size in bytes |
-| `May 27 13:45` | Last modification time |
-| `/etc/hostname` | Path |
-
-### g) The Story
-
-`ls -l` is the universal Linux "X-ray." Before you `chmod`, `chown`, `chcon`, or `restorecon` anything, you read `ls -l` and `ls -Z` first. RHCSA grading scripts read these same fields — if your `chmod 640` produces `-rw-r-----` your task passes; if it produces `-rw-r--r--` it fails.
-
-### h) Expected Output
-
-```text
--rw-r--r--. 1 root root    9 ... /etc/hostname
--rw-r--r--. 1 root root  158 ... /etc/hosts
--rw-r--r--. 1 root root 2987 ... /etc/passwd
-ls: cannot open '/etc/shadow': Permission denied   (or, if root, ----------. 1 root root ...)
--rw-r--r--. 1 root root   90 ... /etc/resolv.conf
-total ...
--rw-r--r--. 1 root root ... ssh_config
--rw-------. 1 root root ... ssh_host_ed25519_key
-...
-drwxr-xr-x. ... /etc
-drwxr-xr-x. ... /etc/ssh
-drwxr-xr-x. ... /etc/systemd
-line counts: ...
-```
-
-### i) Switches Table
-
-| Token | Meaning |
-|---|---|
-| `ls -l` | Long listing |
-| `ls -la` | Long + hidden |
-| `ls -ld` | Directory entry, not contents |
-| `2>&1` | Stderr → stdout's destination |
-| `\| tee FILE` | Print and save |
-| `head -n N` | First N lines |
-| `wc -l` | Line count |
-| `.` (after mode) | SELinux context present |
-| `+` (after mode) | ACL present |
-
-### j) 🧠 Concept Card
-
-| ✅ | Concept | What it does |
-|---|---|---|
-|   | File type char | `-` file, `d` dir, `l` link, `c`/`b` device, `p` pipe, `s` socket |
-|   | rwx triplets | Owner / group / other |
-|   | Link count | How many hard links point to this inode |
-|   | Owner / group | Two separate identities |
-|   | `.` after mode | SELinux context present (modern RHEL default) |
-|   | `+` after mode | ACL present (we'll cover ACLs in a later lab) |
-|   | `2>&1 \| tee` | Capture stdout+stderr AND show on screen |
-| 🪤 **Trap Risk (T01)** | Setting permissive instead of fixing context | When `ls -l` shows correct mode but app fails, the next instinct is `setenforce 0` — wrong. Run `ls -Z` instead and fix the *type* with `semanage fcontext` + `restorecon` |
-
-### k) 🧹 Cleanup
+### Main Command Block
 
 ```bash
-LAB=lab06
-TASK=task1
-JDIR="/root/rhcsa_journal/${LAB}/${TASK}"
-mkdir -p "$JDIR"
-cat > "$JDIR/done.txt" <<EOF
-LAB:    ${LAB}
-TASK:   ${TASK}
-DATE:   $(date -Is)
-USER:   $(whoami)@$(hostname)
-STATUS: COMPLETE
-EOF
-cat > "$JDIR/notes.txt" <<'EOF'
-TOPIC:    Reading ls -l columns on /etc
-COMMANDS: ls -l, ls -la, ls -ld, 2>&1, tee
-TRAPS:    T01 (permissive ≠ fix)
-MISSED:   —
-NEXT:     task2 — ls -Z and SELinux context reading
-EOF
-echo "Journal written: $(ls -la $JDIR)"
+ls -l /etc | head -10
+ls -la /etc | head -10        # also show . and ..
+ls -lh /etc | head -10        # human-readable sizes
+ls -lF /etc | head -10        # type indicator after each name
+ls -li /etc | head -10        # show inode numbers
+ls -ld /etc                   # the directory itself
+ls -l /etc/passwd /etc/shadow /etc/hostname
 
-cd /tmp/lsZ-lab
-rm -f task01-warmup.log task01-etc-head.txt task01-etc-long.txt task01-ssh.txt task01-dirs.txt
-echo "exit was: $?"
+# Capture
+{
+  echo "=== ls -l /etc ===";      ls -l /etc | head -10
+  echo "=== ls -ld /etc ===";     ls -ld /etc
+  echo "=== passwd/shadow ===";   ls -l /etc/passwd /etc/shadow
+  echo "=== link example ===";    ls -l /etc/grub2.cfg 2>/dev/null
+} 2>&1 | sudo tee /root/rhcsa_journal/lab06/task1/transcript.txt
 ```
 
-### l) Troubleshoot Table
+### Human-Readable Breakdown
 
-| Symptom | Fix |
-|---|---|
-| `Permission denied` on `/etc/shadow` | Expected for non-root; rerun with `sudo` |
-| No `.` after the mode | SELinux is disabled or filesystem is FAT/exfat — confirm with `sestatus` |
-| Times shown as `2025` instead of `13:45` | Files older than 6 months show year instead of time — normal |
-| `tee` shows duplicate output | That is the design — `tee` writes to file AND stdout |
+A single `ls -l` row has 10 fields, in order:
 
-### m) STOP
-
-> **STOP — paste output before Task 2.**
-
-### n) 🔁 Persistence Check
-
-| What was configured | Verification command | Why it matters |
-|---|---|---|
-| Journal entry | `cat /root/rhcsa_journal/lab06/task1/done.txt` | Survives reboot |
-| `/etc` integrity | `ls -ld /etc \| head -1` | Practice dir still mounted |
-| Sandbox cleaned | `ls /tmp/lsZ-lab` | Should be empty or `THIS_DIRECTORY.txt` only |
-
----
-
-## Task 2 — `ls -Z`: Read SELinux File Contexts
-
-### a) Directory Context
-
-**Practice directory this task:** `/etc`
-`/etc` files have a wide variety of SELinux types — `etc_t`, `net_conf_t`, `shadow_t`, `passwd_file_t`, `ssh_home_t`, `httpd_config_t`. Reading these is the foundational SELinux skill.
-
-### b) 🔁 Warm-Up — Commands from Previous Labs
-
-```bash
-cd /tmp/lsZ-lab
-ls -l /etc/hosts /etc/hostname 2>&1 | tee task02-warmup.log
-grep -c "root root" task02-warmup.log
-echo "Warm-up done by $(whoami) at $(date -Is)"
-echo "exit was: $?"
-```
-
-### c) Purpose
-
-Use `ls -Z` to display SELinux contexts for files and directories in `/etc`, then confirm the **type** field by querying `semanage fcontext`.
-
-### d) Main Command Block
-
-```bash
-cd /tmp/lsZ-lab
-ls -Z /etc/hostname /etc/hosts /etc/resolv.conf /etc/shadow 2>&1 | tee task02-contexts.txt
-ls -Zd /etc /etc/ssh /etc/systemd >> task02-contexts.txt 2>&1
-cat task02-contexts.txt
-
-echo "---"
-semanage fcontext -l 2>/dev/null | grep -E "^/etc/hostname|^/etc/hosts|^/etc/shadow" | tee task02-semanage.txt
-echo "---"
-
-mkdir -p task02-target
-echo "fake web content" > task02-target/index.html
-ls -Z task02-target task02-target/index.html
-matchpathcon /var/www/html/index.html 2>/dev/null || echo "matchpathcon: not installed"
-
-echo "context types found: $(awk '{print $1}' task02-contexts.txt | awk -F: '{print $3}' | sort -u | tr '\n' ' ')"
-```
-
-### e) Human-Readable Breakdown
-
-- `ls -Z FILE` — show the SELinux context (`user:role:type:level`).
-- `ls -Zd DIR` — context for the directory itself.
-- `semanage fcontext -l | grep PATH` — show the **policy rule** that defines the type for a path pattern. This is the "should be" lookup.
-- `matchpathcon PATH` — show what context **policy says** the path should have, even if the path does not yet exist.
-- `awk '{print $1}' | awk -F:` — extract the type field by splitting the context string on `:`.
-
-### f) Reading It Left to Right
-
-`ls -Z /etc/hostname /etc/hosts /etc/resolv.conf /etc/shadow 2>&1 | tee task02-contexts.txt`
-
-A line of output:
-
-```
-system_u:object_r:net_conf_t:s0 /etc/hostname
-   │         │         │      │       │
-   user     role      type   level   path
-```
-
-| Field | Common values on RHEL |
-|---|---|
-| `user` | `system_u`, `unconfined_u`, `staff_u` |
-| `role` | `object_r` (for files), `system_r` (for processes) |
-| `type` | `etc_t`, `net_conf_t`, `shadow_t`, `httpd_config_t` — **this is the one you fix** |
-| `level` | `s0` (default), `s0-s0:c0.c1023` (MLS systems) |
-
-### g) The Story
-
-SELinux has a reputation for being scary, but 95% of RHCSA SELinux work is "read the type, compare to what the policy expects, fix it with `semanage fcontext` + `restorecon`." `ls -Z` is the **first** command you run when an app can't read its own config or a web server returns 403 on a file you just copied.
-
-### h) Expected Output
-
-```text
-system_u:object_r:net_conf_t:s0   /etc/hostname
-system_u:object_r:net_conf_t:s0   /etc/hosts
-system_u:object_r:net_conf_t:s0   /etc/resolv.conf
-system_u:object_r:shadow_t:s0     /etc/shadow
-system_u:object_r:etc_t:s0        /etc
-system_u:object_r:etc_t:s0        /etc/ssh
-system_u:object_r:systemd_unit_file_t:s0  /etc/systemd
----
-/etc/hostname    system_u:object_r:net_conf_t:s0
-/etc/hosts       system_u:object_r:net_conf_t:s0
-/etc/shadow      system_u:object_r:shadow_t:s0
----
-unconfined_u:object_r:user_tmp_t:s0  task02-target/
-unconfined_u:object_r:user_tmp_t:s0  task02-target/index.html
-/var/www/html/index.html  system_u:object_r:httpd_sys_content_t:s0
-context types found: etc_t net_conf_t shadow_t systemd_unit_file_t user_tmp_t
-```
-
-Notice: the `task02-target/index.html` file inside `/tmp` has type `user_tmp_t`. If you copied it to `/var/www/html`, Apache (running as `httpd_t`) would be **denied** read access until you `restorecon -Rv /var/www/html`. This is the most common RHCSA SELinux trap.
-
-### i) Switches Table
-
-| Token | Meaning |
-|---|---|
-| `ls -Z` | Show SELinux context |
-| `ls -Zd` | Context of directory itself |
-| `semanage fcontext -l` | List all path → type policy rules |
-| `matchpathcon PATH` | Show what type policy expects for path |
-| `awk '{print $1}'` | First whitespace-separated field |
-| `awk -F: '{print $3}'` | Field 3 with `:` as separator |
-| `sort -u` | Unique sorted lines |
-| `tr '\n' ' '` | Join with spaces |
-
-### j) 🧠 Concept Card
-
-| ✅ | Concept | What it does |
-|---|---|---|
-|   | SELinux context | `user:role:type:level` |
-|   | The "type" | `etc_t`, `net_conf_t`, `httpd_sys_content_t` — the field that matters |
-|   | `ls -Z` | Reads the file's current context |
-|   | `matchpathcon` | Reads policy's expected context for a path |
-|   | `semanage fcontext -l` | Lists all policy rules |
-|   | `unconfined_u` | Default user context for files you create as a regular user |
-|   | `system_u` | Default user context for system files |
-|   | `user_tmp_t` | Default type for files in `/tmp` (limited reach) |
-| 🪤 **Trap Risk (T01)** | Setting permissive instead of fixing context | If an app fails on a `/var/www/html` file just copied from `/tmp`, the file is still `user_tmp_t`. Fix: `restorecon -Rv /var/www/html`. Do NOT `setenforce 0` |
-
-### k) 🧹 Cleanup
-
-```bash
-LAB=lab06
-TASK=task2
-JDIR="/root/rhcsa_journal/${LAB}/${TASK}"
-mkdir -p "$JDIR"
-cat > "$JDIR/done.txt" <<EOF
-LAB:    ${LAB}
-TASK:   ${TASK}
-DATE:   $(date -Is)
-USER:   $(whoami)@$(hostname)
-STATUS: COMPLETE
-EOF
-cat > "$JDIR/notes.txt" <<'EOF'
-TOPIC:    Reading SELinux file contexts with ls -Z
-COMMANDS: ls -Z, ls -Zd, semanage fcontext -l, matchpathcon
-TRAPS:    T01 (permissive ≠ fix)
-MISSED:   —
-NEXT:     task3 — ps -eZ + semanage/restorecon (T02)
-EOF
-echo "Journal written: $(ls -la $JDIR)"
-
-cd /tmp/lsZ-lab
-rm -rf task02-target
-rm -f task02-warmup.log task02-contexts.txt task02-semanage.txt
-echo "exit was: $?"
-```
-
-### l) Troubleshoot Table
-
-| Symptom | Fix |
-|---|---|
-| `ls -Z` shows `?` for context | SELinux disabled or context lost — run `sestatus` |
-| `semanage: command not found` | `sudo dnf install policycoreutils-python-utils` |
-| `matchpathcon` shows wrong type | Your local policy may be stale — `restorecon -Rv` rebuilds |
-| Context has `unconfined_u` everywhere | Normal for files created by a logged-in user; RHEL defaults |
-
-### m) STOP
-
-> **STOP — paste output before Task 3.**
-
-### n) 🔁 Persistence Check
-
-| What was configured | Verification command | Why it matters |
-|---|---|---|
-| SELinux still enforcing | `getenforce` | Should say `Enforcing` (or note Permissive/Disabled in journal) |
-| File contexts unchanged on `/etc` | `ls -Z /etc/hostname` | Should still be `net_conf_t` |
-| Journal task2 | `cat /root/rhcsa_journal/lab06/task2/done.txt` | Reboot-proof |
-
----
-
-## Task 3 — Tie It Together: `ps -eZ` + `semanage fcontext` + `restorecon`
-
-### a) Directory Context
-
-**Practice directory this task:** `/etc`
-We will create a fake `/etc/` config file under our sandbox, register a persistent context rule for the sandbox path, and prove `restorecon` applies it. This is the exact RHCSA muscle memory.
-
-### b) 🔁 Warm-Up — Commands from Previous Labs
-
-```bash
-cd /tmp/lsZ-lab
-ls -Z /etc/hostname /etc/hosts /etc/resolv.conf | tee task03-warmup.log
-grep -c "net_conf_t" task03-warmup.log
-echo "Warm-up done by $(whoami) at $(date -Is)"
-echo "exit was: $?"
-```
-
-### c) Purpose
-
-Connect three SELinux artifacts: **process contexts** (`ps -eZ`), **file contexts** (`ls -Z`), and **policy rules** (`semanage fcontext` + `restorecon`).
-
-### d) Main Command Block
-
-```bash
-cd /tmp/lsZ-lab
-ps -eZ | head -n 10 | tee task03-procs.txt
-echo "---"
-ps -eZ | grep -E "sshd|systemd" | head -n 5
-
-mkdir -p /tmp/lsZ-lab/fake-etc
-echo "ServerName fake.example.com" > /tmp/lsZ-lab/fake-etc/httpd.conf
-ls -Z /tmp/lsZ-lab/fake-etc/httpd.conf
-
-semanage fcontext -a -t httpd_config_t "/tmp/lsZ-lab/fake-etc(/.*)?" 2>&1 | tee task03-semanage.txt
-echo "registered exit: ${PIPESTATUS[0]}"
-
-restorecon -Rv /tmp/lsZ-lab/fake-etc 2>&1 | tee task03-restorecon.txt
-echo "restorecon exit: ${PIPESTATUS[0]}"
-
-ls -Z /tmp/lsZ-lab/fake-etc/httpd.conf
-matchpathcon /tmp/lsZ-lab/fake-etc/httpd.conf
-
-semanage fcontext -d "/tmp/lsZ-lab/fake-etc(/.*)?"
-restorecon -Rv /tmp/lsZ-lab/fake-etc
-ls -Z /tmp/lsZ-lab/fake-etc/httpd.conf
-```
-
-### e) Human-Readable Breakdown
-
-- `ps -eZ` — list every process with its SELinux context (`system_u:system_r:sshd_t:s0-s0:c0.c1023`).
-- `mkdir -p fake-etc; echo ... > httpd.conf` — create a fake config file.
-- `ls -Z` initially shows `user_tmp_t` (because `/tmp` defaults).
-- `semanage fcontext -a -t httpd_config_t "PATH(/.*)?"` — register a **persistent** policy rule that says "this path and everything inside should be type `httpd_config_t`." The `(/.*)?` regex covers the directory and all descendants.
-- `restorecon -Rv PATH` — actually **apply** the policy rule, relabeling existing files. **This is the half people forget (T02).**
-- `ls -Z` after — confirm the type changed to `httpd_config_t`.
-- `semanage fcontext -d "PATH(/.*)?"` + `restorecon -Rv` — remove the rule and relabel back, leaving no policy debris.
-
-### f) Reading It Left to Right
-
-`semanage fcontext -a -t httpd_config_t "/tmp/lsZ-lab/fake-etc(/.*)?"`
-
-1. `semanage` — SELinux management CLI.
-2. `fcontext` — manage **file context** rules (vs `port`, `login`, `boolean`).
-3. `-a` — **add** a rule (vs `-d` delete, `-m` modify, `-l` list).
-4. `-t httpd_config_t` — assign this type.
-5. `"/tmp/lsZ-lab/fake-etc(/.*)?"` — path **regex**. `(/.*)?` = "optionally followed by `/anything`." Covers the dir and all contents.
-
-### g) The Story
-
-The full RHCSA SELinux flow is exactly this three-line dance:
-
-```
-semanage fcontext -a -t TYPE "PATH(/.*)?"   # tell policy
-restorecon -Rv PATH                          # apply policy
-ls -Z PATH                                   # verify
-```
-
-The catastrophic bug (T02) is running the `semanage` line, walking away, and never running `restorecon`. The policy rule is registered in `/etc/selinux/targeted/contexts/files/file_contexts.local` but **nothing on disk has been relabeled**. A reboot eventually relabels, but the exam grader runs in seconds, not after a reboot.
-
-### h) Expected Output
-
-```text
-LABEL                              PID TTY          TIME CMD
-system_u:system_r:init_t:s0          1 ?        00:00:01 systemd
-system_u:system_r:kernel_t:s0        2 ?        00:00:00 kthreadd
-...
----
-system_u:system_r:sshd_t:s0-s0:c0.c1023  ...
-system_u:system_r:init_t:s0              ...
-
-unconfined_u:object_r:user_tmp_t:s0  /tmp/lsZ-lab/fake-etc/httpd.conf
-   ↑ before semanage
-
-Restorecon reset /tmp/lsZ-lab/fake-etc context unconfined_u:object_r:user_tmp_t:s0->unconfined_u:object_r:httpd_config_t:s0
-Restorecon reset /tmp/lsZ-lab/fake-etc/httpd.conf context unconfined_u:object_r:user_tmp_t:s0->unconfined_u:object_r:httpd_config_t:s0
-restorecon exit: 0
-
-unconfined_u:object_r:httpd_config_t:s0  /tmp/lsZ-lab/fake-etc/httpd.conf
-   ↑ after semanage + restorecon — policy now matches reality
-
-/tmp/lsZ-lab/fake-etc/httpd.conf  system_u:object_r:httpd_config_t:s0
-
-unconfined_u:object_r:user_tmp_t:s0  /tmp/lsZ-lab/fake-etc/httpd.conf
-   ↑ after deletion + restorecon — back to default
-```
-
-### i) Switches Table
-
-| Token | Meaning |
-|---|---|
-| `ps -eZ` | All processes with SELinux contexts |
-| `semanage fcontext -a -t TYPE PATH` | Add policy rule |
-| `semanage fcontext -d PATH` | Delete policy rule |
-| `semanage fcontext -l` | List rules |
-| `semanage fcontext -m -t TYPE PATH` | Modify existing rule |
-| `restorecon -R` | Recursive |
-| `restorecon -v` | Verbose (show what was changed) |
-| `restorecon -Rv PATH` | Apply policy, recursive + verbose |
-| `matchpathcon PATH` | Show expected context for path |
-| `(/.*)?` | Optional `/` + anything (regex covering descendants) |
-| `${PIPESTATUS[0]}` | Exit status of first pipeline stage |
-
-### j) 🧠 Concept Card
-
-| ✅ | Concept | What it does |
-|---|---|---|
-|   | `ps -eZ` | Process contexts (`system_r` role) |
-|   | `ls -Z` | File contexts (`object_r` role) |
-|   | Type enforcement | Process type + file type pair must be allowed by policy |
-|   | `semanage fcontext -a` | Persistent policy rule |
-|   | `restorecon -Rv` | Apply policy to disk |
-|   | Three-step flow | semanage → restorecon → verify |
-|   | `(/.*)?` regex | Covers a directory and all descendants |
-| 🪤 **Trap Risk (T02)** | semanage fcontext without restorecon -Rv afterward | Rule is registered but files are still mislabeled. Always pair the two commands — make it muscle memory |
-| 🪤 **Trap Risk (T01)** | Setting permissive instead of fixing context | If `restorecon` did not fix it, *read the actual AVC denial* with `ausearch -m avc -ts recent`. Do not reach for `setenforce 0` |
-
-### k) 🧹 Cleanup
-
-```bash
-LAB=lab06
-TASK=task3
-JDIR="/root/rhcsa_journal/${LAB}/${TASK}"
-mkdir -p "$JDIR"
-cat > "$JDIR/done.txt" <<EOF
-LAB:    ${LAB}
-TASK:   ${TASK}
-DATE:   $(date -Is)
-USER:   $(whoami)@$(hostname)
-STATUS: COMPLETE
-EOF
-cat > "$JDIR/notes.txt" <<'EOF'
-TOPIC:    ps -eZ, semanage fcontext -a/-d, restorecon -Rv
-COMMANDS: ps -eZ, semanage fcontext, restorecon, matchpathcon
-TRAPS:    T01 + T02 (both rehearsed)
-MISSED:   —
-NEXT:     Lab 07 — touch + timestamps (/boot practice dir)
-EOF
-echo "Journal written: $(ls -la $JDIR)"
-
-semanage fcontext -d "/tmp/lsZ-lab/fake-etc(/.*)?" 2>/dev/null
-rm -rf /tmp/lsZ-lab
-echo "exit was: $?"
-```
-
-### l) Troubleshoot Table
-
-| Symptom | Fix |
-|---|---|
-| `semanage fcontext -a` says "already defined" | Use `-m` to modify instead of `-a` |
-| `restorecon` does not change anything | Verify the path regex with `semanage fcontext -l \| grep PATH` |
-| `ls -Z` still shows old type after `restorecon` | The semanage rule is wrong; check `matchpathcon` says the expected type |
-| `ausearch: not found` | `sudo dnf install audit` |
-| App still denied after fix | Read the AVC: `ausearch -m avc -ts recent`; the type may need different perms |
-
-### m) STOP
-
-> **STOP — paste output before declaring Lab 06 complete.**
-
-### n) 🔁 Persistence Check
-
-| What was configured | Verification command | Why it matters |
-|---|---|---|
-| Policy rule REMOVED | `semanage fcontext -l \| grep fake-etc` (empty) | Confirms no leftover policy debris |
-| Sandbox removed | `test -d /tmp/lsZ-lab \|\| echo CLEAN` | Confirms `rm -rf` worked |
-| All 3 journal entries | `find /root/rhcsa_journal/lab06 -name done.txt \| wc -l` (expect 3) | Reboot-proof study record |
-| SELinux still enforcing | `getenforce` | Confirms we did NOT fall for T01 |
-
-> **Reboot question:** "If we rebooted now, would the `httpd_config_t` change on `fake-etc` have survived?" — Answer: yes, **as long as the semanage rule still existed**. That is the whole point of `semanage fcontext` (vs `chcon`, which is non-persistent). Since we deleted the rule, the next `restorecon` reverts the labels. Boot or no boot.
-
----
-
-## 🪤 Trap Registry Update — End of Lab 06
-
-| Trap ID | Category | Rehearsed? | If hit, repeat in |
+| # | Field | Example | Meaning |
 |---|---|---|---|
-| T01 | SELinux | ✅ | — |
-| T02 | SELinux | ✅ | — |
+| 1 | Mode | `-rw-r--r--` | Type (1 char) + DAC mode (9 chars) |
+| 2 | Link count | `1` | Number of hard links (≥ 2 for directories) |
+| 3 | Owner | `root` | DAC owner |
+| 4 | Group | `root` | DAC group |
+| 5 | Size | `1234` | Bytes (use `-h` for K/M/G) |
+| 6 | Month | `May` | mtime |
+| 7 | Day | `27` | mtime |
+| 8 | Year/Time | `15:04` or `2024` | mtime |
+| 9 | Name | `passwd` | Filename |
+| 10 (with `-i`) | Inode | `12345` | Filesystem inode number |
 
-Next lab (07) traps: **T07** (Wrong UUID in fstab — always copy-paste from blkid) · **T43** (Getting stuck >10 min on one task).
+Field 1 character meanings: `-` regular file, `d` directory, `l` symlink, `c` character device, `b` block device, `s` socket, `p` named pipe.
 
-3-lab trap window (05+06+07 once complete): T41, T43, T01, T02, T07 = **5 traps minimum** ✓
+### Reading It Left to Right
+
+`ls -l /etc/passwd`
+
+- `ls` — list directory
+- `-l` — long format
+- `/etc/passwd` — file argument
+
+`-rw-r--r--`
+
+- `-` — regular file
+- `rw-` — owner: read + write
+- `r--` — group: read
+- `r--` — other: read
+
+### The Story
+
+A grader points at one line of `ls -l` and asks "what is this?" Your answer is the 10-field decode. If you stumble on "is it a symlink?" — that's field 1 char `l` — you've lost RHCSA points on a free question.
+
+### Expected Output
+
+```
+$ ls -l /etc/passwd
+-rw-r--r--. 1 root root 2456 May 27 14:03 /etc/passwd
+
+$ ls -l /etc/shadow
+----------. 1 root root 1234 May 27 14:03 /etc/shadow
+```
+
+Notice `/etc/shadow` is mode `000` — readable only via group/setuid. That's the RHCSA expected behavior.
+
+### Switches Table
+
+| Switch | Meaning | Why it matters |
+|---|---|---|
+| `-l` | Long format | The base of every other switch |
+| `-a` | Include hidden (`.dotfiles`) | Required to see `.bashrc`, `.ssh/` etc |
+| `-A` | Like `-a` but skip `.` and `..` | Cleaner for scripts |
+| `-h` | Human-readable sizes | `1.2K` instead of `1234` |
+| `-d` | List directory itself, not contents | `ls -ld /etc` |
+| `-i` | Show inode numbers | Hard-link detection |
+| `-F` | Append type indicator (`/`, `*`, `@`) | Quick type scan |
+| `-t` | Sort by mtime (newest first) | Recently changed files |
+| `-r` | Reverse sort | Pair with `-t` for oldest first |
+| `-S` | Sort by size | Find the big file |
+
+### 🧠 Concept Card
+
+| Concept | One-Line |
+|---|---|
+| DAC | Discretionary Access Control — mode, owner, group |
+| Mode char 1 | File type (`-`, `d`, `l`, `c`, `b`, `s`, `p`) |
+| Mode chars 2–10 | rwx triplets for owner, group, other |
+| `ls -ld DIR` | Inspect the directory itself, not its contents |
+
+| 🪤 Trap Risk | What goes wrong | How to avoid |
+|---|---|---|
+| **T01** | Running plain `ls -l` and missing SELinux mismatches | Use `ls -lZ` whenever a service won't start, file isn't readable, etc |
+| Mode-blind | Seeing `-rw-r--r--` and not knowing if it's a symlink | First char of mode is the type — burn that in |
+
+### 🔁 Persistence Check
+
+```bash
+test -f /root/rhcsa_journal/lab06/task1/transcript.txt && echo "transcript ok"
+grep -c '^[d-]' /root/rhcsa_journal/lab06/task1/transcript.txt
+```
+
+### 📓 Journal Write
+
+```bash
+sudo tee /root/rhcsa_journal/lab06/task1/done.txt > /dev/null <<EOF
+lab=06 task=1
+when=$(date -Is)
+practice_dir=/etc
+transcript=/root/rhcsa_journal/lab06/task1/transcript.txt
+shadow_mode=$(stat -c '%a' /etc/shadow)
+passwd_mode=$(stat -c '%a' /etc/passwd)
+EOF
+cat /root/rhcsa_journal/lab06/task1/done.txt
+```
+
+### 🧹 Cleanup
+
+Nothing to clean — `ls` is read-only.
+
+### Troubleshoot Table
+
+| Symptom | Fix |
+|---|---|
+| `ls: cannot access /etc/grub2.cfg`: `No such file or directory` | RHEL 9 + UEFI has `/boot/grub2/grub.cfg` — adjust the example |
+| `ls -l` shows no `.` first column | You're on a system without SELinux installed (rare on RHEL) — `getenforce` confirms |
+
+> **STOP — confirm transcript.txt has 10-column rows before Task 2.**
 
 ---
 
-## 🎓 What You Now Own
+## Task 2 — Read the 5 Fields of `ls -lZ` (MAC — SELinux)
 
-After this lab you can:
+**Practice directory this task:** `/etc`
 
-1. Read every column of `ls -l` on autopilot.
-2. Identify SELinux contexts with `ls -Z` and `ls -Zd`.
-3. Connect process contexts (`ps -eZ`) to file contexts (`ls -Z`).
-4. Add a persistent context with `semanage fcontext -a -t TYPE "PATH(/.*)?"`.
-5. **Always** pair `semanage fcontext` with `restorecon -Rv` (T02 lifesaver).
-6. Refuse the trap of `setenforce 0` as a "fix" (T01 lifesaver).
-7. Roll back a context with `semanage -d` + `restorecon -Rv`.
-8. Diagnose denials with `matchpathcon` and `ausearch -m avc -ts recent`.
+### 🔁 Warm-Up — Commands from Previous Labs
+
+```bash
+sudo mkdir -p /root/rhcsa_journal/lab06/task2
+date -Is | sudo tee /root/rhcsa_journal/lab06/task2/start.txt
+getenforce | sudo tee -a /root/rhcsa_journal/lab06/task2/start.txt
+ls -lZ /etc/passwd | sudo tee -a /root/rhcsa_journal/lab06/task2/start.txt
+echo "exit was: $?"
+```
+
+### Purpose
+
+Read `ls -lZ` output and decode the SELinux context label into its 4 fields (user:role:type:level). Inspect processes with `ps -eZ` to learn the matching domain types.
+
+### Main Command Block
+
+```bash
+ls -lZ /etc/passwd /etc/shadow /etc/hostname
+ls -dZ /etc /etc/httpd 2>/dev/null
+ls -lZ /srv/lab06/page.html
+
+ps -eZ | head -5
+id -Z
+
+# show the matching contexts a path *should* have per policy
+matchpathcon /srv/lab06/page.html
+matchpathcon /var/www/html/page.html 2>/dev/null
+
+# Capture
+{
+  echo "=== ls -lZ /etc/passwd ===";     ls -lZ /etc/passwd
+  echo "=== ls -dZ /etc ===";            ls -dZ /etc
+  echo "=== ls -lZ sandbox ===";         ls -lZ /srv/lab06/page.html
+  echo "=== matchpathcon sandbox ==="; matchpathcon /srv/lab06/page.html
+  echo "=== matchpathcon /var/www ==="; matchpathcon /var/www/html/page.html 2>/dev/null
+  echo "=== id -Z (your context) ==="; id -Z
+} 2>&1 | sudo tee /root/rhcsa_journal/lab06/task2/transcript.txt
+```
+
+### Human-Readable Breakdown
+
+`ls -lZ` adds the SELinux context BEFORE the filename column. A context has the shape:
+
+```
+user_u:role_r:type_t:level
+```
+
+| Field | Example | Meaning |
+|---|---|---|
+| user | `system_u`, `unconfined_u` | SELinux user (not the same as Linux user) |
+| role | `object_r` (for files), `system_r` (for processes) | Role |
+| type | `passwd_file_t`, `httpd_sys_content_t`, `var_t` | THE KEY FIELD — type enforcement happens here |
+| level | `s0`, `s0-s0:c0.c1023` | MLS/MCS sensitivity (mostly `s0` on RHEL servers) |
+
+The **type** is what matters 95% of the time. A process running with type `httpd_t` can read files of type `httpd_sys_content_t` — that's the policy match. A mislabeled web file (type `var_t` instead of `httpd_sys_content_t`) gets a Permission denied EVEN IF the DAC mode says rwx for everyone. SELinux is independent of DAC.
+
+`matchpathcon PATH` asks the policy "what context SHOULD this path have, according to fcontext rules?" That's the diagnostic for "is my file labeled correctly?"
+
+### Reading It Left to Right
+
+`ls -lZ /etc/passwd`
+
+- `ls` — list
+- `-l` — long format
+- `-Z` — include SELinux context column
+- `/etc/passwd` — target
+
+`system_u:object_r:passwd_file_t:s0`
+
+- `system_u` — SELinux user (assigned by policy to system files)
+- `object_r` — role for file objects (always `object_r` for files)
+- `passwd_file_t` — type (only `passwd`/`shadow` utilities can write this)
+- `s0` — MLS level
+
+### The Story
+
+A grader writes a question: "Apache returns 403 Forbidden on a page in `/srv/web/`. Fix it without changing DAC." The fastest path is: `ls -lZ /srv/web/page.html` (see `var_t`), `matchpathcon /srv/web/page.html` (see what it SHOULD be — but for `/srv/web/` policy says `var_t`, which is the wrong answer for a web file), `semanage fcontext -a -t httpd_sys_content_t '/srv/web(/.*)?'`, `restorecon -Rv /srv/web`. Now the page works. You haven't touched chmod. That's the SELinux mindset.
+
+### Expected Output
+
+```
+$ ls -lZ /etc/passwd
+-rw-r--r--. 1 root root system_u:object_r:passwd_file_t:s0 2456 May 27 14:03 /etc/passwd
+
+$ ls -dZ /etc
+drwxr-xr-x. 90 root root system_u:object_r:etc_t:s0 8192 May 27 14:03 /etc
+
+$ ls -lZ /srv/lab06/page.html
+-rw-r--r--. 1 root root unconfined_u:object_r:var_t:s0 14 May 27 14:05 /srv/lab06/page.html
+
+$ matchpathcon /srv/lab06/page.html
+/srv/lab06/page.html  system_u:object_r:var_t:s0
+```
+
+Note the sandbox file is currently `var_t`. That's what policy expects under `/srv/lab06/` — until we add a custom rule in Task 3 and Task 4.
+
+### Switches Table
+
+| Switch | Meaning | Why it matters |
+|---|---|---|
+| `-Z` | Add SELinux context column | The whole point |
+| `matchpathcon PATH` | "What context SHOULD this path have?" | Diagnostic |
+| `id -Z` | Your shell's SELinux context | Tells you which domain your commands run in |
+| `ps -eZ` | Process contexts | See which domain a service is in |
+| `getenforce` | `Enforcing`/`Permissive`/`Disabled` | Pre-flight before any SELinux lab |
+| `sestatus` | Full SELinux status (mode + policy + loaded modules) | Deeper diagnostic |
+
+### 🧠 Concept Card
+
+| Concept | One-Line |
+|---|---|
+| DAC | Mode + owner + group (file permissions) |
+| MAC | SELinux context (type enforcement) |
+| 403 with rwx | Classic SELinux symptom — DAC is fine, MAC says no |
+| `matchpathcon` | "What context SHOULD this path have?" |
+| `chcon` | Set context on a file (TEMPORARY — lost on relabel) |
+| `semanage fcontext` | Declare the policy rule (PERMANENT) |
+| `restorecon` | Apply policy rules to a path (PERMANENT effect) |
+
+| 🪤 Trap Risk | What goes wrong | How to avoid |
+|---|---|---|
+| **T01** | Running `ls -l` and missing the SELinux mismatch | Use `ls -lZ` in any SELinux-suspect debug |
+| **T03** | Using `chcon` and thinking the fix is permanent | `chcon` is reset on next `restorecon` or relabel — use `semanage fcontext` + `restorecon` |
+
+### 🔁 Persistence Check
+
+```bash
+grep -c 'passwd_file_t'        /root/rhcsa_journal/lab06/task2/transcript.txt
+grep -c 'matchpathcon sandbox' /root/rhcsa_journal/lab06/task2/transcript.txt
+```
+
+### 📓 Journal Write
+
+```bash
+sudo tee /root/rhcsa_journal/lab06/task2/done.txt > /dev/null <<EOF
+lab=06 task=2
+when=$(date -Is)
+selinux_mode=$(getenforce)
+sandbox_context=$(ls -Z /srv/lab06/page.html | awk '{print $1}')
+expected_context=$(matchpathcon /srv/lab06/page.html | awk '{print $2}')
+EOF
+cat /root/rhcsa_journal/lab06/task2/done.txt
+```
+
+### 🧹 Cleanup
+
+Nothing to clean.
+
+### Troubleshoot Table
+
+| Symptom | Fix |
+|---|---|
+| `getenforce` prints `Permissive` | `sudo setenforce 1` (temporary) or edit `/etc/selinux/config` and reboot |
+| `matchpathcon: command not found` | `sudo dnf install -y policycoreutils` |
+| `ls -lZ` has no context column | SELinux is disabled — re-enable via `/etc/selinux/config` and reboot |
+
+> **STOP — confirm `selinux_mode=Enforcing` in done.txt before Task 3.**
+
+---
+
+## Task 3 — RHCSA Permanent Label Fix: `semanage fcontext` + `restorecon`
+
+**Practice directory this task:** `/etc` (`/etc/selinux/targeted/contexts/files/file_contexts.local` is where rules live)
+
+### 🔁 Warm-Up — Commands from Previous Labs
+
+```bash
+sudo mkdir -p /root/rhcsa_journal/lab06/task3
+date -Is | sudo tee /root/rhcsa_journal/lab06/task3/start.txt
+ls -Z /srv/lab06/page.html | sudo tee -a /root/rhcsa_journal/lab06/task3/start.txt
+echo "exit was: $?"
+```
+
+### Purpose
+
+Mark `/srv/lab06` as web content with `semanage fcontext -a -t httpd_sys_content_t`, apply with `restorecon -Rv`, and verify with `ls -Z`. This is the RHCSA-grade permanent fix.
+
+### Main Command Block
+
+```bash
+# 0) Confirm policycoreutils-python-utils is installed (semanage lives here)
+rpm -q policycoreutils-python-utils || sudo dnf install -y policycoreutils-python-utils
+
+# 1) Declare the policy rule — '/srv/lab06(/.*)?' covers the dir AND everything under it
+sudo semanage fcontext -a -t httpd_sys_content_t '/srv/lab06(/.*)?'
+
+# 2) Show the rule was stored
+sudo semanage fcontext -l | grep '/srv/lab06'
+
+# 3) Apply the policy to existing files
+sudo restorecon -Rv /srv/lab06
+
+# 4) Verify the label
+ls -lZ /srv/lab06/
+matchpathcon /srv/lab06/page.html
+
+# Capture
+{
+  echo "=== rule stored ===";    sudo semanage fcontext -l | grep '/srv/lab06'
+  echo "=== restorecon ===";     sudo restorecon -Rv /srv/lab06
+  echo "=== after ls -lZ ==="; ls -lZ /srv/lab06/
+  echo "=== matchpathcon ===";   matchpathcon /srv/lab06/page.html
+} 2>&1 | sudo tee /root/rhcsa_journal/lab06/task3/transcript.txt
+```
+
+### Human-Readable Breakdown
+
+`semanage fcontext` edits the **fcontext policy database** at `/etc/selinux/targeted/contexts/files/file_contexts.local`. The rule says: "any file whose path matches `/srv/lab06(/.*)?` should have type `httpd_sys_content_t`." That rule survives reboot, package updates, and full system relabels.
+
+`restorecon -Rv /srv/lab06` walks the path and applies the policy. Without `-R` it would only touch the leaf; without `-v` it would be silent — both are RHCSA trap-fixes.
+
+The regex `(/.*)?` is the convention: match the directory itself OR the directory followed by any path. `(/.*)?` is roughly "optional slash-anything." Use it on every `semanage fcontext -a` of a directory tree.
+
+### Reading It Left to Right
+
+`semanage fcontext -a -t httpd_sys_content_t '/srv/lab06(/.*)?'`
+
+- `semanage` — SELinux policy management tool
+- `fcontext` — sub-command for file-context rules
+- `-a` — **add** a rule (counterpart: `-d` delete, `-m` modify)
+- `-t TYPE` — set the type to TYPE
+- `'/srv/lab06(/.*)?'` — path regex, **quoted** so the shell doesn't expand `(/.*)?` as a glob
+
+`restorecon -Rv /srv/lab06`
+
+- `restorecon` — apply policy to existing files
+- `-R` — recursive
+- `-v` — verbose; prints every label change
+
+### The Story
+
+A grader's question: "Make `/srv/lab06` serve as a web root. SELinux must approve. Survive reboot." The two-step answer is: `semanage fcontext -a ...` (declare the rule), `restorecon -Rv ...` (apply it). Without step 1, step 2 reverts your changes the moment policy reloads. Both steps are mandatory.
+
+### Expected Output
+
+```
+$ sudo semanage fcontext -l | grep '/srv/lab06'
+/srv/lab06(/.*)?                                   all files          system_u:object_r:httpd_sys_content_t:s0
+
+$ sudo restorecon -Rv /srv/lab06
+Relabeled /srv/lab06 from unconfined_u:object_r:default_t:s0 to unconfined_u:object_r:httpd_sys_content_t:s0
+Relabeled /srv/lab06/page.html from unconfined_u:object_r:var_t:s0 to unconfined_u:object_r:httpd_sys_content_t:s0
+
+$ ls -lZ /srv/lab06/
+total 4
+-rw-r--r--. 1 root root unconfined_u:object_r:httpd_sys_content_t:s0 14 May 27 14:05 page.html
+
+$ matchpathcon /srv/lab06/page.html
+/srv/lab06/page.html  system_u:object_r:httpd_sys_content_t:s0
+```
+
+### Switches Table
+
+| Switch | Meaning | Why it matters |
+|---|---|---|
+| `semanage fcontext -a -t TYPE PATH` | Add a permanent fcontext rule | Survives reboot |
+| `semanage fcontext -l` | List all fcontext rules | RHCSA verification |
+| `semanage fcontext -d PATH` | Delete a rule | Cleanup or correction |
+| `restorecon -Rv PATH` | Apply policy recursively, verbose | The "make it so" step |
+| `chcon -t TYPE PATH` | Set type on a file — TEMPORARY | Useful for one-shot tests, NOT permanent |
+
+### 🧠 Concept Card
+
+| Concept | One-Line |
+|---|---|
+| Permanent fix | `semanage fcontext -a` + `restorecon -Rv` |
+| Temporary fix | `chcon -t TYPE PATH` (lost on relabel) |
+| Path regex convention | `'/path(/.*)?'` covers dir + everything under it |
+| `file_contexts.local` | Where custom rules persist on disk |
+
+| 🪤 Trap Risk | What goes wrong | How to avoid |
+|---|---|---|
+| **T02** | `restorecon` without `-R` only fixes the leaf | Always use `-Rv` on a directory tree |
+| **T03** | Using `chcon` and considering the fix done | `chcon` is temporary — graders relabel and find your context gone. Use `semanage fcontext` |
+| Forgetting `()? `regex | Writing `/srv/lab06` instead of `/srv/lab06(/.*)?` — rule only applies to the directory itself, not files | Always use the `(/.*)?` suffix on a tree |
+
+### 🔁 Persistence Check
+
+```bash
+sudo semanage fcontext -l | grep -c '/srv/lab06'
+matchpathcon /srv/lab06/page.html | grep -c 'httpd_sys_content_t'
+ls -Z /srv/lab06/page.html | grep -c 'httpd_sys_content_t'
+```
+
+All three must return `1`.
+
+### 📓 Journal Write
+
+```bash
+sudo tee /root/rhcsa_journal/lab06/task3/done.txt > /dev/null <<EOF
+lab=06 task=3
+when=$(date -Is)
+rule_stored=$(sudo semanage fcontext -l | grep -c '/srv/lab06')
+matchpathcon=$(matchpathcon /srv/lab06/page.html | awk '{print $2}')
+actual=$(ls -Z /srv/lab06/page.html | awk '{print $1}')
+EOF
+cat /root/rhcsa_journal/lab06/task3/done.txt
+```
+
+### 🧹 Cleanup
+
+LEAVE the fcontext rule in place — Task 4 demonstrates removing it and re-applying with Ansible. We'll fully clean in Task 5.
+
+### Troubleshoot Table
+
+| Symptom | Fix |
+|---|---|
+| `semanage: command not found` | `sudo dnf install -y policycoreutils-python-utils` |
+| `restorecon` says no changes | Either the rule isn't stored, or files already match — check with `semanage fcontext -l` |
+| `matchpathcon` still shows `var_t` | The rule didn't store — re-run `semanage fcontext -a` with the regex quoted |
+
+> **STOP — confirm `httpd_sys_content_t` appears in `done.txt` before Task 4.**
+
+---
+
+## Task 4 — Ansible: Declare the fcontext Rule with `community.general.sefcontext`
+
+**Practice directory this task:** `/etc`
+
+### 🔁 Warm-Up — Commands from Previous Labs
+
+```bash
+sudo mkdir -p /root/rhcsa_journal/lab06/task4/playbooks
+date -Is | sudo tee /root/rhcsa_journal/lab06/task4/start.txt
+ansible --version | head -1 | sudo tee -a /root/rhcsa_journal/lab06/task4/start.txt
+ansible-galaxy collection list | grep community.general | sudo tee -a /root/rhcsa_journal/lab06/task4/start.txt
+echo "exit was: $?"
+```
+
+If `community.general` isn't listed, **go back to Lab 00 Task 2** before proceeding.
+
+### Purpose
+
+Redo Task 3 the RHCE way: declare the fcontext rule with `community.general.sefcontext` and apply it with `ansible.builtin.command: restorecon -Rv`. Prove idempotence by running the playbook twice and confirming `changed=0` on the second run.
+
+> **First, undo Task 3** so we have a real "before" state to drive change:
+
+```bash
+sudo semanage fcontext -d '/srv/lab06(/.*)?' 2>/dev/null || true
+sudo restorecon -Rv /srv/lab06     # reverts files back toward default
+ls -Z /srv/lab06/page.html         # should NOT say httpd_sys_content_t anymore
+```
+
+### Main Command Block
+
+Write the playbook:
+
+```bash
+sudo tee /root/rhcsa_journal/lab06/task4/playbooks/sefcontext.yml > /dev/null <<'EOF'
+---
+- name: Lab 06 Task 4 — label /srv/lab06 as web content via Ansible
+  hosts: localhost
+  become: true
+  gather_facts: false
+
+  vars:
+    target_dir: /srv/lab06
+    target_type: httpd_sys_content_t
+
+  tasks:
+    - name: Declare fcontext rule (permanent — stored in policy DB)
+      community.general.sefcontext:
+        target: "{{ target_dir }}(/.*)?"
+        setype: "{{ target_type }}"
+        state: present
+      register: rule_result
+
+    - name: Apply policy — restorecon (no Ansible module; command: is RHCE-accepted)
+      ansible.builtin.command:
+        cmd: "restorecon -Rv {{ target_dir }}"
+      register: restore_result
+      changed_when: "'Relabeled' in restore_result.stdout"
+
+    - name: Show what changed
+      ansible.builtin.debug:
+        msg:
+          - "rule changed: {{ rule_result.changed }}"
+          - "restorecon changed: {{ restore_result.changed }}"
+          - "restorecon stdout: {{ restore_result.stdout_lines }}"
+EOF
+```
+
+Check-mode first:
+
+```bash
+ansible-playbook --check --diff /root/rhcsa_journal/lab06/task4/playbooks/sefcontext.yml \
+  2>&1 | sudo tee /root/rhcsa_journal/lab06/task4/check.log
+```
+
+Apply:
+
+```bash
+ansible-playbook /root/rhcsa_journal/lab06/task4/playbooks/sefcontext.yml \
+  2>&1 | sudo tee /root/rhcsa_journal/lab06/task4/apply.log
+```
+
+Idempotence proof — run AGAIN, expect `changed=0`:
+
+```bash
+ansible-playbook /root/rhcsa_journal/lab06/task4/playbooks/sefcontext.yml \
+  2>&1 | sudo tee /root/rhcsa_journal/lab06/task4/rerun.log
+grep '^localhost' /root/rhcsa_journal/lab06/task4/rerun.log
+```
+
+### Human-Readable Breakdown
+
+`community.general.sefcontext` is the RHCE module for the `semanage fcontext` operation. The arguments map 1:1:
+
+- `target: '/srv/lab06(/.*)?'` ≡ the path regex from `semanage fcontext -a`
+- `setype: httpd_sys_content_t` ≡ `-t httpd_sys_content_t`
+- `state: present` ≡ `-a` (use `state: absent` for `-d`)
+
+`restorecon` has **no native Ansible module**. The RHCE-accepted pattern is `ansible.builtin.command: restorecon -Rv {{ target }}` with `changed_when:` set to only flag changed when stdout contains "Relabeled" — that makes the playbook idempotent. Without `changed_when`, every run shows `changed=1` even if no relabel happened.
+
+This is the rare case where `command:` is correct in an RHCE answer — because the operation has no module-backed alternative. We mark it explicitly in the Concept Card.
+
+### Reading It Left to Right
+
+```yaml
+community.general.sefcontext:
+  target: "{{ target_dir }}(/.*)?"
+  setype: "{{ target_type }}"
+  state: present
+```
+
+- `community.general.sefcontext:` — FQCN of the sefcontext module
+- `target:` — path regex (same as `semanage fcontext` argument)
+- `setype:` — the SELinux type (e.g. `httpd_sys_content_t`)
+- `state: present` — add the rule (or `absent` to remove)
+
+```yaml
+ansible.builtin.command:
+  cmd: "restorecon -Rv {{ target_dir }}"
+changed_when: "'Relabeled' in restore_result.stdout"
+```
+
+- `ansible.builtin.command:` — exec a binary (NOT a shell)
+- `cmd:` — the executable and args
+- `changed_when:` — Jinja expression; task is marked `changed` only when it evaluates true
+- `'Relabeled' in restore_result.stdout` — Python `in` check on the registered stdout
+
+### The Story
+
+A grader reading your playbook sees `community.general.sefcontext` (correct module), `state: present` (correct verb), `target:` with the proper regex (correct path), `restorecon` wrapped in `command:` with `changed_when:` (correct because there is no module). Then the grader runs your playbook a second time and watches `changed=0` come back. Full marks.
+
+### Expected Output
+
+First apply:
+
+```
+TASK [Declare fcontext rule] ***
+changed: [localhost]
+
+TASK [Apply policy — restorecon] ***
+changed: [localhost]
+
+TASK [Show what changed] ***
+ok: [localhost] => {
+    "msg": [
+        "rule changed: True",
+        "restorecon changed: True",
+        "restorecon stdout: ['Relabeled /srv/lab06 from ... to ...httpd_sys_content_t...']"
+    ]
+}
+
+PLAY RECAP ***
+localhost : ok=3 changed=2 unreachable=0 failed=0
+```
+
+Second run (idempotence proof):
+
+```
+TASK [Declare fcontext rule] ***
+ok: [localhost]                    <-- not "changed"
+
+TASK [Apply policy — restorecon] ***
+ok: [localhost]                    <-- changed_when=False because stdout has no "Relabeled"
+
+PLAY RECAP ***
+localhost : ok=3 changed=0 unreachable=0 failed=0
+```
+
+### Switches Table
+
+| Switch / Key | Meaning | Why it matters |
+|---|---|---|
+| `community.general.sefcontext` | FQCN of the sefcontext module | RHCE answer for `semanage fcontext` |
+| `state: present` / `absent` | Add or remove the rule | Idempotent declaration |
+| `target:` | Path regex (must include `(/.*)?` for trees) | Same convention as RHCSA Task 3 |
+| `setype:` | SELinux type | The whole point |
+| `ansible.builtin.command:` + `changed_when:` | Acceptable wrapper for tools with no module | restorecon has no module |
+
+### 🧠 Concept Card
+
+| Concept | One-Line |
+|---|---|
+| `community.general.sefcontext` | RHCE module for fcontext rules — equivalent to `semanage fcontext` |
+| `ansible.builtin.command` + `changed_when` | The honest way to wrap `restorecon` — RHCE-accepted because no module exists |
+| Idempotence | Second run shows `changed=0` because rule already exists AND no files needed relabeling |
+| `--check --diff` | Dry-runs the playbook; useful for previewing fcontext rule additions |
+
+| 🪤 Trap Risk | What goes wrong | How to avoid |
+|---|---|---|
+| **Wrapping shell commands in `command:`/`shell:` instead of using a real module** | Whole point of RHCE Ansible | Use FQCN module first; only fall back when no module exists (restorecon is one such case) |
+| Missing `changed_when:` on the `command: restorecon` task | Every playbook run shows `changed=1` — not idempotent | Always pair `command:` with `changed_when:` based on stdout |
+| Forgetting `state: present` | Default is `present`, but be explicit so the playbook reads correctly to graders | Always write `state: present` or `state: absent` |
+
+### 🔁 Persistence Check
+
+```bash
+sudo semanage fcontext -l | grep -c '/srv/lab06'
+ls -Z /srv/lab06/page.html | grep -c 'httpd_sys_content_t'
+test -f /root/rhcsa_journal/lab06/task4/playbooks/sefcontext.yml && echo "playbook ok"
+grep -c 'changed=0' /root/rhcsa_journal/lab06/task4/rerun.log
+```
+
+All four must return `1`.
+
+### 📓 Journal Write
+
+```bash
+sudo tee /root/rhcsa_journal/lab06/task4/done.txt > /dev/null <<EOF
+lab=06 task=4
+when=$(date -Is)
+ansible_module=community.general.sefcontext
+playbook=/root/rhcsa_journal/lab06/task4/playbooks/sefcontext.yml
+rule_present=$(sudo semanage fcontext -l | grep -c '/srv/lab06')
+file_label=$(ls -Z /srv/lab06/page.html | awk '{print $1}')
+idempotent_rerun_changed_0=$(grep -c 'changed=0' /root/rhcsa_journal/lab06/task4/rerun.log)
+EOF
+cat /root/rhcsa_journal/lab06/task4/done.txt
+```
+
+### 🧹 Cleanup
+
+Leave the rule in place — Task 5 verifies it and removes everything together.
+
+### Troubleshoot Table
+
+| Symptom | Fix |
+|---|---|
+| `couldn't resolve module 'community.general.sefcontext'` | Lab 00 Task 2 was skipped — run `ansible-galaxy collection install community.general` |
+| Second run shows `changed=1` on the restorecon task | `changed_when:` is missing or the path doesn't match — re-check the playbook |
+| `policycoreutils-python-utils` missing on target | Module needs the same `python3-policycoreutils` package; install with `dnf` |
+
+> **STOP — confirm rerun.log shows `changed=0` before Task 5.**
+
+---
+
+## Task 5 — RHCSA Verification Capstone: Prove the Label is Real, Permanent, and Reboot-Safe
+
+**Practice directory this task:** `/etc/selinux/targeted/contexts/files/file_contexts.local` (the persistence file)
+
+### 🔁 Warm-Up — Commands from Previous Labs
+
+```bash
+sudo mkdir -p /root/rhcsa_journal/lab06/task5
+date -Is | sudo tee /root/rhcsa_journal/lab06/task5/start.txt
+ls -Z /srv/lab06/page.html | sudo tee -a /root/rhcsa_journal/lab06/task5/start.txt
+echo "exit was: $?"
+```
+
+### Purpose
+
+Use **only** RHCSA inspection commands (no `ansible` CLI) to prove:
+
+1. The file label IS `httpd_sys_content_t`
+2. The rule IS stored in policy and survives reboot
+3. The fix matches what `matchpathcon` predicts
+
+### Main Command Block
+
+Three RHCSA inspection commands plus the persistence file:
+
+```bash
+# 1) Direct inspection — current label
+ls -lZ /srv/lab06/
+stat -c 'mode=%a owner=%U group=%G' /srv/lab06/page.html
+
+# 2) Policy prediction — what SHOULD it be?
+matchpathcon /srv/lab06/page.html
+
+# 3) Persistence file — is the rule actually on disk?
+sudo grep '/srv/lab06' /etc/selinux/targeted/contexts/files/file_contexts.local
+sudo semanage fcontext -l -C  # -C: only the customizations (custom rules)
+
+# Diff: do the actual label and matchpathcon agree?
+actual=$(ls -Z /srv/lab06/page.html | awk '{print $1}' | awk -F: '{print $3}')
+expected=$(matchpathcon /srv/lab06/page.html | awk '{print $2}' | awk -F: '{print $3}')
+echo "actual=$actual expected=$expected"
+[ "$actual" = "$expected" ] && echo "MATCH" || echo "MISMATCH"
+
+# Capture
+{
+  echo "=== ls -lZ ==="; ls -lZ /srv/lab06/
+  echo "=== matchpathcon ==="; matchpathcon /srv/lab06/page.html
+  echo "=== persistence file ==="; sudo grep '/srv/lab06' /etc/selinux/targeted/contexts/files/file_contexts.local
+  echo "=== semanage -C ==="; sudo semanage fcontext -l -C
+  echo "=== actual vs expected ==="
+  actual=$(ls -Z /srv/lab06/page.html | awk '{print $1}' | awk -F: '{print $3}')
+  expected=$(matchpathcon /srv/lab06/page.html | awk '{print $2}' | awk -F: '{print $3}')
+  echo "actual=$actual expected=$expected"
+  [ "$actual" = "$expected" ] && echo "MATCH" || echo "MISMATCH"
+} 2>&1 | sudo tee /root/rhcsa_journal/lab06/task5/evidence.txt
+```
+
+### Human-Readable Breakdown
+
+The capstone has three checks:
+
+1. **What does `ls -lZ` see?** — current observable label
+2. **What does `matchpathcon` predict?** — what policy says it should be
+3. **What's in `file_contexts.local`?** — the persistence file that survives reboot
+
+If all three agree on `httpd_sys_content_t`, the fix is real and reboot-safe. If `ls -lZ` and `matchpathcon` disagree, somebody used `chcon` (T03). If the persistence file is missing the rule, somebody only ran `restorecon` without first declaring the rule (T03's twin).
+
+### Reading It Left to Right
+
+`semanage fcontext -l -C`
+
+- `semanage fcontext` — file-context management
+- `-l` — list rules
+- `-C` — **only** custom rules (filters out the thousands of default policy rules — RHCSA-grade noise reduction)
+
+`awk -F: '{print $3}'`
+
+- `awk` — text tool
+- `-F:` — set field separator to `:`
+- `'{print $3}'` — print field 3 (the SELinux **type**)
+
+### The Story
+
+A grader's audit script runs `ls -lZ`, `matchpathcon`, and `sudo grep ... file_contexts.local`. If all three print `httpd_sys_content_t`, you pass. If `ls -lZ` shows `httpd_sys_content_t` but `file_contexts.local` is empty, the grader concludes you used `chcon` (temporary) and marks you down. You match the grader's audit by doing the same audit yourself.
+
+### Expected Output
+
+```
+=== ls -lZ ===
+-rw-r--r--. 1 root root unconfined_u:object_r:httpd_sys_content_t:s0 14 May 27 14:05 page.html
+
+=== matchpathcon ===
+/srv/lab06/page.html  system_u:object_r:httpd_sys_content_t:s0
+
+=== persistence file ===
+/srv/lab06(/.*)?    system_u:object_r:httpd_sys_content_t:s0
+
+=== semanage -C ===
+SELinux fcontext                                   type               Context
+/srv/lab06(/.*)?                                   all files          system_u:object_r:httpd_sys_content_t:s0
+
+=== actual vs expected ===
+actual=httpd_sys_content_t expected=httpd_sys_content_t
+MATCH
+```
+
+### Switches Table
+
+| Switch | Meaning | Why it matters |
+|---|---|---|
+| `ls -lZ` | List with SELinux context | RHCSA primary inspection |
+| `matchpathcon PATH` | Policy's expected context | "What SHOULD this be?" |
+| `semanage fcontext -l -C` | Custom rules only | Filters out distro defaults |
+| `awk -F: '{print $3}'` | Extract the type field | Programmatic compare |
+
+### 🧠 Concept Card
+
+| Concept | One-Line |
+|---|---|
+| Permanent SELinux fix | rule in `file_contexts.local` + applied label on file |
+| Reboot reasoning | `file_contexts.local` survives reboot; on relabel, policy reapplies your rule automatically |
+| Auditor reflex | Verify with `ls -lZ` + `matchpathcon` + persistence-file grep |
+
+| 🪤 Trap Risk | What goes wrong | How to avoid |
+|---|---|---|
+| **Trusting `ansible-playbook`'s "changed=1" without inspecting state** | Whole point of RHCE → RHCSA loop | Always verify with `ls -lZ`, `matchpathcon`, and `semanage -C` |
+| Skipping persistence-file check | Believing label is permanent when it was set by `chcon` | Always `grep PATH file_contexts.local` |
+
+### 🔁 Persistence Check (Reboot Reasoning)
+
+```bash
+echo "REBOOT REASONING:"                                                                            | sudo tee /root/rhcsa_journal/lab06/task5/reboot.txt
+echo "1. /etc/selinux/targeted/contexts/files/file_contexts.local survives reboot (it's on disk)." | sudo tee -a /root/rhcsa_journal/lab06/task5/reboot.txt
+echo "2. On boot, SELinux loads the policy + local customizations; the rule is back in effect."    | sudo tee -a /root/rhcsa_journal/lab06/task5/reboot.txt
+echo "3. If a full relabel ever runs, restorecon walks the tree and re-applies httpd_sys_content_t." | sudo tee -a /root/rhcsa_journal/lab06/task5/reboot.txt
+test -f /etc/selinux/targeted/contexts/files/file_contexts.local && echo "persistence file exists" | sudo tee -a /root/rhcsa_journal/lab06/task5/reboot.txt
+sudo grep -c '/srv/lab06' /etc/selinux/targeted/contexts/files/file_contexts.local                 | sudo tee -a /root/rhcsa_journal/lab06/task5/reboot.txt
+```
+
+### 📓 Journal Write
+
+```bash
+sudo tee /root/rhcsa_journal/lab06/task5/done.txt > /dev/null <<EOF
+lab=06 task=5
+when=$(date -Is)
+evidence=/root/rhcsa_journal/lab06/task5/evidence.txt
+reboot=/root/rhcsa_journal/lab06/task5/reboot.txt
+match_actual_expected=$(grep -c '^MATCH' /root/rhcsa_journal/lab06/task5/evidence.txt)
+status=lab06-complete
+EOF
+cat /root/rhcsa_journal/lab06/task5/done.txt
+```
+
+### 🧹 Cleanup (No Regression — return system to a known state)
+
+```bash
+# Remove the rule we added
+sudo semanage fcontext -d '/srv/lab06(/.*)?'
+
+# Re-run restorecon to revert files toward default policy
+sudo restorecon -Rv /srv/lab06
+
+# Remove the sandbox directory
+sudo rm -rf /srv/lab06
+
+# Confirm no rule left and no sandbox left
+sudo semanage fcontext -l -C | grep -c '/srv/lab06'   # should be 0
+ls -d /srv/lab06 2>&1 | grep -q "No such" && echo "sandbox cleaned"
+
+# The Ansible playbook stays for future reference
+ls -l /root/rhcsa_journal/lab06/task4/playbooks/sefcontext.yml
+```
+
+### Troubleshoot Table
+
+| Symptom | Fix |
+|---|---|
+| `MISMATCH` line in evidence.txt | `chcon` was used somewhere — re-run `semanage fcontext -a` and `restorecon -Rv` |
+| Cleanup `semanage fcontext -d` errors with "rule not found" | Already removed; fine |
+| `rm -rf /srv/lab06` errors with "Permission denied" | Use `sudo` (you should already; check `whoami`) |
+
+> **STOP — record `status=lab06-complete` in done.txt. Lab 06 is finished.**
+
+---
+
+## ✅ Lab 06 Complete When
+
+```bash
+ls /root/rhcsa_journal/lab06/task{1,2,3,4,5}/done.txt
+grep -l 'lab06-complete' /root/rhcsa_journal/lab06/task5/done.txt
+test -f /root/rhcsa_journal/lab06/task4/playbooks/sefcontext.yml
+grep -c 'MATCH' /root/rhcsa_journal/lab06/task5/evidence.txt
+```
+
+All four checks must succeed. You now own the RHCSA + RHCE SELinux fcontext loop end-to-end.
