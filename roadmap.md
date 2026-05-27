@@ -113,22 +113,410 @@ The RHCSA curriculum has three buckets:
 
 ### 📋 Complete Labs in This Order
 
-Foundation → advanced. Each step locks in prerequisites for the next. Mirrors the [Suggested Learning Path](README.md#-suggested-learning-path) in the main README and folds the `*-F##` future labs into the matching module.
-
-| # | Module | Labs to Complete |
-|---|---|---|
-| 1 | **Shells & Text Fluency** | README **01–27** (stdout/stderr/pipes, file ops, find/grep/sed/awk, vi) → future labs **FILES-F01…F07** · **TEXT-F01…F03** |
-| 2 | **Documentation & Networking** | README **28–39** (man/whatis/info, nmcli, /etc/hosts, DNS, SSH key auth) → future labs **DOC-F01** · **NET-F01…F05** |
-| 3 | **Permissions, ACLs, Firewall** | README **40–67** (chmod/chown, SUID/SGID, ACLs, firewalld zones + NAT) → future labs **PERM-F01…F06** · **FW-F01…F02** |
-| 4 | **TCP Wrappers, PAM, SELinux** | README **68–84** (hosts.allow/deny, pam_pwquality/securetty, sestatus, semanage, restorecon, sealert) + in-repo [`labs/selinux-recursive-contexts-direct01/`](labs/selinux-recursive-contexts-direct01/) → future labs **SEL-F02…F06** |
-| 5 | **Boot, Systemd, Logging** | README **85–106** (GRUB, rd.break root reset, systemctl, journalctl, rsyslog) → future labs **BOOT-F01** · **SYSD-F01** |
-| 6 | **Storage, LVM, Mounts** | README **107–136** (partitioning, mkfs.ext4/xfs, fstab UUID/LABEL, pvcreate→vgcreate→lvcreate, autofs) + in-repo [`labs/lvm-create-lvol1-ext4/`](labs/lvm-create-lvol1-ext4/), [`labs/lvm-create-lv1-xfs/`](labs/lvm-create-lv1-xfs/), [`labs/lvm-online-extend-xfs/`](labs/lvm-online-extend-xfs/), [`labs/storage-swap-partition-uuid/`](labs/storage-swap-partition-uuid/), [`labs/storage-ext4-partition-label/`](labs/storage-ext4-partition-label/) → future labs **STOR-F03…F04** · **LVM-F02…F09** · **NFS-F01…F06** · **TIME-F01…F02** |
-| 7 | **Packages, Users, Sudo** | README **137–183** (rpm/dnf, custom repos, useradd/groupadd, chage, visudo, /etc/skel) + in-repo [`labs/dnf-install-dev-tools-capture/`](labs/dnf-install-dev-tools-capture/), [`labs/user-lock-capture-regex/`](labs/user-lock-capture-regex/) → future labs **PKG-F02…F03** · **USER-F01…F08** · **SUDO-F01…F03** |
-| 8 | **Processes, Archives, Cron** | README **184–207** (ps/top/nice/renice/kill, tar/gzip/bzip2/xz, crontab, at, anacron) + in-repo [`labs/scheduling-jobs-systemd-timer/`](labs/scheduling-jobs-systemd-timer/), [`labs/cron-user-find-exec-coredir/`](labs/cron-user-find-exec-coredir/), [`labs/find-files-by-mtime/`](labs/find-files-by-mtime/) → future labs **PROC-F01…F04** · **ARCH-F01…F03** · **CRON-F02…F07** |
-| 9 | **GPG, Remote Admin, Security** | README **208–220** (gpg keygen/encrypt, ssh/scp, telnet/nmap, bastion hardening) → future labs **SSH-F01…F06** |
-| 10 | **Web, Tuning, Scripting, Containers** | README **221–227** + Container LAB row (httpd + SELinux contexts, tuned-adm, argument-validating bash, podman) + in-repo [`labs/bash-bidirectional-arg-script/`](labs/bash-bidirectional-arg-script/), [`labs/podman-rootless-bind-mount-systemd/`](labs/podman-rootless-bind-mount-systemd/) → future labs **WEB-F01…F05** · **PERF-F01…F02** · **SCRIPT-F02…F09** · **CON-F02…F14** · **ENV-F01** |
+Foundation → advanced. Each step locks in prerequisites for the next. Mirrors the [Suggested Learning Path](README.md#-suggested-learning-path) in the main README and folds the `*-F##` future labs into the matching module. Every lab listed below — built, in-progress, or planned — appears in the exact order you should work through it.
 
 > **About this order:** within each module, labs are sequenced foundation → advanced. Across modules, prerequisites flow forward — you can't fully grok LVM (Step 6) until you have `find`/`grep` from Step 1, and you can't do SELinux (Step 4) until you've configured standard permissions in Step 3. **Skip at your own risk.**
+
+#### Step 1: Shells & Text Fluency
+
+| # | Status | ID / # | Full Lab Name | Key Commands / Focus |
+|---|---|---|---|---|
+| 1 | ✅ | 01 | Standard Output Redirection | `>`, `>>`, `cat` — direct stdout into a new file or append |
+| 2 | ✅ | 02 | Standard Error Redirection | `2>`, `2>/dev/null` — capture or discard the error stream |
+| 3 | ✅ | 03 | Pipe Text Streams | `\|`, `less`, `grep`, `tee`, `wc -l` — chain commands stdout→stdin |
+| 4 | ✅ | 04 | Capture Both Output and Error | `&>`, `2>&1` — combine stdout + stderr into one stream |
+| 5 | ✅ | 05 | Directory Navigation | `cd`, `pwd`, `ls` — absolute paths, `..`, `~` |
+| 6 | ✅ | 06 | Listing Files and SELinux Contexts | `ls -l`, `ls -Z` — long listings + SELinux contexts |
+| 7 | ✅ | 07 | Creating Empty Files and Timestamps | `touch` — create files, update mtime |
+| 8 | ✅ | 08 | Copying Files and Directories | `cp`, `cp -R`, `cp -a` — copy files + trees, preserve attrs |
+| 9 | ✅ | 09 | Hard and Soft Links | `ln`, `ln -s` — inode link vs symlink |
+| 10 | ✅ | 10 | Moving and Renaming Files | `mv` — rename locally + move across dirs |
+| 11 | ✅ | 11 | Safe Deletion of Files and Directories | `rm`, `rmdir`, `rm -rf` — delete files + trees |
+| 12 | ✅ | 12 | Creating Nested Directories | `mkdir -p` — make full directory paths in one shot |
+| 13 | ✅ | 13 | Creating Command Aliases | `alias` — map custom shortcuts, override defaults |
+| 14 | ✅ | 14 | File Searching with find | `find` — search by name from any directory |
+| 15 | ✅ | 15 | Instant File Searching with locate | `locate`, `updatedb` — fast indexed lookups |
+| 16 | ✅ | 16 | Search for a String and Save Output | `grep`, `tee`, `>` — string search + save results |
+| 17 | ✅ | 17 | Find and Save Config Files | `find -type f -name -user`, `2>/dev/null` — quiet predicate search |
+| 18 | ✅ | 18 | Locate Command Documentation | `find /usr/share/doc`, `rpm -qf`, `rpm -qd` — package-owned docs |
+| 19 | ✅ | in-repo | Find Files by Modification Time and Act on Them | `find / -mtime -30`, `-exec`, `tar --files-from` — mtime predicates |
+| 20 | ✅ | 19 | Concatenating Files with cat | `cat` — read short text files inline |
+| 21 | ✅ | 20 | Scrolling Through Large Files | `less`, `more`, `/` + `?` search |
+| 22 | ✅ | 21 | Monitoring Live Log Files | `tail -f` — watch a log in real time |
+| 23 | ✅ | 22 | Filtering Text with grep and Regex | `grep`, regex inside config files |
+| 24 | ✅ | 23 | Comparing File Differences with diff | `diff` — exact line-level deltas |
+| 25 | ✅ | 24 | Stream Editing with sed | `sed` — non-interactive find + replace |
+| 26 | ✅ | 25 | Extracting Columns with awk | `awk` — delimiter-based field extraction |
+| 27 | ✅ | 26 | Command Mode and Insert Mode in vi | `vi`, `:wq` — open, insert, save |
+| 28 | ✅ | 27 | Safely Editing System Databases | `vipw`, `vigr` — lock-safe edits of passwd/group |
+| 29 | 📅 | FILES-F01 | Find Files by Size Range and Copy Preserving All Attributes | `find /etc -size +5M -size -10M -exec cp --preserve=all` |
+| 30 | 📅 | FILES-F02 | Find Files Owned by a User Within a Size Range | `find / -xdev -user linda -size +3M -size -50M 2>/dev/null` |
+| 31 | 📅 | FILES-F03 | Find Configuration Files by Name and Owner | `find /etc -name '*.conf' -user root > /root/config_files` |
+| 32 | 📅 | FILES-F04 | Find Files Modified More Than 30 Days Ago and Copy with Hierarchy | `find /etc -mtime +30 -exec cp --parents --preserve=all` |
+| 33 | 📅 | FILES-F05 | Find Directories with the SUID Bit Set + Copy with Attributes | `find / -type d -perm -4000 2>/dev/null -exec cp -a` |
+| 34 | 📅 | FILES-F06 | Find Directories by Size Range and Save Long Listing | `find -type d -size +50k -size -100k \| xargs ls -ld` |
+| 35 | 📅 | FILES-F07 | Hard and Symbolic Link Lifecycle Demonstration | `ln`, `ln -s`, delete original, observe dangling symlink |
+| 36 | 📅 | TEXT-F01 | Extract Lines Containing a String Preserving Order | `grep 'bin' /etc/passwd > /root/bin_lines` |
+| 37 | 📅 | TEXT-F02 | Find Exact Word Matches with `grep -w` | `grep -wE 'bin'` — prevents `sbin`/`binary` matches |
+| 38 | 📅 | TEXT-F03 | Search Apache Configuration for Listen Directives | `grep '^Listen' /etc/httpd/conf/httpd.conf` |
+
+#### Step 2: Documentation & Networking
+
+| # | Status | ID / # | Full Lab Name | Key Commands / Focus |
+|---|---|---|---|---|
+| 1 | ✅ | 28 | Exploring Manual Pages | `man` — scroll, search, navigate manual pages |
+| 2 | ✅ | 29 | Searching Manuals by Keyword | `whatis`, `apropos` — keyword-based docs lookup |
+| 3 | ✅ | 30 | Navigating info Pages | `info` — `n`, `p`, `u` navigation |
+| 4 | 📅 | DOC-F01 | Locate Command Documentation Under `/usr/share/doc` | `find /usr/share/doc -iname '*passwd*'`, `rpm -qf` owner |
+| 5 | ✅ | 31 | Configure a Static IP Address | `nmcli con mod`, `ip addr`, `ip route` — static IPv4 + gateway + DNS |
+| 6 | ✅ | 32 | Check Network Connectivity | `ping`, `traceroute` — test + map network path |
+| 7 | ✅ | 33 | Display IP and Routing Info | `ip addr show`, `ip route show` |
+| 8 | ✅ | 34 | Inspecting Listening Sockets | `ss -tuna4` — view TCP/UDP sockets, open ports |
+| 9 | ✅ | 35 | Text-Based Network Config nmtui | `nmtui` — set static IP + mask + gateway + DNS |
+| 10 | ✅ | 36 | Command-Line Network Config nmcli | `nmcli` — modify settings + reload interface |
+| 11 | ✅ | 37 | Configuring Local Host Resolution | `/etc/hosts` — manual hostname-to-IP mapping |
+| 12 | ✅ | 38 | Configuring DNS Servers | `/etc/resolv.conf` — name servers + search domains |
+| 13 | ✅ | 39 | Configure SSH and Key-Based Auth | `ssh-keygen`, `ssh-copy-id` — RSA pair + passwordless login |
+| 14 | 📅 | NET-F01 | Manual Hostname Configuration by Editing `/etc/hostname` | Write FQDN to `/etc/hostname`, no `hostnamectl`, persist on reboot |
+| 15 | 📅 | NET-F02 | Manual Network Configuration by Editing Connection Files | Hand-edit `/etc/NetworkManager/system-connections/`, `nmcli connection reload` |
+| 16 | 📅 | NET-F03 | Configure Static IPv4 with Specific Host Address | `nmcli con mod ipv4.addresses/gateway/dns/method manual`, `autoconnect yes` |
+| 17 | 📅 | NET-F04 | Configure Static IPv6 Address with DNS Search Domain | `ipv6.addresses fd02::42/64`, `ipv6.gateway`, `ipv6.dns-search example.local` |
+| 18 | 📅 | NET-F05 | Dual-Stack IPv4 + IPv6 with Local Host Resolution | Both `192.168.56.25/24` + `fd12:3456:789a:1::25/64`, `/etc/hosts` short + FQDN |
+
+#### Step 3: Permissions, ACLs, Firewall
+
+| # | Status | ID / # | Full Lab Name | Key Commands / Focus |
+|---|---|---|---|---|
+| 1 | ✅ | 40 | Standard File Permissions | `chmod` — set + change standard ugo/rwx |
+| 2 | ✅ | 41 | Changing Ownership | `chown`, `chgrp` — reassign user + group |
+| 3 | ✅ | 42 | SUID Executables | `chmod u+s`, `ls -l` — run as file owner |
+| 4 | ✅ | 43 | Configure SGID and Sticky Bit | `chmod g+s`, `chmod +t`, `ls -ld` — group inherit + delete-protect |
+| 5 | ✅ | 44 | Immutable File Attribute | `chattr +i`, `lsattr` — prevent deletion even by root |
+| 6 | ✅ | 45 | Append-Only File Attribute | `chattr +a` — log files that cannot be overwritten |
+| 7 | ✅ | 46 | Identifying File Attributes | `lsattr` — list extended attributes on ext4/XFS |
+| 8 | ✅ | 47 | Check ACL Support | `mount`, `acl` option — verify filesystem ACL support |
+| 9 | ✅ | 48 | Viewing ACLs | `getfacl` — inspect current ACL |
+| 10 | ✅ | 49 | Modifying ACLs | `setfacl -m` — grant per-user permissions |
+| 11 | ✅ | 50 | Denying Access via ACLs | `setfacl` — explicit per-user deny |
+| 12 | ✅ | 51 | Default Directory ACLs | `setfacl -d` — auto-inherit ACL on new files |
+| 13 | ✅ | 52 | ACL Masks | `setfacl -m m::` — cap max permissions for users + groups |
+| 14 | ✅ | 53 | Removing ACLs | `setfacl -x`, `setfacl -b` — strip specific or all ACL entries |
+| 15 | ✅ | 54 | NFSv4 ACLs | `nfs4_getfacl`, `nfs4_setfacl` — edit NFSv4 share permissions |
+| 16 | 📅 | PERM-F01 | Collaborative SGID Directory with Multi-User Write Test | `chmod 2770 /sdata`, prove cross-user edit + no-delete |
+| 17 | 📅 | PERM-F02 | File Copy with Combined Ownership + Permissions + ACL + Future-User Safety | `cp /etc/fstab /var/tmp`, `chown root:admins`, `setfacl` mix |
+| 18 | 📅 | PERM-F03 | ACL with Mixed Read/Write/Read-Only Per User | `setfacl u:emma:rw,u:liam:rw,u:sophie:r,m::rw`, default ACL on parent |
+| 19 | 📅 | PERM-F04 | Per-User Default umask via `~/.bashrc` | `echo 'umask 0577' >> ~/.bashrc`, files become 400 |
+| 20 | 📅 | PERM-F05 | Collaborative Group Directory with SGID + Sticky Bit | `chmod 3770 /data/engineers` — SGID + sticky combo |
+| 21 | 📅 | PERM-F06 | Restricted Directory Where Owner Has chmod But No rwx | `chmod g+rwx,o-rwx,u-rwx` — owner keeps chmod, loses rwx |
+| 22 | ✅ | 55 | Inspecting iptables | `iptables -L` — review default chains + rules |
+| 23 | ✅ | 56 | Exploring firewalld Zones | `firewall-cmd --get-default-zone`, `--list-all` |
+| 24 | ✅ | 57 | Changing Default Firewall Zone | `firewall-cmd --set-default-zone` — reassign interface |
+| 25 | ✅ | 58 | Adding Services to Zones | `firewall-cmd --add-service`, `--permanent` |
+| 26 | ✅ | 59 | Opening Custom Ports | `firewall-cmd --add-port` — non-standard port to zone |
+| 27 | ✅ | 60 | Inspect Active Firewall Zones | `firewall-cmd --get-default-zone`, `--list-all` |
+| 28 | ✅ | 61 | Reassign Interfaces to Zones | `firewall-cmd --change-interface` — move interface zones |
+| 29 | ✅ | 62 | Allow Services Through Firewall | `firewall-cmd --permanent --add-service` for web/FTP |
+| 30 | ✅ | 63 | Configure IP Masquerading NAT | `firewall-cmd --add-masquerade` — outbound NAT |
+| 31 | ✅ | 64 | Configure IP Forwarding | `/etc/sysctl.conf`, `net.ipv4.ip_forward=1`, `sysctl -p` |
+| 32 | ✅ | 65 | Configure Rich Rules | `firewall-cmd --add-rich-rule` — deny specific host |
+| 33 | ✅ | 66 | Setup Port Forwarding DNAT | `firewall-cmd` rich rules — redirect port 80→8008 |
+| 34 | ✅ | 67 | Configure ICMP Filters | `firewall-cmd --add-icmp-block echo-request` — drop pings |
+| 35 | 📅 | FW-F01 | Open Multiple Services at Once for Web Hosting | `--add-service={ssh,http,https}`, `--list-services` |
+| 36 | 📅 | FW-F02 | Open a Non-Standard SSH Port + Move SSH There | `--add-port=88/tcp`, `sshd_config Port 88`, `semanage port` |
+
+#### Step 4: TCP Wrappers, PAM, SELinux
+
+| # | Status | ID / # | Full Lab Name | Key Commands / Focus |
+|---|---|---|---|---|
+| 1 | ✅ | 68 | Verify TCP Wrappers Support | `ldd /usr/sbin/sshd \| grep libwrap` |
+| 2 | ✅ | 69 | Restrict Access via hosts.deny | `/etc/hosts.deny` `ALL : ALL` — default deny |
+| 3 | ✅ | 70 | Allow Specific Access via hosts.allow | `/etc/hosts.allow` — explicit SSH allows |
+| 4 | ✅ | 71 | Configure TCP Wrappers for FTP | `vsftpd`, `/etc/hosts.deny` — deny specific IP |
+| 5 | ✅ | 72 | Explore PAM Config Files | `/etc/pam.d/` — types + control flags |
+| 6 | ✅ | 73 | Read PAM Module Documentation | `/usr/share/doc/pam-*/txts/` — `pam_securetty.so` docs |
+| 7 | ✅ | 74 | Implement Password Complexity | `pam_pwquality.so`, `system-auth` — enforce password rules |
+| 8 | ✅ | 75 | Configure PAM to Limit root Access | `pam_securetty.so` — root only on tty6 |
+| 9 | ✅ | 76 | Use PAM to Limit User Access | `/etc/nologin` — block regular users with custom message |
+| 10 | ✅ | 77 | Restrict Service Access by User List | `pam_listfile.so` — deny per text-file user list |
+| 11 | ✅ | 78 | Managing SELinux Modes | `sestatus`, `setenforce` — enforcing vs permissive |
+| 12 | ✅ | 79 | Viewing SELinux Contexts | `ls -Z`, `ps -eZ` — file + process contexts |
+| 13 | ✅ | 80 | Temporary Context Changes | `chcon` — non-persistent context change |
+| 14 | ✅ | 81 | Persistent Context Restoration | `semanage fcontext`, `restorecon` — persistent rules + apply |
+| 15 | ✅ | 82 | Toggling SELinux Booleans | `getsebool`, `setsebool -P` |
+| 16 | ✅ | 83 | SELinux User Mapping | `semanage login` — map Linux user to `guest_u`/`staff_u` |
+| 17 | ✅ | 84 | Troubleshooting SELinux | `audit.log`, `sealert` — diagnose denials |
+| 18 | 🚧 | in-repo | Apply Recursive SELinux Contexts to a New Directory | `semanage fcontext -a -e`, `restorecon -RFv` reference-dir contexts |
+| 19 | 📅 | SEL-F02 | Add a Custom HTTP Port to the SELinux Policy Database | `semanage port -a -t http_port_t -p tcp 8300` |
+| 20 | 📅 | SEL-F03 | Set SELinux to Permissive Mode Persistently | `/etc/selinux/config: SELINUX=permissive`, `setenforce 0` |
+| 21 | 📅 | SEL-F04 | Apply Recursive SELinux Context from a Reference Directory | `semanage fcontext -a -e /etc /dir`, `restorecon -RFv` |
+| 22 | 📅 | SEL-F05 | Configure Apache to Serve from a Non-Default Directory | `semanage fcontext -t httpd_sys_content_t '/web(/.*)?'` |
+| 23 | 📅 | SEL-F06 | Toggle the `httpd_can_network_connect` Boolean Persistently | `setsebool -P httpd_can_network_connect on`, reboot-verify |
+
+#### Step 5: Boot, Systemd, Logging
+
+| # | Status | ID / # | Full Lab Name | Key Commands / Focus |
+|---|---|---|---|---|
+| 1 | ✅ | 85 | Modify GRUB Timeout | `/etc/default/grub`, `GRUB_TIMEOUT` |
+| 2 | ✅ | 86 | Enable Verbose Kernel Messages | `GRUB_CMDLINE_LINUX` — remove `quiet` keyword |
+| 3 | ✅ | 87 | Generate New GRUB Config | `grub2-mkconfig -o /boot/grub2/grub.cfg` |
+| 4 | ✅ | 88 | Reset Root Password via Boot | GRUB `rd.break`, `chroot`, `passwd`, `.autorelabel` |
+| 5 | ✅ | 89 | Chroot into Rescue Filesystem | `chroot /mnt/sysimage` — repairs to installed system |
+| 6 | 📅 | BOOT-F01 | Enable Verbose Boot by Removing `quiet` and `rhgb` | Edit `/etc/default/grub`, `grub2-mkconfig`, observe verbose boot |
+| 7 | ✅ | 90 | Check Default Boot Target | `systemctl get-default` |
+| 8 | ✅ | 91 | Change Default Boot Target | `systemctl set-default` — permanent text-mode boot |
+| 9 | ✅ | 92 | System Reboots and Shutdowns | `systemctl reboot`, `systemctl poweroff` |
+| 10 | ✅ | 93 | List All System Units | `systemctl list-units --all` |
+| 11 | ✅ | 94 | Check Service Status | `systemctl status` — PID + recent logs |
+| 12 | ✅ | 95 | Start and Stop Services | `systemctl start`, `systemctl stop` |
+| 13 | ✅ | 96 | Enable Services at Boot | `systemctl enable` — link to default target |
+| 14 | ✅ | 97 | Disable Services at Boot | `systemctl disable` — block auto-start |
+| 15 | ✅ | 98 | Mask System Services | `systemctl mask` — block accidental start |
+| 16 | ✅ | 99 | Create and Manage systemd Unit Files | Unit file syntax, `systemctl daemon-reload` |
+| 17 | 📅 | SYSD-F01 | Set the Default Boot Target to `multi-user.target` | `systemctl set-default`, `isolate`, reboot-verify |
+| 18 | ✅ | 100 | Analyze Boot Performance | `systemd-analyze blame` — slowest boot services |
+| 19 | 🚧 | 101 | Query Logs with journalctl | `journalctl -u`, `-p`, `--since`, `--until` |
+| 20 | 🚧 | 102 | Configure Persistent Journal Logs | `/var/log/journal` — force on-disk journal |
+| 21 | 🚧 | 103 | Understand Log Routing | `/etc/rsyslog.conf` — kernel + system message routing |
+| 22 | 🚧 | 104 | Monitor Authentication Logs | `/var/log/secure` — logins, SSH, failed auth |
+| 23 | 🚧 | 105 | Filter systemd Journals by Priority | `journalctl -p alert` — high-priority errors |
+| 24 | 🚧 | 106 | Service-Specific Journal Logs | `journalctl -u httpd` — daemon-scoped journal |
+
+#### Step 6: Storage, LVM, Mounts
+
+| # | Status | ID / # | Full Lab Name | Key Commands / Focus |
+|---|---|---|---|---|
+| 1 | ✅ | 107 | Configure Timezone and Time Synchronization | `timedatectl`, `systemctl enable --now chronyd` |
+| 2 | 🚧 | 108 | Check NTP Sync Status | `ntpq -p`, `chronyc tracking` |
+| 3 | ✅ | 109 | Configure NTP Time Source | `/etc/chrony.conf`, `chronyc sources`, `iburst` |
+| 4 | 📅 | TIME-F01 | Set System Timezone via `timedatectl` | `timedatectl set-timezone Europe/London` |
+| 5 | 📅 | TIME-F02 | Configure Chrony with a Specific NTP Server | `/etc/chrony.conf` `server utility.ntp.org iburst`, `chronyc sources -v` |
+| 6 | 🚧 | 110 | Inspect Filesystems | `df -h`, `findmnt` |
+| 7 | 🚧 | 111 | Display Partition Tables | `fdisk -l` — all attached drives |
+| 8 | 🚧 | 112 | Create MBR Partition with fdisk | `fdisk /dev/vdb` — `n`, `p`, `w` |
+| 9 | 🚧 | 113 | Change Partition Types in fdisk | `t` command — `83` Linux, `8e` LVM |
+| 10 | 🚧 | 114 | Create GPT Partition with gdisk | `gdisk` — GPT partition table |
+| 11 | 🚧 | 115 | Command-Line Partitioning with parted | `parted`, `mklabel`, `mkpart` |
+| 12 | 🚧 | 116 | Format Partition with XFS | `mkfs.xfs` — default RHEL filesystem |
+| 13 | 🚧 | 117 | Format Partition with Ext4 | `mkfs.ext4` — journaling filesystem |
+| 14 | 🚧 | 118 | Check Filesystem Consistency | `fsck.ext4` — integrity of unmounted ext partition |
+| 15 | 🚧 | 119 | Inspect Filesystem Features | `dumpe2fs -h \| grep features` |
+| 16 | 🚧 | 120 | Create and Activate Swap Space | `mkswap`, `swapon`, `swapoff`, `/etc/fstab` |
+| 17 | 📅 | STOR-F03 | Create an MBR Partition with ext4 Mounted by LABEL | `parted mklabel msdos`, `mkfs.ext4 -L MYDEV`, fstab LABEL= |
+| 18 | 📅 | STOR-F04 | Create a Companion LVM-Type Partition on the Same Disk | `parted mkpart`, `set 2 lvm on`, prove with `fdisk -l` |
+| 19 | 🚧 | in-repo | Create a Swap Partition by UUID | `mkswap`, `blkid`, fstab `UUID=... swap sw 0 0`, `swapon -a` |
+| 20 | 🚧 | in-repo | Create an Ext4 Partition Mounted by LABEL | `mkfs.ext4 -L`, fstab `LABEL=... ext4 defaults 0 2` |
+| 21 | 🚧 | 121 | Initialize Physical Volumes | `pvcreate` |
+| 22 | 🚧 | 122 | Display Physical Volumes | `pvs`, `pvdisplay` |
+| 23 | 🚧 | 123 | Create Volume Group | `vgcreate` — pool PVs into VG |
+| 24 | 🚧 | 124 | Display Volume Groups | `vgs`, `vgdisplay` |
+| 25 | 🚧 | 125 | Create Logical Volume | `lvcreate` — allocate from VG |
+| 26 | 🚧 | 126 | Display Logical Volumes | `lvs`, `lvdisplay` |
+| 27 | 🚧 | 127 | Extend Volume Group | `vgextend` — add PV to existing VG |
+| 28 | 🚧 | 128 | Extend Logical Volume | `lvextend` — grow LV |
+| 29 | 🚧 | 129 | Resize Filesystem After Extend | `xfs_growfs`, `resize2fs` |
+| 30 | 🚧 | 130 | Remove LVM Components | `lvremove`, `vgremove`, `pvremove` |
+| 31 | ✅ | in-repo (LAB) | Create LV `lvol1` (ext4, 280 MB) | `pvcreate`, `vgcreate`, `lvcreate -L 280M -n lvol1`, mkfs.ext4, UUID fstab on `/mnt/mnt1` |
+| 32 | ✅ | in-repo | Create LV with XFS Filesystem | `lvcreate -l 10 -n lv1 vg1` (8 MB PE × 10 LE), mkfs.xfs, persistent mount `/mnt/lvfs1` |
+| 33 | 🚧 | in-repo | Online Extend an LV and Its Filesystem Without Unmounting | `lvextend -L +64M`, `xfs_growfs` while mounted |
+| 34 | 📅 | LVM-F02 | Create an LVM VDO Volume with Thin Provisioning | `vdo create --vdoLogicalSize=20G`, ext4 + XFS variants |
+| 35 | 📅 | LVM-F03 | LV by Extent Count in a VG with Custom PE Size (ext4 variant) | `vgcreate -s 8M`, `lvcreate -l 50` = 400 MiB, mkfs.ext4 |
+| 36 | 📅 | LVM-F04 | LV Sized as a Percentage of the VG with XFS + UUID Mount | `lvcreate -l 50%VG`, mkfs.xfs, fstab UUID |
+| 37 | 📅 | LVM-F05 | LV Sized as a Percentage of Free Space with XFS | `lvcreate -l 75%FREE -n lvstore vgdata` |
+| 38 | 📅 | LVM-F06 | LV with Extent Count + Reserved Free Extents Constraint | `vgcreate -s 16M`, `lvcreate -l 40` leaving ≥10 free |
+| 39 | 📅 | LVM-F07 | Online Resize LV to a New Total Extent Count + Grow ext4 | `lvresize -l 85` (exact total), `resize2fs` |
+| 40 | 📅 | LVM-F08 | Add Extents to an Existing LV + Grow XFS Online | `lvextend -l +8`, `xfs_growfs /mnt/team_lv` |
+| 41 | 📅 | LVM-F09 | Create Swap from Remaining VG Free Space | `lvcreate -L 500M -n swap_lv`, `mkswap`, fstab swap entry |
+| 42 | 🚧 | 131 | Mount Filesystem Manually | `mount` — attach partition or LV to directory |
+| 43 | 🚧 | 132 | Retrieve Filesystem UUIDs | `blkid` — UUID for persistent mounting |
+| 44 | 🚧 | 133 | Configure Persistent Mounts fstab | `/etc/fstab` — UUID + mount point + fs type |
+| 45 | 🚧 | 134 | Mount Network CIFS Shares | `mount.cifs` — Windows/Samba share |
+| 46 | 🚧 | 135 | Remount with New Options | `mount -o remount` — modify options live |
+| 47 | 🚧 | 136 | Manage Autofs Service | `systemctl` — automounter at boot |
+| 48 | 📅 | NFS-F01 | NFS Server + AutoFS Direct Map | Export `/rh_share`, client `/etc/auto.master.d/direct.autofs` |
+| 49 | 📅 | NFS-F02 | NFS Home-Directory Export with AutoFS Indirect Map on Login | Server exports `/home/user60`, client indirect map mounts at first login |
+| 50 | 📅 | NFS-F03 | NFS Static Export with Persistent `/etc/fstab` Mount | `exportfs -rav`, `_netdev,defaults` fstab entry |
+| 51 | 📅 | NFS-F04 | Configure a Node as an NFS Server (companion lab) | `nfs-utils`, `/etc/exports`, `exportfs -rav`, firewall `nfs,mountd,rpc-bind` |
+| 52 | 📅 | NFS-F05 | AutoFS Indirect Map for Remote Home Dirs with 60s Timeout | `/homes/remote /etc/auto.homes --timeout=60` |
+| 53 | 📅 | NFS-F06 | AutoFS Direct Map for `/mnt/shared` with 5-Minute Timeout | `/etc/auto.master.d/direct.autofs`, `--timeout=300` |
+
+#### Step 7: Packages, Users, Sudo
+
+| # | Status | ID / # | Full Lab Name | Key Commands / Focus |
+|---|---|---|---|---|
+| 1 | 🚧 | 137 | Install Local RPM Package | `rpm -ivh` — install from local file |
+| 2 | 🚧 | 138 | Upgrade RPM Package | `rpm -U`, `rpm -F` — upgrade existing |
+| 3 | 🚧 | 139 | Install New Kernel Safely | `rpm -ivh` — install kernel side-by-side |
+| 4 | 🚧 | 140 | Uninstall Package rpm -e | `rpm -e` — remove a package |
+| 5 | 🚧 | 141 | Query All Installed Packages | `rpm -qa` — list all installed |
+| 6 | 🚧 | 142 | Query Specific Package Info | `rpm -qi` — package metadata |
+| 7 | 🚧 | 143 | List Files Within Package | `rpm -ql` — what files a package installed |
+| 8 | 🚧 | 144 | Identify File Owner | `rpm -qf` — which package owns a file |
+| 9 | 🚧 | 145 | Query Uninstalled RPMs | `rpm -p` — inspect an RPM file pre-install |
+| 10 | 🚧 | 146 | Verify Package Integrity | `rpm -V` — verify against RPM database |
+| 11 | 🚧 | 147 | System-Wide Verification | `rpm -Va` — verify all packages |
+| 12 | 🚧 | 148 | Import GPG Key | `rpm --import` — public GPG into RPM DB |
+| 13 | 🚧 | 149 | Check Package Signatures | `rpm -K` — verify signature before installing |
+| 14 | ✅ | 150 | Configure Repository Access | `dnf`, `tee`, `/etc/yum.repos.d/` |
+| 15 | 🚧 | 151 | Install Packages with dnf | `dnf install` — auto-resolve dependencies |
+| 16 | 🚧 | 152 | Remove Packages with dnf | `dnf remove` — uninstall + orphan removal |
+| 17 | 🚧 | 153 | Update System dnf update | `dnf update` — package or system |
+| 18 | 🚧 | 154 | Search for Software | `dnf search` — find packages by keyword |
+| 19 | 🚧 | 155 | Find File Providers | `dnf whatprovides` — which package ships a file |
+| 20 | 🚧 | 156 | List dnf Packages | `dnf list` — installed + available |
+| 21 | 🚧 | 157 | Display Enabled Repositories | `dnf repolist all` |
+| 22 | 🚧 | 158 | View Package Group Info | `dnf group list`, `dnf group info` |
+| 23 | ✅ | 159 | Install Package Groups | `dnf groupinstall`, `dnf groupremove` |
+| 24 | 🚧 | 160 | Create Custom YUM Repository | `createrepo` — local repo with XML metadata |
+| 25 | ✅ | 161 | Managing Flatpak | `flatpak remote-add`, `flatpak install --user`, `flatpak list` |
+| 26 | 🚧 | in-repo | Install Development Tools Package Group with Output Capture | `dnf group install 'Development Tools'`, capture before/after with `dnf list installed` |
+| 27 | 📅 | PKG-F02 | Configure Local Repository from Installation ISO Media | Loop-mount ISO at `/repo`, fstab entry, `.repo` files for BaseOS + AppStream |
+| 28 | 📅 | PKG-F03 | Configure Two HTTP-Hosted Repositories from a Network Source | `http://repo.example.com/rhel9/{BaseOS,AppStream}`, `dnf install -y httpd` |
+| 29 | 🚧 | 162 | Inspect Password Database | `/etc/passwd` — usernames, UIDs, GIDs, home |
+| 30 | 🚧 | 163 | Analyze Shadow File | `/etc/shadow` — hashed passwords + aging |
+| 31 | 🚧 | 164 | Modify Default Password Aging | `/etc/login.defs` `PASS_MAX_DAYS` etc. |
+| 32 | ✅ | 165 | User & Group Management / Permissions | `useradd`, `groupadd`, `chown`, `chmod`, `id`, `getent` |
+| 33 | 🚧 | 166 | Modify Existing Account | `usermod -L/-U/-aG` — lock/unlock/append group |
+| 34 | 🚧 | 167 | Advanced Group Management | `groupadd`, `gpasswd`, `groupmod` |
+| 35 | 🚧 | 168 | Force Password Changes | `chage` — view aging + force next-login change |
+| 36 | 🚧 | 169 | Safely Delete Users | `userdel -r` — remove user + home + mail spool |
+| 37 | ✅ | 170 | Disable User Login Without Removing the Account | `usermod -s /sbin/nologin`, `getent passwd` |
+| 38 | 🚧 | 171 | Validate User and Group Creation | `/etc/group`, `/etc/shadow` — verify primary groups |
+| 39 | 🚧 | 172 | Proper Use of su vs su - | `su` vs `su -` — env var differences |
+| 40 | 🚧 | 173 | Limit Access to su PAM | PAM `wheel` group restriction |
+| 41 | 🚧 | 174 | Configure Custom Administrators | `visudo`, `/etc/sudoers` — full admin grant |
+| 42 | 🚧 | 175 | Granular sudo Privileges | `visudo`, `Cmnd_Alias` — specific-command grants |
+| 43 | 🚧 | 176 | Limit root Logins | `/etc/securetty` — which TTYs root can use |
+| 44 | 🚧 | 177 | Restrict Root to Single Console | `/etc/securetty` — root only on `tty6` |
+| 45 | 🚧 | 178 | Populate Directory Templates | `/etc/skel` — auto-files on user creation |
+| 46 | 🚧 | 179 | Manage Shell Environments | `.bash_profile`, `.bashrc` — persistent env + aliases |
+| 47 | 🚧 | 180 | Alter Global Default umask | `/etc/bashrc`, `/etc/profile` — system-wide umask |
+| 48 | 🚧 | 181 | Distribute Documentation via Skel | `/etc/skel` — docs auto-distributed to new users |
+| 49 | 🚧 | 182 | Control Group Ownership SGID | `chmod g+s` — group inheritance on shared dir |
+| 50 | 🚧 | 183 | Set Up Group-Managed Directory | `chmod 2770 /home/galley` — 4-user shared dir |
+| 51 | ✅ | in-repo | Lock User Account and Capture Regex Evidence | `passwd -l`, `chage -E 0`, grep `/etc/shadow` for lock marker |
+| 52 | 📅 | USER-F01 | Group with Fixed GID + User with Primary/Secondary Groups | `groupadd -g 3500 admins`, `useradd -u 3455 -g admins -G users harry` |
+| 53 | 📅 | USER-F02 | User Without Interactive Shell (`nologin`) That Still Authenticates | `useradd -s /sbin/nologin sarah`, PAM password auth still works |
+| 54 | 📅 | USER-F03 | User With Explicit (Hand-Built) Home Directory | `useradd -M`, `mkdir + cp -av /etc/skel/.`, `chmod 700` |
+| 55 | 📅 | USER-F04 | Force Password Change at Next Login | `passwd --expire liam` or `chage -d 0` |
+| 56 | 📅 | USER-F05 | Set Hard Account Expiry Date | `chage -E 2029-01-01 lina`, or `$(date -d '+7 days')` |
+| 57 | 📅 | USER-F06 | Welcome.txt Auto-Created for Every New User via `/etc/skel` | `echo > /etc/skel/Welcome.txt`, new user inherits |
+| 58 | 📅 | USER-F07 | Configure System-Wide Password Aging Policy | `/etc/login.defs PASS_MAX_DAYS 30`, applies to new users |
+| 59 | 📅 | USER-F08 | Reset Root Password from GRUB Boot Menu (`rd.break` Path) | GRUB + `rd.break`, `chroot /sysroot`, `passwd`, `.autorelabel` |
+| 60 | 📅 | SUDO-F01 | Full Sudo for a User + NOPASSWD for an Entire Group | `john ALL=(ALL) ALL` + `%admins ALL=(ALL) NOPASSWD: ALL` |
+| 61 | 📅 | SUDO-F02 | Granular Sudo: Allow `passwd` Except Root Password Changes | `brian ALL=(ALL) /usr/bin/passwd [A-Za-z]*, !/usr/bin/passwd root` |
+| 62 | 📅 | SUDO-F03 | Privileged User with Account Expiry | `useradd -u 4545 marvin`, wheel + `chage -E $(date -d '+7 days')` |
+
+#### Step 8: Processes, Archives, Cron
+
+| # | Status | ID / # | Full Lab Name | Key Commands / Focus |
+|---|---|---|---|---|
+| 1 | 🚧 | 184 | Audit All Running Processes | `ps aux` — CPU + memory usage |
+| 2 | 🚧 | 185 | Identify Process Details | `ps axl` — PPIDs + nice values |
+| 3 | 🚧 | 186 | View SELinux Process Contexts | `ps -Z` — SELinux contexts of running daemons |
+| 4 | 🚧 | 187 | Real-Time Process Monitoring | `top` — load, tasks, memory, swap |
+| 5 | 🚧 | 188 | Adjust Process Priority | `renice` — change priority of running process |
+| 6 | 🚧 | 189 | Start Processes with Custom Priority | `nice` — launch with predefined priority |
+| 7 | 🚧 | 190 | Terminate Processes Gracefully | `kill` (SIGTERM) |
+| 8 | 🚧 | 191 | Force Kill Unresponsive Processes | `kill -9` (SIGKILL) |
+| 9 | 🚧 | 192 | Kill Processes by Name | `killall` — kill multiple by name |
+| 10 | 📅 | PROC-F01 | Start a Background Process with a Specific nice Value | `nice -n 10 sleep 3600 &`, capture `$!`, `ps -o pid,ni` |
+| 11 | 📅 | PROC-F02 | Renice a Running Process to a Higher Priority | `renice -n -5 -p $PID` — root needed for negative niceness |
+| 12 | 📅 | PROC-F03 | Lowest-Priority Background Task on User Login | `~/.bash_profile`: `nice -n 19 sleep infinity &` |
+| 13 | 📅 | PROC-F04 | Clean Termination of a Background Process | SIGTERM first, SIGKILL only on hung processes |
+| 14 | ✅ | 193 | Standard File Compression with gzip | `gzip`, `gunzip`, `zcat` |
+| 15 | ✅ | 194 | High-Ratio Compression with bzip2 | `bzip2`, `bunzip2`, `bzcat` |
+| 16 | ✅ | 195 | Create Standard Archives with tar | `tar -cvf`, `-tvf`, `-xvf` |
+| 17 | 🚧 | 196 | Create Compressed Archives | `tar -czf`, `-cjf`, `-cJf`, `xz` |
+| 18 | 🚧 | 197 | Extract Archives | `tar -xvf` — extract to specific directory |
+| 19 | 🚧 | 198 | Preserve Security Contexts in Archives | `tar --selinux` — preserve contexts + ACLs |
+| 20 | 📅 | ARCH-F01 | Create an xz-Compressed Tar Archive | `tar -cJvf /archives/config_backup.tar.xz /etc` |
+| 21 | 📅 | ARCH-F02 | Create an Uncompressed Standard Tar Archive | `tar -cvf /root/etc_opt.bak.tar /etc /opt` |
+| 22 | 📅 | ARCH-F03 | Restore a Tar Archive into a Specific Destination Directory | `tar -xzvf /root/tmp.tgz -C /root/restored_tmp` |
+| 23 | 🚧 | 199 | Review System-Wide cron Jobs | `/etc/crontab` — m h dom mon dow format |
+| 24 | 🚧 | 200 | Schedule Tasks with cron | `crontab -e`, `/etc/cron.d/` |
+| 25 | 🚧 | 201 | Remove User cron Jobs | `crontab -l`, `crontab -r` |
+| 26 | 🚧 | 202 | Schedule One-Time Task with at | `at` — one-shot scheduling |
+| 27 | 🚧 | 203 | Limit Access to cron | `/etc/cron.deny` |
+| 28 | 🚧 | 204 | Limit Access to at | `/etc/at.allow`, `/etc/at.deny` |
+| 29 | 🚧 | 205 | Review the Anacron System | `/etc/anacrontab` — catch up missed jobs |
+| 30 | 🚧 | 206 | Create a Specific cron Job | `crontab -e` — 1:05 PM Mondays in January |
+| 31 | 🚧 | 207 | Schedule Software Audit with at | `at` — `rpm -qa > /root/rpms.txt` in 5 minutes |
+| 32 | ✅ | in-repo (LAB) | Scheduling Jobs (systemd timer, Mon–Fri 2 AM) | `.timer` + `.service`, `OnCalendar=Mon..Fri *-*-* 02:00:00` |
+| 33 | 🚧 | in-repo | User-Level Cron Job with `find -exec` | `crontab -e` as user, `find -exec` into core directory |
+| 34 | 📅 | CRON-F02 | User Cron Job at 12:45 AM Daily | `45 0 * * * /usr/bin/echo ... >> $HOME/cron.log` |
+| 35 | 📅 | CRON-F03 | Recurring User Cron Job Every 2 Minutes | `*/2 * * * * logger "..."` |
+| 36 | 📅 | CRON-F04 | Weekday-Only Cron Job at 5:45 AM | `45 5 * * 1-5 logger "Good morning!"` |
+| 37 | 📅 | CRON-F05 | Midnight-Weekend Root Cron Job to Clean Empty Files in `/tmp` | `0 0 * * 6,0 find /tmp -maxdepth 1 -type f -empty -delete` |
+| 38 | 📅 | CRON-F06 | One-Time `at` Job for a Specific Wall-Clock Time | `echo 'cmd' \| at 21:30` |
+| 39 | 📅 | CRON-F07 | One-Time `at` Job One Hour from Now Writing to journald | `echo 'logger "..."' \| at now + 1 hour` |
+
+#### Step 9: GPG, Remote Admin, Security
+
+| # | Status | ID / # | Full Lab Name | Key Commands / Focus |
+|---|---|---|---|---|
+| 1 | 🚧 | 208 | Generate a GPG Key Pair | `gpg --gen-key` — RSA pub/priv + passphrase |
+| 2 | 🚧 | 209 | Encrypt a File with GPG | `gpg --recipient --encrypt` |
+| 3 | 🚧 | 210 | Decrypt a GPG File | `gpg --decrypt` |
+| 4 | 🚧 | 211 | Share and Verify Public Keys | `gpg --export -a`, `scp`, `gpg --import` |
+| 5 | 🚧 | 212 | SSH and SCP File Transfer | `ssh`, `scp` |
+| 6 | 🚧 | 213 | Network Troubleshooting | `telnet`, `nmap` — port scans + service checks |
+| 7 | ✅ | 214 | Command-Line Web and FTP Testing | `elinks -dump`, `lftp`, `get`/`put` |
+| 8 | ✅ | 215 | Command-Line Email Testing | `mail -s`, `mutt -f`, `postfix`, `/var/mail/` |
+| 9 | 🚧 | 216 | Service Isolation Bastion Host | `systemctl disable` — SSH-only minimal VM |
+| 10 | 🚧 | 217 | Monitor Security Updates | `dnf update` — Red Hat Errata fixes |
+| 11 | 🚧 | 218 | Build a Bastion Server | minimal install, `systemctl` — SSH active, others disabled |
+| 12 | 🚧 | 219 | Comprehensive firewalld Setup | `firewall-cmd` — HTTP+SSH, ICMP block, masq + rich rules |
+| 13 | 🚧 | 220 | PAM and SELinux with FTP | `vsftpd`, `ftp_home_dir` boolean, PAM blocks root FTP |
+| 14 | 📅 | SSH-F01 | Configure SSH to Listen on a Custom Port | `Port 88`, `semanage port -a -t ssh_port_t`, firewall port 88/tcp |
+| 15 | 📅 | SSH-F02 | Permit Root SSH Login with Authentication-Failure Lockout | `PermitRootLogin yes` + `MaxAuthTries 3` |
+| 16 | 📅 | SSH-F03 | Passwordless SSH from Root to Remote Root | `ssh-keygen -t ed25519 -N ""`, `ssh-copy-id` |
+| 17 | 📅 | SSH-F04 | Key-Based SSH from a User to a Remote Root on a Custom Port | `ssh-copy-id -p 88 root@Node1`, prove `ssh -p 88` works |
+| 18 | 📅 | SSH-F05 | Configure Local `/etc/hosts` Name Resolution | Add `192.168.56.25 node1.lab3.example.net` for DNS-free SSH |
+| 19 | 📅 | SSH-F06 | Secure File Transfer with `scp` Preserving Attributes | `scp -p` (preserves timestamps + mode) vs `rsync --chown` |
+
+#### Step 10: Web, Tuning, Scripting, Containers
+
+| # | Status | ID / # | Full Lab Name | Key Commands / Focus |
+|---|---|---|---|---|
+| 1 | ✅ | 221 | Configure Apache to Serve Default and Custom Web Content | `httpd`, `semanage fcontext`, `restorecon`, `curl` |
+| 2 | 🚧 | 222 | Password-Protect a Directory | `htpasswd`, `AuthType Basic`, `Require user` |
+| 3 | 🚧 | 223 | Deploy Name-Based Virtual Hosts | `<VirtualHost *:80>`, `/etc/httpd/conf.d/` |
+| 4 | 🚧 | 224 | Configure Secure Virtual Hosts HTTPS | `ssl.conf`, `SSLCertificateFile`, `genkey` |
+| 5 | 📅 | WEB-F01 | Apache Listening on a Non-Standard TCP Port | `Listen 85`, `semanage port -a -t http_port_t`, firewall 85/tcp |
+| 6 | 📅 | WEB-F02 | Apache Default Page + Custom Content Directory | `/web/practice.html`, `semanage fcontext httpd_sys_content_t '/web(/.*)?'` |
+| 7 | 📅 | WEB-F03 | Apache Subdirectory Routing with SELinux Inheritance | `/var/www/html/route_station`, inherited context |
+| 8 | 📅 | WEB-F04 | Password-Protected Apache Directory with htpasswd | `htpasswd -c`, `AuthType Basic`, `Require valid-user` |
+| 9 | 📅 | WEB-F05 | Apache SSL Virtual Host with Self-Signed Certificate | `openssl req -x509`, ssl.conf, firewall `--add-service=https` |
+| 10 | ✅ | 225 | Enable Recommended Tuning Profile | `tuned-adm recommend`, `tuned-adm profile`, `tuned-adm active` |
+| 11 | 📅 | PERF-F01 | Apply the `virtual-guest` Tuning Profile | `tuned-adm profile virtual-guest` for VMs |
+| 12 | 📅 | PERF-F02 | Apply a Power-Saving / Virtualization-Balanced Profile | `tuned-adm profile balanced-battery` or `virtual-guest-powersave` |
+| 13 | ✅ | 226 | Argument-Based Conditional Script | `$1`, `$#`, `if/elif/else`, `exit 5`, `chmod +x` |
+| 14 | 🚧 | 227 | Use for Loops for Iteration | `for`, `getent passwd` |
+| 15 | 🚧 | in-repo | Bidirectional Bash Script with Argument Logic | `$#` validation, exit codes, two-way arg handling |
+| 16 | 📅 | SCRIPT-F02 | Bash Script: Find Files Matching a Pattern and Print stat | Loop `/usr/bin/ac*`, `[ -f $f ]`, `stat`, redirect to `/var/tmp/acstats.out` |
+| 17 | 📅 | SCRIPT-F03 | Bash Script: Create a User Whose Name Comes from a Variable | `ENV1=book1`, `useradd "$ENV1"`, `id "$ENV1"` |
+| 18 | 📅 | SCRIPT-F04 | Countdown Timer Script with Argument or Interactive Prompt | `$# -eq 1` arg vs `read -p`, `while [ $COUNT -gt 0 ]` |
+| 19 | 📅 | SCRIPT-F05 | Sum of an Unknown Number of Integer Arguments | `$# -eq 0` → exit 1, `for n in "$@"; do ((total+=n)); done` |
+| 20 | 📅 | SCRIPT-F06 | Find Users by Login Shell and Save the List | `getent passwd \| awk -F: '$7=="/bin/bash"' > /root/bash_users.txt` |
+| 21 | 📅 | SCRIPT-F07 | Extract Login Shells of the Last 5 Users in `/etc/passwd` | `tail -5 /etc/passwd \| awk -F: '{printf...}'` |
+| 22 | 📅 | SCRIPT-F08 | Per-User Login Script via `.bash_profile` | Append refresh-command to `~/.bash_profile`, every login refreshes a file |
+| 23 | 📅 | SCRIPT-F09 | Three-Way Argument-Based Script with Multi-Arg Rejection | `$# > 1` → exit 5, two valid args + usage fallback |
+| 24 | 📅 | ENV-F01 | System-Wide Environment Variable via `/etc/profile.d` | `/etc/profile.d/sys_tag.sh`, `export SYS_TAG=...`, `printenv` |
+| 25 | ✅ | LAB | Launch Named Root Container with Port Mapping | `podman run`, `docker run`, `-p`, `--name`, `-it` (8-part lab) |
+| 26 | 🚧 | in-repo | Rootless Container with Bind Mount and systemd Auto-Start | rootless podman, bind mount, user-level systemd unit + linger |
+| 27 | 📅 | CON-F02 | Build a Custom Container Image with a Containerfile | `podman build -t custom:latest`, push to local registry, rootless run |
+| 28 | 📅 | CON-F03 | Rootless Container with Port Mapping + systemd Auto-Start | `podman generate systemd --new --files`, `loginctl enable-linger` |
+| 29 | 📅 | CON-F04 | Rootless Container with Bind Mount + Env Vars + Port Mapping | `-v /host_data01:/container_data01`, `-e ENVIRON=Exam`, `-e KERN=$(uname -r)` |
+| 30 | 📅 | CON-F05 | Authenticated Pull from `registry.redhat.io` | `podman login registry.redhat.io`, pull `ubi9/ubi` |
+| 31 | 📅 | CON-F06 | Build a UBI Image from a Single-Line Containerfile | `FROM registry.redhat.io/ubi8/ubi-init`, `podman build -t ubigreeter` |
+| 32 | 📅 | CON-F07 | Rootless HTTP Container with Bind-Mounted DocumentRoot | `-v /var/www/html:/usr/local/apache2/htdocs:Z` |
+| 33 | 📅 | CON-F08 | Rootless Database Container with Env Vars + Persistent Data | `MYSQL_ROOT_PASSWORD`, `-v /home/ray/inventory_data:/var/lib/mysql:Z` |
+| 34 | 📅 | CON-F09 | Rootless Nginx with Custom Config + DocumentRoot Mounts | Two bind mounts: `:Z` html + conf dirs |
+| 35 | 📅 | CON-F10 | Multi-Mount Rootless Container with Two Bind Mounts + Port | `-v /opt/out:/opt/in:Z -v /opt/send:/opt/receive:Z` |
+| 36 | 📅 | CON-F11 | Add Both Flathub and RHEL Flatpak Remotes | `flatpak remote-add flathub`, `flatpak remote-add rhel` |
+| 37 | 📅 | CON-F12 | Install Flatpak Applications (Firefox + VLC + GIMP) | `flatpak install -y flathub org.mozilla.firefox` etc. |
+| 38 | 📅 | CON-F13 | User-Scoped vs System-Wide Flatpak Installation | `--user` vs `--system` install comparison |
+| 39 | 📅 | CON-F14 | Remove Flatpak Apps, Prune Runtimes, Remove Remote | `flatpak uninstall`, `--unused`, `remote-delete` |
 
 ---
 
@@ -814,12 +1202,45 @@ Foundation → advanced. Each step locks in prerequisites for the next. Mirrors 
 
 Foundation builds the control project that every later lab reuses. After that, each exam-practice block is a self-contained mock exam — work them in order so you compound difficulty.
 
-| # | Phase | Labs to Complete |
-|---|---|---|
-| 1 | **Foundation — build the control project** | **RHCE-F01** (control project skeleton) → **RHCE-F02** (bootstrap managed hosts) → **RHCE-F03** (repo server playbook) → **RHCE-F04** (managed repo clients) |
-| 2 | **Exam Practice 1 — Apache + Roles + Storage** | **RHCE-F05** (webserver/webclient playbooks) → **RHCE-F06** (refactor into role) → **RHCE-F07** (storage role with SELinux) |
-| 3 | **Exam Practice 2 — Roles path + LVM + Vault + Galaxy + Users** | **RHCE-F08** (roles_path) → **RHCE-F09** (conditional LVM) → **RHCE-F10** (package facts) → **RHCE-F11** (vault credentials) → **RHCE-F12** (Galaxy roles) → **RHCE-F13** (Apache template w/ facts) → **RHCE-F14** (users from YAML) |
-| 4 | **Exam Practice 3 — Conditionals + Vault rotate + Time + Group vars** | **RHCE-F15** (conditional package install) → **RHCE-F16** (conditional LVM w/ failure messages) → **RHCE-F17** (sysreport hardware template) → **RHCE-F18** (vault password rotation) → **RHCE-F19** (timesync system role) → **RHCE-F20** (web content + group vars + symlink) |
+#### Step 1: Foundation — Build the Control Project
+
+| # | Status | ID | Full Lab Name | Key Commands / Focus |
+|---|---|---|---|---|
+| 1 | 📅 | RHCE-F01 | Build an RHCE Ansible Control Project | `ansible.cfg`, static inventory, test/dev/prod groups, FQDN resolution |
+| 2 | 📅 | RHCE-F02 | Bootstrap Managed Hosts with Ad-Hoc Commands | Install Python, create `ansible` user, sudoers drop-in, ping module |
+| 3 | 📅 | RHCE-F03 | Configure a Repository Server with an Ansible Playbook | `setupreposerver.yml`, loop-mount RHEL ISO, vsftpd anonymous access |
+| 4 | 📅 | RHCE-F04 | Configure Managed Repo Clients with Ad-Hoc Commands | `dnf config-manager`, BaseOS + AppStream from `control.example.com` |
+
+#### Step 2: Exam Practice 1 — Apache + Roles + Storage
+
+| # | Status | ID | Full Lab Name | Key Commands / Focus |
+|---|---|---|---|---|
+| 5 | 📅 | RHCE-F05 | HTTP Server and Client Playbooks with `site.yml` | `webserver.yml` + `webclient.yml`, `httpd.j2` template, handler, `site.yml` |
+| 6 | 📅 | RHCE-F06 | Convert HTTP Playbooks Into an Ansible Role | `defaults/`, `tasks/`, `templates/`, `handlers/` role refactor |
+| 7 | 📅 | RHCE-F07 | Ansible Storage Role for `/web` with SELinux Contexts | `parted gpt`, mount `/web`, `semanage fcontext httpd_sys_content_t` |
+
+#### Step 3: Exam Practice 2 — Roles Path + LVM + Vault + Galaxy + Users
+
+| # | Status | ID | Full Lab Name | Key Commands / Focus |
+|---|---|---|---|---|
+| 8 | 📅 | RHCE-F08 | Default Roles Path in `ansible.cfg` | `roles_path = /home/ansible/roles` with system fallbacks |
+| 9 | 📅 | RHCE-F09 | `setupstorage.yml` — Conditional LVM Playbook | 5GiB partition, `vgdata` 8MiB PEs, `lvdata` 1GiB ext3, `/data` mount |
+| 10 | 📅 | RHCE-F10 | `packagefacts.yml` — Package Version Report | Gather package facts, format kernel/bash/glibc into `/root/packages.txt` |
+| 11 | 📅 | RHCE-F11 | Ansible Vault Credentials Workflow | `cloudpass.yml` encrypted, `vaultpass.txt`, `usevault.yml` writes `/root/cloudcreds.txt` |
+| 12 | 📅 | RHCE-F12 | Install Galaxy Roles from `requirements.yml` | `geerlingguy.nginx` + `geerlingguy.docker`, `start-galaxy-roles.yml` |
+| 13 | 📅 | RHCE-F13 | Apache Role with Custom Template Showing HOSTNAME/IPADDRESS | `ansible_facts.hostname`, `ansible_default_ipv4.address` in template |
+| 14 | 📅 | RHCE-F14 | Create Users from YAML Input with SHA256 Passwords | Read `users_pass.yml`, filter `department=profs`, `password_hash('sha512')` |
+
+#### Step 4: Exam Practice 3 — Conditionals + Vault Rotate + Time + Group Vars
+
+| # | Status | ID | Full Lab Name | Key Commands / Focus |
+|---|---|---|---|---|
+| 15 | 📅 | RHCE-F15 | Conditional Package Installation by Host Group | perl/php on dev/test/prod, "Virtualization Host" on prod, `dnf upgrade` prod |
+| 16 | 📅 | RHCE-F16 | Conditional LVM Playbook with Failure Messages | `vgdata` 2GiB prod only, "vgprod does not exist" + insufficient-space messages |
+| 17 | 📅 | RHCE-F17 | `sysreport.yml` — Hardware Report from a Template | `hwtemplate.txt`, NAME/IPADDRESS/TOTAL_MEMORY/NIC_NAME → `/root/report.txt` |
+| 18 | 📅 | RHCE-F18 | Ansible Vault Password Rotation | `anspass.txt` with `devpass` + `prodpass`, rekey from `vaultpass` to `myvaultpass` |
+| 19 | 📅 | RHCE-F19 | RHEL Time Sync System Role (`rhel-system-roles.timesync`) | `settime.yml`, `control.example.com` source, `makestep`, `chronyc tracking` |
+| 20 | 📅 | RHCE-F20 | `runwebserver.yml` — Web Content with Symlink and Group Vars | `/webcontent/index.html`, `USERNAME=anna` in `group_vars/prod`, symlink to `/var/www/html` |
 
 > **Prerequisite:** finish the **Ansible Track** chapter labs (at minimum Ch 1, Ch 2, Ch 7, Ch 8) before starting RHCE-F01 — Foundation assumes you can read a playbook, write a role, and trace variable precedence.
 
@@ -873,15 +1294,76 @@ Foundation builds the control project that every later lab reuses. After that, e
 
 Follows the official CKA exam domain weights (Cluster Architecture 25% → Workloads 15% → Networking 20% → Storage 10% → Troubleshooting 30%). Build the cluster first, deploy on top of it, then break it on purpose.
 
-| # | Domain | Labs to Complete |
-|---|---|---|
-| 1 | **Cluster Architecture, Installation, Configuration** | README CKA **#01** (cluster components) → **#02** (install with kubeadm) → **CKA-F01** (HA control plane) → **CKA-F02** (Helm) → **CKA-F03** (Kustomize) → **CKA-F04** (CRI/CNI/CSI) → **CKA-F05** (operators + CRDs) |
-| 2 | **Workloads & Scheduling** | README CKA **#03** (Pods) → **#04** (Deployments + scale) → **#05** (DaemonSets + Jobs) → **CKA-F06** (rolling update + rollback) → **CKA-F07** (ConfigMaps) → **CKA-F09** (ReplicaSet self-healing) → **CKA-F10** (resource limits + LimitRanges) → **CKA-F11** (ResourceQuotas) → **CKA-F12** (node affinity/anti-affinity) → **CKA-F13** (taints + tolerations) → **CKA-F14** (topology spread) → **CKA-F08** (HPA — needs metrics-server) |
-| 3 | **Services & Networking** | README CKA **#06** (expose with Services) → **#07** (Ingress) → **#08** (NetworkPolicy) → **CKA-F16** (Gateway API) → **CKA-F17** (CoreDNS service discovery) |
-| 4 | **Storage** | README CKA **#09** (PVs + PVCs) → **#10** (StorageClasses) → **CKA-F15** (access modes + reclaim policies) |
-| 5 | **Security** | README CKA **#11** (RBAC) → **#12** (Secrets + ServiceAccounts) |
-| 6 | **Cluster Maintenance** | README CKA **#13** (cluster upgrade) → **#14** (etcd backup/restore) |
-| 7 | **Troubleshooting (heaviest exam weight)** | README CKA **#15** (debug Pods/Deployments) → **#16** (debug nodes/cluster) → **CKA-F18** (metrics-server + `kubectl top`) → **CKA-F19** (`kubectl logs` modes + sidecar patterns) → **CKA-F20** (Services/Networking iptables trace) |
+#### Step 1: Cluster Architecture, Installation, Configuration
+
+| # | Status | ID / # | Full Lab Name | Key Commands / Focus |
+|---|---|---|---|---|
+| 1 | 🚧 | CKA #01 | Explore Cluster Components | `kubectl get nodes`, `kubectl cluster-info` |
+| 2 | 🚧 | CKA #02 | Install a Cluster with kubeadm | `kubeadm init`, `kubeadm join` |
+| 3 | 📅 | CKA-F01 | Highly Available Control Plane with kubeadm | Stacked-etcd HA, `--control-plane-endpoint`, three control planes + VIP/LB |
+| 4 | 📅 | CKA-F02 | Install Cluster Components with Helm | `helm repo add`, `helm install`, `helm upgrade --atomic`, `helm rollback` |
+| 5 | 📅 | CKA-F03 | Manage Configs with Kustomize | `base/` + `overlays/dev/`+`overlays/prod/`, `kubectl apply -k`, SecretGenerator |
+| 6 | 📅 | CKA-F04 | Container Runtime and Extension Interfaces | CRI: `crictl ps` with containerd; CNI: Calico/Cilium; CSI: deploy driver |
+| 7 | 📅 | CKA-F05 | Install and Configure an Operator with a CRD | OLM or vendor operator, define CRD, watch reconcile |
+
+#### Step 2: Workloads and Scheduling
+
+| # | Status | ID / # | Full Lab Name | Key Commands / Focus |
+|---|---|---|---|---|
+| 8 | 🚧 | CKA #03 | Deploy and Manage Pods | `kubectl run`, `kubectl get pods`, `kubectl describe` |
+| 9 | 🚧 | CKA #04 | Create and Scale Deployments | `kubectl create deployment`, `kubectl scale` |
+| 10 | 🚧 | CKA #05 | Configure DaemonSets and Jobs | `kubectl apply -f`, DaemonSet/Job YAML |
+| 11 | 📅 | CKA-F06 | Perform a Rolling Update and Rollback | `kubectl set image`, `rollout status`, `rollout undo`, `maxSurge`/`maxUnavailable` |
+| 12 | 📅 | CKA-F07 | Configure Pods with ConfigMaps | `--from-file`, `--from-literal`, project as env vars vs volume mounts |
+| 13 | 📅 | CKA-F09 | ReplicaSet Self-Healing Demonstration | Delete pod, observe recreation; cordon/drain node, observe reschedule |
+| 14 | 📅 | CKA-F10 | Resource Limits and LimitRanges | Set requests/limits, apply LimitRange, watch admission rejections |
+| 15 | 📅 | CKA-F11 | Resource Quotas at Namespace Scope | ResourceQuota for cpu/memory/pods/pvcs, prove rejection |
+| 16 | 📅 | CKA-F12 | Node Affinity and Anti-Affinity Scheduling | `requiredDuringScheduling…`, podAntiAffinity with `topologyKey=hostname` |
+| 17 | 📅 | CKA-F13 | Taints and Tolerations | `kubectl taint node ... NoSchedule`, NoExecute + `tolerationSeconds` |
+| 18 | 📅 | CKA-F14 | Pod Topology Spread Constraints | `maxSkew`, `topologyKey`, `whenUnsatisfiable=DoNotSchedule` |
+| 19 | 📅 | CKA-F08 | Horizontal Pod Autoscaling | Deploy metrics-server, HPA on CPU, hey/wrk load, watch scale up/down |
+
+#### Step 3: Services and Networking
+
+| # | Status | ID / # | Full Lab Name | Key Commands / Focus |
+|---|---|---|---|---|
+| 20 | 🚧 | CKA #06 | Expose Applications with Services | `kubectl expose`, ClusterIP/NodePort/LoadBalancer |
+| 21 | 🚧 | CKA #07 | Configure Ingress | Ingress YAML, `kubectl get ingress` |
+| 22 | 🚧 | CKA #08 | Apply NetworkPolicy | NetworkPolicy YAML, ingress/egress rules |
+| 23 | 📅 | CKA-F16 | Use Gateway API for Ingress Traffic | Gateway API CRDs, GatewayClass, Gateway, HTTPRoute |
+| 24 | 📅 | CKA-F17 | Use CoreDNS for Service Discovery | kube-system coredns ConfigMap, custom stub-domain, debug pod nslookup |
+
+#### Step 4: Storage
+
+| # | Status | ID / # | Full Lab Name | Key Commands / Focus |
+|---|---|---|---|---|
+| 25 | 🚧 | CKA #09 | Create PersistentVolumes and PVCs | PV/PVC YAML, `kubectl get pv` |
+| 26 | 🚧 | CKA #10 | Configure StorageClasses | StorageClass YAML, dynamic provisioning |
+| 27 | 📅 | CKA-F15 | Volume Access Modes and Reclaim Policies | RWO/RWX/ROX, `persistentVolumeReclaimPolicy` Retain/Delete/Recycle |
+
+#### Step 5: Security
+
+| # | Status | ID / # | Full Lab Name | Key Commands / Focus |
+|---|---|---|---|---|
+| 28 | 🚧 | CKA #11 | Configure RBAC | `Role`, `ClusterRole`, `RoleBinding`, `kubectl auth can-i` |
+| 29 | 🚧 | CKA #12 | Manage Secrets and ServiceAccounts | `kubectl create secret`, ServiceAccount YAML |
+
+#### Step 6: Cluster Maintenance
+
+| # | Status | ID / # | Full Lab Name | Key Commands / Focus |
+|---|---|---|---|---|
+| 30 | 🚧 | CKA #13 | Upgrade a Kubernetes Cluster | `kubeadm upgrade`, `apt-get`, `kubectl drain` |
+| 31 | 🚧 | CKA #14 | Back Up and Restore etcd | `etcdctl snapshot save`, `snapshot restore` |
+
+#### Step 7: Troubleshooting (Heaviest Exam Weight)
+
+| # | Status | ID / # | Full Lab Name | Key Commands / Focus |
+|---|---|---|---|---|
+| 32 | 🚧 | CKA #15 | Troubleshoot Pods and Deployments | `kubectl logs`, `kubectl describe`, `kubectl exec` |
+| 33 | 🚧 | CKA #16 | Troubleshoot Node and Cluster Failures | `kubectl get nodes`, `systemctl status kubelet` |
+| 34 | 📅 | CKA-F18 | Monitor Cluster with `kubectl top` and Metrics Server | Deploy metrics-server, `top nodes`, `top pods --containers`, identify hot pods |
+| 35 | 📅 | CKA-F19 | Manage Container Output Streams | `logs --previous/--tail/--since/-f`, sidecar logging patterns |
+| 36 | 📅 | CKA-F20 | Troubleshoot Services and Networking | `kubectl get endpoints`, netshoot/busybox, `iptables -t nat -L KUBE-SERVICES` |
 
 > **Prerequisite:** finish RHCSA at least through **Step 4 (SELinux)** and **Step 6 (Storage/LVM)** before starting — CKA assumes you can fix a Linux node, not just `kubectl describe pod`.
 
@@ -965,13 +1447,53 @@ Follows the official CKA exam domain weights (Cluster Architecture 25% → Workl
 
 Domains follow the official CKAD curriculum weights (Design 20% → Deployment 20% → Observability 15% → Environment/Config/Security 25% → Networking 20%). Build images and Pods first, then layer in rollout strategies, probes, configuration, and finally Services + Ingress.
 
-| # | Domain | Labs to Complete |
-|---|---|---|
-| 1 | **Application Design and Build** | **CKAD-DES-F01** (build image w/ Dockerfile) → **CKAD-DES-F02** (Job) → **CKAD-DES-F03** (CronJob) → **CKAD-DES-F04** (sidecar logging) → **CKAD-DES-F05** (init container) → **CKAD-DES-F06** (PV + PVC) → **CKAD-DES-F07** (emptyDir shared volume) |
-| 2 | **Application Deployment** | **CKAD-DEP-F01** (canary) → **CKAD-DEP-F02** (blue-green via selector switch) → **CKAD-DEP-F03** (Helm chart + custom values) |
-| 3 | **Application Observability & Maintenance** | **CKAD-OBS-F01** (liveness + readiness + startup probes) → **CKAD-OBS-F02** (deprecated API migration) → **CKAD-OBS-F03** (debug failing pod end-to-end) |
-| 4 | **Application Environment, Configuration & Security** | **CKAD-ENV-F03** (resource requests/limits) → **CKAD-ENV-F04** (ConfigMap env vs envFrom vs volume) → **CKAD-ENV-F05** (Secrets env vs mounted) → **CKAD-ENV-F06** (custom ServiceAccount) → **CKAD-ENV-F02** (RBAC for SA) → **CKAD-ENV-F07** (SecurityContext) → **CKAD-ENV-F01** (CRD + custom resource) |
-| 5 | **Services & Networking** | **CKAD-NET-F02** (Service types tour) → **CKAD-NET-F01** (NetworkPolicy default-deny) → **CKAD-NET-F03** (Ingress path-based + TLS) |
+#### Step 1: Application Design and Build
+
+| # | Status | ID | Full Lab Name | Key Commands / Focus |
+|---|---|---|---|---|
+| 1 | 📅 | CKAD-DES-F01 | Build a Container Image from a Dockerfile/Containerfile | Dockerfile FROM `python:3.12-slim`, `podman build`, push, `kubectl run` |
+| 2 | 📅 | CKAD-DES-F02 | Run a Kubernetes Job (One-Shot Batch Task) | `kind: Job`, `completions: 5`, `parallelism: 2`, `backoffLimit: 4` |
+| 3 | 📅 | CKAD-DES-F03 | Schedule a Kubernetes CronJob | `kind: CronJob`, `schedule: "*/5 * * * *"`, `kubectl get jobs --watch` |
+| 4 | 📅 | CKAD-DES-F04 | Multi-Container Pod: Sidecar Logging Pattern | shared emptyDir `/var/log`, busybox sidecar `tail -F app.log` |
+| 5 | 📅 | CKAD-DES-F05 | Multi-Container Pod: Init Container for Pre-Start Setup | `initContainers` wget config into emptyDir, main waits for init |
+| 6 | 📅 | CKAD-DES-F06 | Persistent Volume + PVC Workflow End-to-End | PVC `ReadWriteOnce` + `1Gi`, file survives Pod recreation |
+| 7 | 📅 | CKAD-DES-F07 | Ephemeral Volume Shared Between Containers (emptyDir) | emptyDir `/shared` in both containers, gone on Pod deletion |
+
+#### Step 2: Application Deployment
+
+| # | Status | ID | Full Lab Name | Key Commands / Focus |
+|---|---|---|---|---|
+| 8 | 📅 | CKAD-DEP-F01 | Canary Deployment with One Service + Two Deployments | v1 `replicas: 9` + v2 `replicas: 1`, Service selects only `app: web` |
+| 9 | 📅 | CKAD-DEP-F02 | Blue-Green Deployment via Service Selector Switch | `color: blue` → `color: green`, smoke-test, `kubectl patch svc` |
+| 10 | 📅 | CKAD-DEP-F03 | Deploy an Application via Helm Chart with Custom Values | `helm install --set service.type=NodePort,replicaCount=3`, upgrade --atomic, rollback |
+
+#### Step 3: Application Observability and Maintenance
+
+| # | Status | ID | Full Lab Name | Key Commands / Focus |
+|---|---|---|---|---|
+| 11 | 📅 | CKAD-OBS-F01 | Configure Liveness + Readiness + Startup Probes Together | httpGet/tcpSocket/`failureThreshold: 30` probes at `/healthz` |
+| 12 | 📅 | CKAD-OBS-F02 | Identify Deprecated API Versions and Migrate Manifests | `kubectl api-resources`, rewrite `extensions/v1beta1` → `apps/v1`, `--dry-run=server` |
+| 13 | 📅 | CKAD-OBS-F03 | Debug a Failing Pod End-to-End | CrashLoopBackOff: `describe`, `logs --previous`, `exec`, `kubectl debug`, `port-forward` |
+
+#### Step 4: Application Environment, Configuration & Security
+
+| # | Status | ID | Full Lab Name | Key Commands / Focus |
+|---|---|---|---|---|
+| 14 | 📅 | CKAD-ENV-F03 | Pod Resource Requests and Limits (CPU + Memory) | `requests.cpu: 100m`/`memory: 128Mi`, limits `500m`/`256Mi`, watch OOMKilled |
+| 15 | 📅 | CKAD-ENV-F04 | ConfigMap Injection: env vs envFrom vs Volume Mount | `valueFrom.configMapKeyRef`, `envFrom.configMapRef`, volume mount — all three in one Pod |
+| 16 | 📅 | CKAD-ENV-F05 | Secret Patterns: Env Injection vs Mounted File | `envFrom.secretRef`, mount at `/etc/db`, rotate by re-creating Secret |
+| 17 | 📅 | CKAD-ENV-F06 | Custom ServiceAccount with Pod Binding | `create sa myapp-sa`, `serviceAccountName`, projected token at `/var/run/secrets/...` |
+| 18 | 📅 | CKAD-ENV-F02 | RBAC: Role + RoleBinding for a ServiceAccount | Role `[get, list, watch]` on pods, prove via `kubectl auth can-i` |
+| 19 | 📅 | CKAD-ENV-F07 | SecurityContext: runAsUser, fsGroup, Capabilities, ROFS | `runAsUser: 1000`, `fsGroup: 2000`, drop ALL, add `NET_BIND_SERVICE` |
+| 20 | 📅 | CKAD-ENV-F01 | Define a Custom Resource Definition and a Custom Resource | `kind: CustomResourceDefinition`, openAPIV3Schema validation |
+
+#### Step 5: Services and Networking
+
+| # | Status | ID | Full Lab Name | Key Commands / Focus |
+|---|---|---|---|---|
+| 21 | 📅 | CKAD-NET-F02 | Service Types: ClusterIP vs NodePort vs LoadBalancer vs ExternalName | Expose same backend four ways, verify reachability for each |
+| 22 | 📅 | CKAD-NET-F01 | NetworkPolicy: Default-Deny + Allow Specific Ingress | `podSelector: {}` blocks all, second policy allows `role: frontend` (needs Calico/Cilium) |
+| 23 | 📅 | CKAD-NET-F03 | Ingress with Path-Based Routing and TLS Termination | NGINX Ingress, `/api` + `/web` backends, self-signed cert + `kubernetes.io/tls` Secret |
 
 > **Prerequisite:** finish CKA **Steps 1–4** (cluster up + workloads + services + storage) before CKAD — you can't deploy applications cleanly on a cluster you can't troubleshoot.
 
@@ -1039,22 +1561,160 @@ Domains follow the official CKAD curriculum weights (Design 20% → Deployment 2
 
 Read each *Mastering Ansible, 4th Ed.* chapter first, then work the matching companion-repo lab, then drill the chapter's future labs. This gets you fluent in the chapter's mental model before you grind individual edge cases.
 
-| # | Chapter / Module | Built Lab (companion repo) | Then Drill These Future Labs |
-|---|---|---|---|
-| 1 | **Ch 1 — System Architecture & Design** | RHCE #01: <https://github.com/kelvintechnical/ansible-architecture-and-inventory> | **ANS-CH1-F01…F08** (inventory) → **F09…F14** (parsing & exec order) → **F15…F20** (variable precedence & magic vars) → **F21…F25** (module transport, performance, safety) |
-| 2 | **Ch 2 — Collections / FQCNs / Migration** | RHCE #02: <https://github.com/kelvintechnical/ansible-collections-and-migration> | **ANS-CH2-F01…F11** (clean install → custom collection → FQCN → requirements.yml → publish to Galaxy) |
-| 3 | **Ch 3 — Ansible Vault** | RHCE #08: <https://github.com/kelvintechnical/ansible-vault-secrets> | *(no future-lab block yet — see RHCE-F11 + RHCE-F18 in the RHCE track for vault credentials + rotation)* |
-| 4 | **Ch 6 — Jinja2 Templates** | RHCE #07: <https://github.com/kelvintechnical/ansible-jinja2-templates> | *(no future-lab block yet — applied in RHCE-F13 + RHCE-F17)* |
-| 5 | **Ch 7 — Task Conditions, Error Recovery, Loops** | RHCE #03: <https://github.com/kelvintechnical/ansible-task-conditions-loops> | **ANS-CH7-F01…F06** (ignore_errors → failed_when → changed_when → creates/removes) → **F07…F09** (block/rescue/always + ignore_unreachable) → **F10…F12** (loop / with_items / until / nested loops) |
-| 6 | **Ch 8 — Roles, Includes & ansible-galaxy** | RHCE #05: <https://github.com/kelvintechnical/ansible-roles> | **ANS-CH8-F01…F07** (task includes + conditional/tagged includes + loop_control) → **F08…F11** (vars_files vs include_vars, with_first_found, `-e @file`, import_playbook) → **F12…F15** (build role from scratch, dependencies, handler-flush ordering, install from Galaxy/Git/tarball) |
-| 7 | **Ch 9 — Troubleshooting** | RHCE #09: <https://github.com/kelvintechnical/ansible-troubleshooting> | *(no future-lab block yet — practice `--check` / `--diff` / `-vvv` across every lab above)* |
-| 8 | **Ch 4 — Windows Automation** | RHCE #10: <https://github.com/kelvintechnical/ansible-windows-automation> | *(no future-lab block yet)* |
-| 9 | **Ch 5 — AWX / Tower** | RHCE #11: <https://github.com/kelvintechnical/ansible-awx-tower> | *(no future-lab block yet)* |
-| 10 | **Ch 10 — Extending Ansible** | RHCE #12: <https://github.com/kelvintechnical/ansible-extending-modules-plugins> | *(no future-lab block yet — re-uses the custom collection from ANS-CH2-F03)* |
-| 11 | **Ch 11 — Rolling Deployments** | RHCE #13: <https://github.com/kelvintechnical/ansible-rolling-deployments> | *(no future-lab block yet)* |
-| 12 | **Ch 12 — Infrastructure Provisioning** | RHCE #14: <https://github.com/kelvintechnical/ansible-infrastructure-provisioning> | *(no future-lab block yet — overlaps with ANS-CH1-F04 dynamic inventory)* |
-| 13 | **Ch 13 — Network Automation** | RHCE #15: <https://github.com/kelvintechnical/ansible-network-automation> | **ANS-CH13-F01** (connection protocol decision matrix) → **F02…F03** (Cisco IOS inventory + ios_config) → **F04…F05** (Arista vEOS bring-up + interfaces) → **F06…F08** (Cumulus Linux + multi-vendor inventory + conditional facts) → **F09…F10** (jump host + raw fallback) |
-| 14 | **Capstone — RHCE Sample Exams** | — | Move to the [RHCE Track (EX294)](#-rhce-track-ex294) section: **RHCE-F01…F04** (Foundation) → **RHCE-F05…F07** (Exam 1) → **RHCE-F08…F14** (Exam 2) → **RHCE-F15…F20** (Exam 3) |
+#### Step 1: Ch 1 — System Architecture & Design
+
+| # | Status | ID / # | Full Lab Name | Key Commands / Focus |
+|---|---|---|---|---|
+| 1 | ✅ | RHCE #01 | Ansible Architecture & Inventory | `ansible.cfg`, inventory, `group_vars`, `host_vars`, `ansible-inventory --graph` |
+| 2 | 📅 | ANS-CH1-F01 | Static INI Inventory with Groups, Children, and Group-Vars | `mastery-hosts` with `[frontend:children]`, `[backend:children]`, group_vars file |
+| 3 | 📅 | ANS-CH1-F02 | Behavioral Inventory Variables Cheat-Sheet Playbook | `ansible_host`, `ansible_port`, `ansible_user`, `ansible_connection`, `_become_*` |
+| 4 | 📅 | ANS-CH1-F03 | Inventory Ordering: inventory / reverse_inventory / sorted / reverse_sorted / shuffle | Play-level `order:` keyword, mastery1/11/2 lexicographic gotcha |
+| 5 | 📅 | ANS-CH1-F04 | AWS EC2 Dynamic Inventory Plugin Bring-Up | `amazon.aws` collection, `aws_ec2` plugin YAML, `boto_profile`, key/cert |
+| 6 | 📅 | ANS-CH1-F05 | Runtime Inventory Additions with `ansible.builtin.add_host` | Provision then `add_host` mid-play, manage the new host in next play |
+| 7 | 📅 | ANS-CH1-F06 | Inventory Limiting with `--limit` + Cross-Host hostvars Access | `--limit frontend`, prove `hostvars['backend...']` still readable |
+| 8 | 📅 | ANS-CH1-F07 | YAML vs INI Inventory Equivalence Audit | Convert INI inventory → YAML, diff `--list` output, prove identical |
+| 9 | 📅 | ANS-CH1-F08 | Static + Dynamic Inventory Combined (Directory-Based Inventory) | `-i inventory/` directory mixing static + plugin sources |
+| 10 | 📅 | ANS-CH1-F09 | Strict Play Order: pre_tasks → roles → tasks → post_tasks → handlers | Scrambled YAML, execution-order proof |
+| 11 | 📅 | ANS-CH1-F10 | Handler Flushing with `meta: flush_handlers` | Force handler to fire mid-play instead of waiting for end |
+| 12 | 📅 | ANS-CH1-F11 | Relative Path Resolution for vars_files and include | tasks/a.yaml, tasks/b.yaml, file-relative paths in nested includes |
+| 13 | 📅 | ANS-CH1-F12 | Linear vs Free vs Debug Execution Strategies | `strategy:` keyword, `serial: 2`, `pause` race demonstration |
+| 14 | 📅 | ANS-CH1-F13 | Host Pattern Selection: groups, wildcards, regex, &, ! | Intersection, exclusion, regex matching on inventory |
+| 15 | 📅 | ANS-CH1-F14 | Play and Task Names with Variables — When Templating Works | Play vars vs set_fact vs runtime templating differences |
+| 16 | 📅 | ANS-CH1-F15 | Variable Precedence Pyramid: prove all 21 levels | extra-vars > set_fact > task-vars > … > role defaults |
+| 17 | 📅 | ANS-CH1-F16 | Magic Variables Tour: inventory_hostname / group_names / hostvars / play_hosts / ansible_play_batch | Parse-time vs execution-time magic vars |
+| 18 | 📅 | ANS-CH1-F17 | `ansible_group_priority` for Conflict Resolution | Alphabetical sort tiebreaker, override with `ansible_group_priority` |
+| 19 | 📅 | ANS-CH1-F18 | Hash Merge vs Replace via `hash_behavior` | `hash_behavior=merge` vs default replace, dict overlay |
+| 20 | 📅 | ANS-CH1-F19 | Lookup Plugins: file / env / pipe / password / dnstxt | `lookup('file'/'env'/'pipe'/'password'/'dig', ...)` |
+| 21 | 📅 | ANS-CH1-F20 | vars_prompt for Interactive Variable Capture | `vars_prompt`, `private: yes`, `encrypt: sha512` for passwords |
+| 22 | 📅 | ANS-CH1-F21 | SSH ControlPersist + Pipelining Performance Benchmark | `pipelining=true`, `ControlPersist`, time savings comparison |
+| 23 | 📅 | ANS-CH1-F22 | Ansible Forks Tuning | `forks=5` vs `forks=20`, `time` comparison on parallel hosts |
+| 24 | 📅 | ANS-CH1-F23 | Module Discovery Path Order (role library → playbook library → ANSIBLE_LIBRARY → /usr/share/ansible) | Shadow `debug` module at each level |
+| 25 | 📅 | ANS-CH1-F24 | Module Blacklisting with plugin_filters.yml | `module_blacklist: [debug]`, prove play fails with helpful error |
+| 26 | 📅 | ANS-CH1-F25 | Module Argument Formats: free-form vs key=value vs YAML hash | Three forms of same `user` module call |
+
+#### Step 2: Ch 2 — Collections / FQCNs / Migration
+
+| # | Status | ID / # | Full Lab Name | Key Commands / Focus |
+|---|---|---|---|---|
+| 27 | ✅ | RHCE #02 | Ansible Collections & Migration | `ansible-galaxy collection install`, FQCN, `requirements.yml` |
+| 28 | 📅 | ANS-CH2-F01 | Clean Reinstall: Remove Ansible 2.9 / 3.x, Install Ansible 4.3 | Uninstall via dnf/apt/pip, install 4.3 fresh, verify `ansible --version` |
+| 29 | 📅 | ANS-CH2-F02 | Pip + virtualenv: Two Side-by-Side Ansible Versions | `ansible-2.9` and `ansible-4.3` virtualenvs, activation gates version |
+| 30 | 📅 | ANS-CH2-F03 | Build Your First Custom Collection (`masterybook.demo`) | `collection init`, populate `plugins/`, `collection build`, `.tar.gz` artifact |
+| 31 | 📅 | ANS-CH2-F04 | Install Your Custom Collection Locally via `collections_paths` | Set `collections_paths`, install tarball, call modules via FQCN |
+| 32 | 📅 | ANS-CH2-F05 | FQCN vs Short Module Names — Shadowing Demo | Custom `pause` module shadowing core, FQCN forces correct module |
+| 33 | 📅 | ANS-CH2-F06 | Collection Installation from Git URL | `git+https://github.com/.../...,branch=main`, verify with `ansible-doc -l` |
+| 34 | 📅 | ANS-CH2-F07 | Bulk Collection Install via requirements.yml | `geerlingguy.k8s` + `geerlingguy.php_roles` pinned by version |
+| 35 | 📅 | ANS-CH2-F08 | Semantic Versioning Walk-Through for Ansible Packages | 4.0.0 → 4.3.0 → 5.0.0 compatibility for ansible-base modules |
+| 36 | 📅 | ANS-CH2-F09 | Discover All Modules in a Collection via `ansible-doc -l` | `ansible-doc -l cisco.ios`, `community.aws`, `amazon.aws` |
+| 37 | 📅 | ANS-CH2-F10 | Force-Install a Pre-Release / Dev Collection Version | `--force`, `amazon.aws:==1.4.2-dev9` |
+| 38 | 📅 | ANS-CH2-F11 | Publish a Collection to Ansible Galaxy | Galaxy account, API key, `ansible-galaxy collection publish` |
+
+#### Step 3: Ch 3 — Ansible Vault
+
+| # | Status | ID / # | Full Lab Name | Key Commands / Focus |
+|---|---|---|---|---|
+| 39 | ✅ | RHCE #08 | Ansible Vault — Secrets at Rest | `ansible-vault create`, `encrypt_string`, `--vault-id`, `no_log` |
+
+#### Step 4: Ch 6 — Jinja2 Templates
+
+| # | Status | ID / # | Full Lab Name | Key Commands / Focus |
+|---|---|---|---|---|
+| 40 | ✅ | RHCE #07 | Jinja2 Templates in Ansible | `ansible.builtin.template`, `{{ }}`, `{% if %}`, filters, whitespace control |
+
+#### Step 5: Ch 7 — Task Conditions, Error Recovery, Loops
+
+| # | Status | ID / # | Full Lab Name | Key Commands / Focus |
+|---|---|---|---|---|
+| 41 | ✅ | RHCE #03 | Task Conditions, Blocks & Loops | `when`, `failed_when`, `block`/`rescue`/`always`, `loop` |
+| 42 | 📅 | ANS-CH7-F01 | `ignore_errors: true` on a Deliberately-Failing URI Task | `ansible.builtin.uri` against bad host, play keeps running |
+| 43 | 📅 | ANS-CH7-F02 | `failed_when` for iscsiadm Exit Code Tolerance | `failed_when: sessions.rc not in (0, 21)` |
+| 44 | 📅 | ANS-CH7-F03 | Multi-Condition `failed_when` as YAML List (Git Branch Delete) | YAML-list condition implicit AND of branch-missing + non-error stderr |
+| 45 | 📅 | ANS-CH7-F04 | `changed_when` to Suppress False-Positive Changes | `changed_when: gitout.rc == 0`, idempotent reports `ok=` not `changed=` |
+| 46 | 📅 | ANS-CH7-F05 | `creates` / `removes` for Command-Family Idempotency | `args: creates:`, idempotent script that skips if file exists |
+| 47 | 📅 | ANS-CH7-F06 | Pure Data-Gathering Tasks with `changed_when: false` | Gather-only task can only be `ok` or `failed`, never `changed` |
+| 48 | 📅 | ANS-CH7-F07 | `block` + `rescue` for Graceful Cleanup | Block fails → rescue logs → post-block task still runs |
+| 49 | 📅 | ANS-CH7-F08 | `block` + `rescue` + `always` (Three-Section Block) | `always` runs whether block fails or not |
+| 50 | 📅 | ANS-CH7-F09 | `ignore_unreachable: true` Against an Inventory of Dead Hosts | Continue when DNS-resolved IPs are unreachable |
+| 51 | 📅 | ANS-CH7-F10 | Modern `loop:` vs Legacy `with_items:` Equivalence | Identical output, `with_items` deprecation warning |
+| 52 | 📅 | ANS-CH7-F11 | `until` / `retries` / `delay` Loop Waiting for /tmp/flag | Poll every 10s, give up after 5 attempts |
+| 53 | 📅 | ANS-CH7-F12 | Nested Loops with `product` Filter and `loop_control.loop_var` | `paths × files`, `loop_control: loop_var: pathname` to avoid collision |
+
+#### Step 6: Ch 8 — Roles, Includes & ansible-galaxy
+
+| # | Status | ID / # | Full Lab Name | Key Commands / Focus |
+|---|---|---|---|---|
+| 54 | ✅ | RHCE #05 | Ansible Roles | `ansible-galaxy init`, `tasks/`, `handlers/`, `defaults/`, `notify` |
+| 55 | 📅 | ANS-CH8-F01 | Basic Task Inclusion with `ansible.builtin.include` | `includer.yaml` runs inline → included → after, order preserved |
+| 56 | 📅 | ANS-CH8-F02 | Passing Variables Inline to Included Tasks | `files.yaml` with `path` + `file` vars, reusable across plays |
+| 57 | 📅 | ANS-CH8-F03 | Passing Complex Hash Data to Included Tasks via dict2items | `files: {herp:..., derp:...}`, `dict2items` loop with attribute access |
+| 58 | 📅 | ANS-CH8-F04 | Conditional Include with `when: item \| bool` | Iterate `[true, false]`, skip false items entirely |
+| 59 | 📅 | ANS-CH8-F05 | Tagged Task Includes for Selective Execution | `--tags second`, per-include vars survive tag filter |
+| 60 | 📅 | ANS-CH8-F06 | Looping Over a Task Include with `loop_control: loop_var` | Outer `include_item`, inner `item`, no collision |
+| 61 | 📅 | ANS-CH8-F07 | Handler Inclusion with `when` on the Include Statement | Trigger handler with `-e foo=false` skip |
+| 62 | 📅 | ANS-CH8-F08 | `vars_files` Static Inclusion vs `include_vars` Dynamic Inclusion | Parse-time vs task-time variable load |
+| 63 | 📅 | ANS-CH8-F09 | `include_vars` with `with_first_found` for OS-Specific Vars | `{{ ansible_distribution }}.yaml` fallback chain |
+| 64 | 📅 | ANS-CH8-F10 | Loading Extra Vars from a File via `-e @file.yaml` | `-e @variables.yaml` extra-vars from file |
+| 65 | 📅 | ANS-CH8-F11 | `import_playbook` for Composing Multi-Playbook Workflows | Master playbook imports children in order |
+| 66 | 📅 | ANS-CH8-F12 | Build a Role From Scratch with `ansible-galaxy role init` | `init --init-path roles/ simple`, populate `defaults/`, `tasks/`, `handlers/` |
+| 67 | 📅 | ANS-CH8-F13 | Role Dependencies with Variables + Tags + Conditionals | `meta/main.yaml` dependencies pass vars + tags |
+| 68 | 📅 | ANS-CH8-F14 | pre_tasks / roles / tasks / post_tasks Handler-Flush Ordering | Handler fires 3 times, one per section, prove by counter file |
+| 69 | 📅 | ANS-CH8-F15 | Install Roles from Ansible Galaxy + Git + tarball + requirements.yml | `angstwad.docker_ubuntu`, git+repo, bulk install |
+
+#### Step 7: Ch 9 — Troubleshooting
+
+| # | Status | ID / # | Full Lab Name | Key Commands / Focus |
+|---|---|---|---|---|
+| 70 | ✅ | RHCE #09 | Troubleshooting Ansible | `--syntax-check`, `--check`, `--diff`, `-vvv`, `ansible-doc` |
+
+#### Step 8: Ch 4 — Windows Automation
+
+| # | Status | ID / # | Full Lab Name | Key Commands / Focus |
+|---|---|---|---|---|
+| 71 | ✅ | RHCE #10 | Windows Automation | WinRM, `ansible.windows`, IIS, registry/services automation |
+
+#### Step 9: Ch 5 — AWX / Tower
+
+| # | Status | ID / # | Full Lab Name | Key Commands / Focus |
+|---|---|---|---|---|
+| 72 | ✅ | RHCE #11 | AWX / Tower | AWX Operator, Projects, Job Templates, REST launch |
+
+#### Step 10: Ch 10 — Extending Ansible
+
+| # | Status | ID / # | Full Lab Name | Key Commands / Focus |
+|---|---|---|---|---|
+| 73 | ✅ | RHCE #12 | Extending Ansible with Modules and Plugins | `AnsibleModule`, `library/`, `filter_plugins/`, custom module |
+
+#### Step 11: Ch 11 — Rolling Deployments
+
+| # | Status | ID / # | Full Lab Name | Key Commands / Focus |
+|---|---|---|---|---|
+| 74 | ✅ | RHCE #13 | Rolling Deployments | `serial`, `max_fail_percentage`, `wait_for`, LB drain pattern |
+
+#### Step 12: Ch 12 — Infrastructure Provisioning
+
+| # | Status | ID / # | Full Lab Name | Key Commands / Focus |
+|---|---|---|---|---|
+| 75 | ✅ | RHCE #14 | Infrastructure Provisioning | `amazon.aws.ec2_instance`, dynamic inventory, post-provision config |
+
+#### Step 13: Ch 13 — Network Automation
+
+| # | Status | ID / # | Full Lab Name | Key Commands / Focus |
+|---|---|---|---|---|
+| 76 | ✅ | RHCE #15 | Network Automation | `network_cli`, network collections, config backup |
+| 77 | 📅 | ANS-CH13-F01 | Choosing the Right Connection Protocol: local vs network_cli vs netconf vs httpapi | Decision matrix for IOS/EOS/F5/Cumulus |
+| 78 | 📅 | ANS-CH13-F02 | Inventory for Cisco IOS via `ansible.netcommon.network_cli` | `[ios_devices]` group, `cisco.ios.ios_facts` smoke test |
+| 79 | 📅 | ANS-CH13-F03 | Save Running Config on Cisco IOS with `cisco.ios.ios_config` | `save_when: always`, prove second run is idempotent |
+| 80 | 📅 | ANS-CH13-F04 | Bring Up an Arista vEOS Switch from Zero | `zerotouch cancel`, admin password, mgmt IP via console |
+| 81 | 📅 | ANS-CH13-F05 | Configure Arista EOS Interfaces with `arista.eos.eos_interfaces` | `eos_interfaces`, `save_when: modified` |
+| 82 | 📅 | ANS-CH13-F06 | Configure Cumulus Linux Layer-2 Bridge with `community.network.nclu` | Jinja2 for-loop swp1..swp3, `commit: true` |
+| 83 | 📅 | ANS-CH13-F07 | Multi-Vendor Inventory with `[switches:children]` Grouping | `[eos]` + `[cumulus]` under `[switches:children]`, single play |
+| 84 | 📅 | ANS-CH13-F08 | Conditional Fact-Gathering for Different Network OSes | `eos_facts` vs `setup` based on `ansible_network_os` |
+| 85 | 📅 | ANS-CH13-F09 | Jump Host / Bastion via `ansible_ssh_common_args` ProxyCommand | `ProxyCommand="ssh -W %h:%p bastion01"` |
+| 86 | 📅 | ANS-CH13-F10 | Raw-Command Fallback for Unsupported Devices via `ansible.builtin.raw` | TP-Link or unmanaged switch with SSH only, no Python |
+
+#### Step 14: Capstone — RHCE Sample Exams
+
+Move to the [RHCE Track (EX294)](#-rhce-track-ex294) section and work all 20 RHCE-F## labs in order: **RHCE-F01…F04** (Foundation) → **RHCE-F05…F07** (Exam 1) → **RHCE-F08…F14** (Exam 2) → **RHCE-F15…F20** (Exam 3).
 
 > **Prerequisite:** finish RHCSA at least through **Step 7 (Packages, Users, Sudo)** — Ansible automates everything RHCSA teaches by hand, and you can't write a correct playbook for a system you can't configure manually.
 
