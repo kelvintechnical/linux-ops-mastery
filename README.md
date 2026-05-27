@@ -178,7 +178,7 @@ Labs organized by official RHCSA EX200 exam objectives.
 | # | Lab | Key Commands |
 |---|-----|-------------|
 | 05 | [Directory Navigation](labs/directory-nav/) | `cd`, `pwd`, `ls` — Five-task ADHD-format drill for absolute paths, relative paths, `..`, `cd -`, and `ls` evidence capture |
-| 06 | [Listing Files and SELinux Contexts](https://github.com/kelvintechnical/listing-files-selinux/blob/main/README.md) | `ls -l`, `ls -Z` — Use long listings and display SELinux contexts of files and directories |
+| 06 | [Listing Files and SELinux Contexts](labs/listing-files-selinux/) | `ls -l`, `ls -Z`, `ps -eZ`, `matchpathcon` — Five-task ADHD-format drill for DAC columns, SELinux contexts, traps, persistence checks, and journal writes |
 | 07 | [Creating Empty Files and Timestamps](https://github.com/kelvintechnical/touch-timestamps/blob/main/README.md) | `touch` — Create an empty file and update the last modification timestamp |
 | 08 | [Copying Files and Directories](https://github.com/kelvintechnical/copying-files-directories) | `cp`, `cp -R`, `cp -a` — Copy single files and entire directory structures recursively |
 | 09 | [Hard and Soft Links](https://github.com/kelvintechnical/hard-and-soft-links/blob/main/README.md) | `ln`, `ln -s` — Create a hard link pointing to the same inode, then create a soft link and observe the differences |
