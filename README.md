@@ -177,12 +177,12 @@ Labs organized by official RHCSA EX200 exam objectives.
 
 | # | Lab | Key Commands |
 |---|-----|-------------|
-| 05 | [Directory Navigation](labs/directory-nav/) | `cd`, `pwd`, `ls` — Five-task ADHD-format drill for absolute paths, relative paths, `..`, `cd -`, and `ls` evidence capture |
-| 06 | [Listing Files and SELinux Contexts](labs/listing-files-selinux/) | `ls -l`, `ls -Z`, `ps -eZ`, `matchpathcon` — Five-task ADHD-format drill for DAC columns, SELinux contexts, traps, persistence checks, and journal writes |
-| 07 | [Creating Empty Files and Timestamps](https://github.com/kelvintechnical/touch-timestamps/blob/main/README.md) | `touch` — Create an empty file and update the last modification timestamp |
-| 08 | [Copying Files and Directories](https://github.com/kelvintechnical/copying-files-directories) | `cp`, `cp -R`, `cp -a` — Copy single files and entire directory structures recursively |
-| 09 | [Hard and Soft Links](https://github.com/kelvintechnical/hard-and-soft-links/blob/main/README.md) | `ln`, `ln -s` — Create a hard link pointing to the same inode, then create a soft link and observe the differences |
-| 10 | [Moving and Renaming Files](https://github.com/kelvintechnical/moving-renaming-files/blob/main/README.md) | `mv` — Use `mv` to rename files locally and move files from one directory to another |
+| 05 | [Directory Navigation](labs/directory-nav/) | `cd`, `pwd`, `ls` — 3-task ADHD-format drill on `/usr`: absolute/relative paths, `..`, `$HOME`, `cd -`, `ls -a/-A/-l/-d/-t/-S` evidence capture. Traps T41 + T43. |
+| 06 | [Listing Files and SELinux Contexts](labs/listing-files-selinux/) | `ls -l`, `ls -Z`, `ps -eZ`, `semanage fcontext`, `restorecon -Rv`, `matchpathcon` — 3-task ADHD drill on `/etc`. Traps T01 + T02. |
+| 07 | [Creating Empty Files and Timestamps](labs/touch-timestamps/) | `touch`, `touch -d/-t/-r`, `stat`, `find -mtime/-mmin/-newer` — 3-task ADHD drill on `/boot` (read-only). Traps T07 + T43. |
+| 08 | [Copying Files and Directories](labs/copying-files-directories/) | `cp`, `cp -p`, `cp -R`, `cp -a`, `cp --preserve=context`, `restorecon -Rv` for `/home/<user>/.ssh` — 3-task ADHD drill on `/home`. Traps T32 + T31. |
+| 09 | [Hard and Soft Links](labs/hard-and-soft-links/) | `ln`, `ln -s`, `readlink`, `find -inum`, `systemctl mask` (= symlink to `/dev/null`!), `daemon-reload` — 3-task ADHD drill on `/root`. Traps T17 + T16. |
+| 10 | [Moving and Renaming Files](labs/moving-renaming-files/) | `mv`, `mv -i/-n/-u/-t`, atomic rename pattern (write `.new` → `mv`), `/etc/cron.d/` 6-field format, firewalld `--permanent` + `--reload` — 3-task ADHD drill on `/var`. Traps T25 + T34. |
 | 11 | [Safe Deletion of Files and Directories](https://github.com/kelvintechnical/safe-deletion/blob/main/README.md) | `rm`, `rmdir`, `rm -rf` — Delete files with `rm`, empty directories with `rmdir`, and entire trees with `rm -rf` |
 | 12 | [Creating Nested Directories](https://github.com/kelvintechnical/creating-nested-directories) | `mkdir -p` — Create a long nested directory structure in a single command |
 | 13 | [Creating Command Aliases](https://github.com/kelvintechnical/creating-command-aliases) | `alias` — Map a custom shortcut to a standard command and understand how aliases can override defaults |

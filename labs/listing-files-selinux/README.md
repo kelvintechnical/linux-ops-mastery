@@ -1,199 +1,238 @@
-﻿# Lab 06: Listing Files and SELinux Contexts — `ls -l`, `ls -Z`
+﻿# Lab 06: Listing Files and SELinux Contexts — `ls -l`, `ls -Z`, `ps -eZ`
 
 - **Series:** linux-ops-mastery — File Operations & Shell Fundamentals
-- **Permanent standard:** every lab is exactly **5 tasks**. If a topic needs more, split it into another 5-task lab.
-- **Practice Directory (rotation #06):** `/etc`
+- **Career arcs covered:** RHCSA EX200 (SELinux objectives, file permissions), RHCE EX294 (Ansible file/copy with `setype:`), CKA (pod SELinux contexts), RHCA — RH362 (Identity Mgmt + SELinux audit)
+- **Prerequisite:** Lab 05 (`pwd`, `cd`, `ls -l`)
+- **Time Estimate:** 35–50 minutes
+- **Tasks:** 3 (ADHD spec — exactly 3 dense tasks per `readmetemplate/cursor-adhd-lab-prompt.txt`)
+- **Practice Directory (lab-wide rotation #06):** `/etc`
 - **Sandbox:** `/tmp/lsZ-lab`
-- **Journal:** `/root/rhcsa_journal/lab06/`
-- **Traps rehearsed:** **T01** setting permissive instead of fixing context, **T02** `semanage fcontext` without `restorecon -Rv`, **T03** `setsebool` without `-P`.
+- **Traps rehearsed this lab:** **T01** (Setting permissive instead of fixing the real context) · **T02** (semanage fcontext without restorecon -Rv afterward)
 
-> **This lab's practice directory is: `/etc`** — every task references `/etc` in at least two commands.
-
----
-
-## Objective
-
-Read every important column of `ls -l`, then layer SELinux context awareness on top with `ls -Z`, `id -Z`, `ps -eZ`, `matchpathcon`, `semanage fcontext -l`, and `restorecon -nRv`. You will practice without changing production files, then journal progress so the lab can be resumed after reboot.
+> **This lab's practice directory is: `/etc`** — every task references it in at least two commands.
 
 ---
 
-## Lab Header Block
-
-Run this first and confirm or correct the environment values before Task 1.
+## 🖥️ LAB HEADER BLOCK — run this FIRST
 
 ```bash
-sudo -i
-echo "ENV:   ${ENV:-DECLARE_BAREMETAL_OR_AMI}"
-echo "DISK:  $(lsblk | awk '$6=="disk"{print "/dev/"$1}' | paste -sd, -)"
-echo "NIC:   $(ip -o addr show | awk '$2!="lo"{print $2}' | sort -u | tr -d ':' | paste -sd, -)"
-echo "SE:    $(getenforce 2>/dev/null || echo unavailable)"
-echo "OS:    $(cat /etc/redhat-release 2>/dev/null || grep PRETTY_NAME /etc/os-release)"
-echo "TIME:  $(date -Is)"
-echo "USER:  $(whoami)@$(hostname)"
-echo "TRAPS: T01 T02 T03"
-echo "PRACTICE DIR: /etc"
+echo "🖥️  ENV:   ${ENV:-DECLARE_ME}"
+echo "💿  DISK:  $(lsblk 2>/dev/null | awk '$NF=="disk"{print "/dev/"$1}' | paste -sd, -)"
+echo "🌐  NIC:   $(ip -o addr show 2>/dev/null | awk '$2!="lo"{print $2}' | sort -u | paste -sd, -)"
+echo "🔐  SE:    $(getenforce 2>/dev/null || echo n/a)"
+echo "📦  OS:    $(cat /etc/redhat-release 2>/dev/null || grep PRETTY_NAME /etc/os-release)"
+echo "🕒  TIME:  $(date -Is)"
+echo "👤  USER:  $(whoami)@$(hostname)"
+echo "⚠️  TRAP REMINDERS THIS LAB: T01 T02"
+echo "📁  PRACTICE DIR: /etc"
 ```
 
-> **STOP — paste the header output before setup.** If `getenforce` says `Disabled`, complete the DAC portions now and redo SELinux tasks on Rocky/RHEL with SELinux enforcing.
+> **STOP — paste header output before running setup.**
+>
+> ⚠️ **ENV WARN — AMI users:** if `getenforce` returns `Disabled` or `Permissive`, run `sudo setenforce 1` if possible. If SELinux is fully disabled in `/etc/selinux/config`, flag this lab as ⚠️ **partially blocked** and plan to redo Task 3 on a baremetal or Rocky/RHEL AMI.
 
 ---
 
-## Concept: DAC and MAC Must Both Allow Access
+## 🎯 Objective
 
-| Layer | Tool | What it answers |
+Read a Linux long listing column-by-column, then layer SELinux context awareness on top. By the end of this lab you can identify the owner, group, permissions, link count, SELinux user, role, type, and MLS level of any file — and you can connect a running process's context to the file context it can access.
+
+---
+
+## 🧠 Concept: Two Permission Models on Top of Each Other
+
+| Layer | Tool | Question it answers |
 |---|---|---|
-| DAC — Discretionary Access Control | `ls -l`, `chmod`, `chown` | Do Unix owner/group/other bits allow access? |
-| MAC — Mandatory Access Control | `ls -Z`, `semanage`, `restorecon`, `setsebool` | Does SELinux policy allow this process type to touch this file type? |
+| **DAC** (Discretionary Access Control) | `ls -l`, `chmod`, `chown` | "Does the file's mode allow the user/group to read/write/execute?" |
+| **MAC** (Mandatory Access Control) | `ls -Z`, `semanage`, `chcon`, `restorecon` | "Does SELinux policy allow this *process context* to touch this *file context*?" |
 
-A file can be `rwxrwxrwx` and still be blocked by SELinux. The field that usually matters most in an SELinux context is the **type**, such as `etc_t`, `passwd_file_t`, `httpd_sys_content_t`, or `ssh_home_t`.
+A process must pass **both** checks. SELinux only matters when DAC says "yes" — but SELinux can still block what DAC permits.
+
+### Reading `ls -l` left to right
+
+```
+-rw-r--r--. 1 root root  1234 May 27 13:45 /etc/hostname
+└┬┘└──┬───┘ │ └─┬┘ └─┬┘   │      │            │
+type   mode  │   │     │     size   mtime         path
+            link  user group
+            count
+```
+
+### Reading `ls -Z` left to right
+
+```
+system_u:object_r:net_conf_t:s0 /etc/hostname
+   │        │         │       │
+  user     role      type    level (MLS / MCS)
+```
+
+The **type** (`net_conf_t`, `etc_t`, `httpd_sys_content_t`, ...) is the one that matters 95% of the time on RHCSA.
 
 ---
 
-## Lab-Wide Setup
+## 🚦 Lab-Wide Setup — Run This BEFORE Task 1
 
 ```bash
 sudo -i
-mkdir -p /tmp/lsZ-lab /root/rhcsa_journal/lab06
+mkdir -p /tmp/lsZ-lab
 cd /tmp/lsZ-lab
 
 cat > /tmp/lsZ-lab/THIS_DIRECTORY.txt <<'EOF'
 /etc — System-wide configuration files
 
-/etc holds text configuration for services, boot behavior, authentication,
-networking, storage mounts, SELinux, firewalld, chrony, SSH, and many other
-subsystems. Binaries do not live here; configuration and identity do.
+Every daemon, service, and subsystem reads its configuration from /etc. No
+binaries live here — only text files and scripts. Backing up /etc is
+effectively backing up the system's identity.
 
-Why it exists: packages need a predictable place for administrator-editable
-configuration. Backing up /etc is close to backing up the system's identity.
+Why it exists: separating mutable configuration from immutable binaries
+makes upgrades, audits, and recoveries straightforward. /usr/bin/sshd
+never changes between minor releases, but /etc/ssh/sshd_config does.
 
-What lives inside it: passwd, group, shadow, fstab, ssh/, selinux/, systemd/,
-chrony.conf, firewalld/, hostname, hosts, and service config directories.
+What lives inside it: networking (/etc/hosts, /etc/resolv.conf), users
+(/etc/passwd, /etc/shadow), services (/etc/systemd, /etc/httpd), security
+(/etc/selinux, /etc/pam.d), and hundreds of per-package config trees.
 
-Why RHCSA cares: the exam constantly asks you to inspect or modify files in
-/etc, and mistakes here can break login, boot, networking, and service access.
+Why RHCSA cares: nearly every exam objective touches /etc. Every SELinux
+context type you will encounter on the exam (etc_t, net_conf_t,
+shadow_t, ssh_home_t, httpd_config_t) is anchored here.
 EOF
 
 cat /tmp/lsZ-lab/THIS_DIRECTORY.txt
-echo "setup done by $(whoami) at $(date -Is)"
+sestatus 2>/dev/null || echo "SELinux tooling not available — install policycoreutils-python-utils"
 echo "exit was: $?"
 ```
 
-> **STOP — paste setup output before Task 1.**
+> **STOP — paste output before Task 1.**
 
 ---
 
-# The 5 Tasks
+# The 3 Tasks
 
 ---
 
-## Task 1 — Read `ls -l` Columns on `/etc`
+## Task 1 — Decode the Long Listing on `/etc`
+
+### a) Directory Context
 
 **Practice directory this task:** `/etc`
+`/etc` has every type of entry you will see on RHCSA: regular files, directories, symlinks, files owned by different users, files with restrictive modes, and files with various SELinux types.
 
-`/etc` contains high-value configuration files whose ownership and permissions must be read correctly before any change.
-
-### 🔁 Warm-Up — Commands from Previous Labs
+### b) 🔁 Warm-Up — Commands from Previous Labs
 
 ```bash
 cd /tmp/lsZ-lab
-date -Is > task01-warmup.log
-echo "user=$(whoami) host=$(hostname) kernel=$(uname -r)" >> task01-warmup.log
-ls /etc 2>/dev/null | wc -l >> task01-warmup.log
-ls /etc/passwd /etc/group > task01-files.txt 2>&1
-cat task01-warmup.log task01-files.txt | tee task01-warmup.copy
+pwd
+ls -ld /etc /tmp/lsZ-lab > task01-warmup.log 2>&1
+cat task01-warmup.log
+echo "etc entries: $(ls /etc 2>/dev/null | wc -l)"
+ls /etc | head -n 5 | tee task01-etc-head.txt
 echo "Warm-up done by $(whoami) at $(date -Is)"
 echo "exit was: $?"
 ```
 
-### Purpose
+### c) Purpose
 
-Decode the long-listing columns for core `/etc` files: file type, mode, link count, owner, group, size, timestamp, and name.
+Read every column of `ls -l` output on real `/etc` files and prove you understand each piece.
 
-### Main Command Block
+### d) Main Command Block
 
 ```bash
 cd /tmp/lsZ-lab
-ls -l /etc/passwd /etc/group /etc/hostname > task01-long.txt 2>&1
-cat task01-long.txt
-awk '{print $1, $3, $4, $5, $9}' task01-long.txt | tee task01-columns.txt
-echo "lines: $(wc -l < task01-long.txt)"
-test -s task01-long.txt && echo "long listing saved"
+ls -l /etc/hostname /etc/hosts /etc/passwd /etc/shadow /etc/resolv.conf 2>&1 | tee task01-etc-long.txt
+ls -la /etc/ssh > task01-ssh.txt 2>&1
+ls -ld /etc /etc/ssh /etc/systemd > task01-dirs.txt 2>&1
+cat task01-etc-long.txt
+echo "---"
+head -n 5 task01-ssh.txt
+echo "---"
+cat task01-dirs.txt
+echo "line counts: $(wc -l task01-*.txt)"
 ```
 
-### Human-Readable Breakdown
+### e) Human-Readable Breakdown
 
-- `ls -l` prints one metadata row per target.
-- `/etc/passwd`, `/etc/group`, and `/etc/hostname` are safe read-only targets.
-- `awk` extracts selected columns: mode, owner, group, size, and path.
-- `wc -l < file` counts rows without printing a filename.
-- `test -s` confirms the evidence file is non-empty.
+- `ls -l /etc/hostname /etc/hosts ...` — long listing for 5 critical files.
+- `2>&1 | tee FILE` — capture both stdout and stderr to the file AND the screen (e.g. `/etc/shadow` may not be readable for non-root; the error goes into the same file as the success lines).
+- `ls -la /etc/ssh` — long listing including hidden entries (none in `/etc/ssh` normally, but the pattern matters).
+- `ls -ld /etc /etc/ssh /etc/systemd` — metadata for the directories themselves.
 
-### Reading It Left to Right
+### f) Reading It Left to Right
 
-`ls -l /etc/passwd /etc/group /etc/hostname > task01-long.txt 2>&1`
+`ls -l /etc/hostname /etc/hosts /etc/passwd /etc/shadow /etc/resolv.conf 2>&1 | tee task01-etc-long.txt`
 
-1. `ls` lists metadata.
-2. `-l` requests long format.
-3. The three `/etc` paths are targets.
-4. `>` redirects stdout to a file.
-5. `2>&1` merges stderr into that same file.
+1. `ls -l` — long format.
+2. Five `/etc/*` files as targets.
+3. `2>&1` — merge stderr into stdout (capture permission-denied errors in the same stream).
+4. `| tee FILE` — print to screen AND write to file.
 
-### The Story
+A single line of output:
 
-Before SELinux even enters the picture, you must read DAC permissions fluently. The first ten characters of `ls -l` tell you file type and owner/group/other access. On RHCSA, this is your first evidence line.
+```
+-rw-r--r--. 1 root root 9 May 27 13:45 /etc/hostname
+```
 
-### Expected Output
+| Column | Meaning |
+|---|---|
+| `-` | Regular file (vs `d` for dir, `l` for symlink, `c` for char device) |
+| `rw-r--r--` | Owner read+write, group read, other read |
+| `.` | SELinux context exists (would be `+` for ACL, blank for neither) |
+| `1` | Hard link count |
+| `root` | Owner user |
+| `root` | Owner group |
+| `9` | Size in bytes |
+| `May 27 13:45` | Last modification time |
+| `/etc/hostname` | Path |
+
+### g) The Story
+
+`ls -l` is the universal Linux "X-ray." Before you `chmod`, `chown`, `chcon`, or `restorecon` anything, you read `ls -l` and `ls -Z` first. RHCSA grading scripts read these same fields — if your `chmod 640` produces `-rw-r-----` your task passes; if it produces `-rw-r--r--` it fails.
+
+### h) Expected Output
 
 ```text
--rw-r--r--. 1 root root ... /etc/passwd
--rw-r--r--. 1 root root ... /etc/group
--rw-r--r--. 1 root root ... /etc/hostname
--rw-r--r--. root root ... /etc/passwd
-lines: 3
-long listing saved
+-rw-r--r--. 1 root root    9 ... /etc/hostname
+-rw-r--r--. 1 root root  158 ... /etc/hosts
+-rw-r--r--. 1 root root 2987 ... /etc/passwd
+ls: cannot open '/etc/shadow': Permission denied   (or, if root, ----------. 1 root root ...)
+-rw-r--r--. 1 root root   90 ... /etc/resolv.conf
+total ...
+-rw-r--r--. 1 root root ... ssh_config
+-rw-------. 1 root root ... ssh_host_ed25519_key
+...
+drwxr-xr-x. ... /etc
+drwxr-xr-x. ... /etc/ssh
+drwxr-xr-x. ... /etc/systemd
+line counts: ...
 ```
 
-### Switches Table
+### i) Switches Table
 
 | Token | Meaning |
 |---|---|
-| `ls -l` | Long listing with metadata columns |
-| `>` | Redirect stdout and truncate target file |
-| `2>&1` | Send stderr to stdout's current destination |
-| `awk '{print ...}'` | Print selected fields |
-| `tee` | Display and save output |
-| `wc -l < file` | Pure line count |
-| `test -s` | True if file exists and is non-empty |
+| `ls -l` | Long listing |
+| `ls -la` | Long + hidden |
+| `ls -ld` | Directory entry, not contents |
+| `2>&1` | Stderr → stdout's destination |
+| `\| tee FILE` | Print and save |
+| `head -n N` | First N lines |
+| `wc -l` | Line count |
+| `.` (after mode) | SELinux context present |
+| `+` (after mode) | ACL present |
 
-### 🧠 Concept Card
+### j) 🧠 Concept Card
 
 | ✅ | Concept | What it does |
 |---|---|---|
-|  | DAC mode | Owner/group/other bits from `ls -l` |
-|  | Owner/group | Columns 3 and 4 in long listing |
-|  | `.` after mode | SELinux context exists on many RHEL files |
-|  | Evidence capture | Save output before cleanup |
-|  | `$?` | Last command status |
+|   | File type char | `-` file, `d` dir, `l` link, `c`/`b` device, `p` pipe, `s` socket |
+|   | rwx triplets | Owner / group / other |
+|   | Link count | How many hard links point to this inode |
+|   | Owner / group | Two separate identities |
+|   | `.` after mode | SELinux context present (modern RHEL default) |
+|   | `+` after mode | ACL present (we'll cover ACLs in a later lab) |
+|   | `2>&1 \| tee` | Capture stdout+stderr AND show on screen |
+| 🪤 **Trap Risk (T01)** | Setting permissive instead of fixing context | When `ls -l` shows correct mode but app fails, the next instinct is `setenforce 0` — wrong. Run `ls -Z` instead and fix the *type* with `semanage fcontext` + `restorecon` |
 
-| 🪤 Trap Risk | What goes wrong | How to avoid |
-|---|---|---|
-| T01 | You see a permission denial later and set SELinux permissive instead of reading file evidence | Always capture `ls -l` and `ls -Z` first |
-
-### 🔁 Persistence Check
-
-| What was configured | Verification command | Why it matters |
-|---|---|---|
-| Evidence file | `test -s /tmp/lsZ-lab/task01-long.txt` | confirms current output exists |
-| `/etc` metadata | `ls -l /etc/passwd` | survives reboot because `/etc` is persistent |
-| Journal root | `test -d /root/rhcsa_journal/lab06` | confirms reboot-safe location |
-
-```bash
-test -s /tmp/lsZ-lab/task01-long.txt && echo "evidence=OK"
-ls -l /etc/passwd
-test -d /root/rhcsa_journal/lab06 && echo "journal=OK"
-```
-
-### 📓 Journal Write — Before Cleanup
+### k) 🧹 Cleanup
 
 ```bash
 LAB=lab06
@@ -201,147 +240,172 @@ TASK=task1
 JDIR="/root/rhcsa_journal/${LAB}/${TASK}"
 mkdir -p "$JDIR"
 cat > "$JDIR/done.txt" <<EOF
-LAB:    lab06
-TASK:   task1
+LAB:    ${LAB}
+TASK:   ${TASK}
 DATE:   $(date -Is)
 USER:   $(whoami)@$(hostname)
 STATUS: COMPLETE
 EOF
-cat > "$JDIR/notes.txt" <<EOF
-TOPIC:    Read ls -l columns on /etc files
-COMMANDS: ls -l, awk, tee, wc -l, test -s
-TRAPS:    T01
-MISSED:   none
-NEXT:     task2 — file types and permission characters
+cat > "$JDIR/notes.txt" <<'EOF'
+TOPIC:    Reading ls -l columns on /etc
+COMMANDS: ls -l, ls -la, ls -ld, 2>&1, tee
+TRAPS:    T01 (permissive ≠ fix)
+MISSED:   —
+NEXT:     task2 — ls -Z and SELinux context reading
 EOF
-ls -la "$JDIR"
+echo "Journal written: $(ls -la $JDIR)"
+
+cd /tmp/lsZ-lab
+rm -f task01-warmup.log task01-etc-head.txt task01-etc-long.txt task01-ssh.txt task01-dirs.txt
 echo "exit was: $?"
 ```
 
-### 🧹 Cleanup
-
-```bash
-rm -f /tmp/lsZ-lab/task01-warmup.log /tmp/lsZ-lab/task01-files.txt /tmp/lsZ-lab/task01-warmup.copy /tmp/lsZ-lab/task01-long.txt /tmp/lsZ-lab/task01-columns.txt
-echo "exit was: $?"
-```
-
-### Troubleshoot Table
+### l) Troubleshoot Table
 
 | Symptom | Fix |
 |---|---|
-| `/etc/hostname` missing | Use `/etc/hosts` instead |
-| `awk` prints blank path | Some filenames contain spaces; use `stat` for machine parsing later |
-| Journal write fails | Run `sudo -i` |
+| `Permission denied` on `/etc/shadow` | Expected for non-root; rerun with `sudo` |
+| No `.` after the mode | SELinux is disabled or filesystem is FAT/exfat — confirm with `sestatus` |
+| Times shown as `2025` instead of `13:45` | Files older than 6 months show year instead of time — normal |
+| `tee` shows duplicate output | That is the design — `tee` writes to file AND stdout |
+
+### m) STOP
 
 > **STOP — paste output before Task 2.**
 
+### n) 🔁 Persistence Check
+
+| What was configured | Verification command | Why it matters |
+|---|---|---|
+| Journal entry | `cat /root/rhcsa_journal/lab06/task1/done.txt` | Survives reboot |
+| `/etc` integrity | `ls -ld /etc \| head -1` | Practice dir still mounted |
+| Sandbox cleaned | `ls /tmp/lsZ-lab` | Should be empty or `THIS_DIRECTORY.txt` only |
+
 ---
 
-## Task 2 — Identify File Types and Permission Characters
+## Task 2 — `ls -Z`: Read SELinux File Contexts
+
+### a) Directory Context
 
 **Practice directory this task:** `/etc`
+`/etc` files have a wide variety of SELinux types — `etc_t`, `net_conf_t`, `shadow_t`, `passwd_file_t`, `ssh_home_t`, `httpd_config_t`. Reading these is the foundational SELinux skill.
 
-`/etc` has regular files, directories, and symlinks. The sandbox adds controlled examples you can inspect safely.
-
-### 🔁 Warm-Up — Commands from Previous Labs
+### b) 🔁 Warm-Up — Commands from Previous Labs
 
 ```bash
 cd /tmp/lsZ-lab
-find /etc -maxdepth 1 -type f 2>/dev/null | head -n 5 | tee task02-etc-files.txt
-find /etc -maxdepth 1 -type d 2>/dev/null | head -n 5 | tee task02-etc-dirs.txt
-grep -c '^/' task02-etc-files.txt
+ls -l /etc/hosts /etc/hostname 2>&1 | tee task02-warmup.log
+grep -c "root root" task02-warmup.log
 echo "Warm-up done by $(whoami) at $(date -Is)"
 echo "exit was: $?"
 ```
 
-### Purpose
+### c) Purpose
 
-Read the first character of `ls -l` (`-`, `d`, `l`) and the permission triplets (`rwx`, `rw-`, `r-x`, `---`).
+Use `ls -Z` to display SELinux contexts for files and directories in `/etc`, then confirm the **type** field by querying `semanage fcontext`.
 
-### Main Command Block
+### d) Main Command Block
 
 ```bash
 cd /tmp/lsZ-lab
-touch regular.txt
-mkdir -p sampledir
-ln -s regular.txt symlink.txt
-chmod 644 regular.txt
-chmod 755 sampledir
-ls -l regular.txt sampledir symlink.txt /etc/passwd /etc/ssh | tee task02-types.txt
-awk '{print $1, $9}' task02-types.txt | tee task02-first-column.txt
+ls -Z /etc/hostname /etc/hosts /etc/resolv.conf /etc/shadow 2>&1 | tee task02-contexts.txt
+ls -Zd /etc /etc/ssh /etc/systemd >> task02-contexts.txt 2>&1
+cat task02-contexts.txt
+
+echo "---"
+semanage fcontext -l 2>/dev/null | grep -E "^/etc/hostname|^/etc/hosts|^/etc/shadow" | tee task02-semanage.txt
+echo "---"
+
+mkdir -p task02-target
+echo "fake web content" > task02-target/index.html
+ls -Z task02-target task02-target/index.html
+matchpathcon /var/www/html/index.html 2>/dev/null || echo "matchpathcon: not installed"
+
+echo "context types found: $(awk '{print $1}' task02-contexts.txt | awk -F: '{print $3}' | sort -u | tr '\n' ' ')"
 ```
 
-### Human-Readable Breakdown
+### e) Human-Readable Breakdown
 
-- `touch` creates a regular file.
-- `mkdir -p` creates a directory and does not fail if it already exists.
-- `ln -s` creates a symlink.
-- `chmod 644` and `chmod 755` create predictable permissions.
-- `ls -l` shows file type and permission bits.
-- `awk` extracts the mode string and name for focused reading.
+- `ls -Z FILE` — show the SELinux context (`user:role:type:level`).
+- `ls -Zd DIR` — context for the directory itself.
+- `semanage fcontext -l | grep PATH` — show the **policy rule** that defines the type for a path pattern. This is the "should be" lookup.
+- `matchpathcon PATH` — show what context **policy says** the path should have, even if the path does not yet exist.
+- `awk '{print $1}' | awk -F:` — extract the type field by splitting the context string on `:`.
 
-### Reading It Left to Right
+### f) Reading It Left to Right
 
-`ls -l regular.txt sampledir symlink.txt /etc/passwd /etc/ssh | tee task02-types.txt`
+`ls -Z /etc/hostname /etc/hosts /etc/resolv.conf /etc/shadow 2>&1 | tee task02-contexts.txt`
 
-1. `ls -l` requests metadata rows.
-2. Each path is a target.
-3. `| tee` displays the rows and saves them.
+A line of output:
 
-### The Story
+```
+system_u:object_r:net_conf_t:s0 /etc/hostname
+   │         │         │      │       │
+   user     role      type   level   path
+```
 
-The first character in `ls -l` answers “what kind of thing is this?” before you read anything else: `-` regular file, `d` directory, `l` symlink. The next nine characters are the access model you will change with `chmod` in later labs.
+| Field | Common values on RHEL |
+|---|---|
+| `user` | `system_u`, `unconfined_u`, `staff_u` |
+| `role` | `object_r` (for files), `system_r` (for processes) |
+| `type` | `etc_t`, `net_conf_t`, `shadow_t`, `httpd_config_t` — **this is the one you fix** |
+| `level` | `s0` (default), `s0-s0:c0.c1023` (MLS systems) |
 
-### Expected Output
+### g) The Story
+
+SELinux has a reputation for being scary, but 95% of RHCSA SELinux work is "read the type, compare to what the policy expects, fix it with `semanage fcontext` + `restorecon`." `ls -Z` is the **first** command you run when an app can't read its own config or a web server returns 403 on a file you just copied.
+
+### h) Expected Output
 
 ```text
--rw-r--r--. ... regular.txt
-drwxr-xr-x. ... sampledir
-lrwxrwxrwx. ... symlink.txt -> regular.txt
--rw-r--r--. ... /etc/passwd
-drwxr-xr-x. ... /etc/ssh
+system_u:object_r:net_conf_t:s0   /etc/hostname
+system_u:object_r:net_conf_t:s0   /etc/hosts
+system_u:object_r:net_conf_t:s0   /etc/resolv.conf
+system_u:object_r:shadow_t:s0     /etc/shadow
+system_u:object_r:etc_t:s0        /etc
+system_u:object_r:etc_t:s0        /etc/ssh
+system_u:object_r:systemd_unit_file_t:s0  /etc/systemd
+---
+/etc/hostname    system_u:object_r:net_conf_t:s0
+/etc/hosts       system_u:object_r:net_conf_t:s0
+/etc/shadow      system_u:object_r:shadow_t:s0
+---
+unconfined_u:object_r:user_tmp_t:s0  task02-target/
+unconfined_u:object_r:user_tmp_t:s0  task02-target/index.html
+/var/www/html/index.html  system_u:object_r:httpd_sys_content_t:s0
+context types found: etc_t net_conf_t shadow_t systemd_unit_file_t user_tmp_t
 ```
 
-### Switches Table
+Notice: the `task02-target/index.html` file inside `/tmp` has type `user_tmp_t`. If you copied it to `/var/www/html`, Apache (running as `httpd_t`) would be **denied** read access until you `restorecon -Rv /var/www/html`. This is the most common RHCSA SELinux trap.
+
+### i) Switches Table
 
 | Token | Meaning |
 |---|---|
-| `touch` | Create empty file or update timestamp |
-| `mkdir -p` | Create directory safely |
-| `ln -s` | Create symbolic link |
-| `chmod 644` | Owner rw, group r, other r |
-| `chmod 755` | Owner rwx, group rx, other rx |
-| `find -type f` | Match regular files |
-| `find -type d` | Match directories |
-| `head -n 5` | First five lines |
+| `ls -Z` | Show SELinux context |
+| `ls -Zd` | Context of directory itself |
+| `semanage fcontext -l` | List all path → type policy rules |
+| `matchpathcon PATH` | Show what type policy expects for path |
+| `awk '{print $1}'` | First whitespace-separated field |
+| `awk -F: '{print $3}'` | Field 3 with `:` as separator |
+| `sort -u` | Unique sorted lines |
+| `tr '\n' ' '` | Join with spaces |
 
-### 🧠 Concept Card
+### j) 🧠 Concept Card
 
 | ✅ | Concept | What it does |
 |---|---|---|
-|  | `-` file type | Regular file |
-|  | `d` file type | Directory |
-|  | `l` file type | Symlink |
-|  | `rwx` triplets | Owner/group/other permissions |
-|  | Symlink mode | Usually ignored; target permissions matter |
+|   | SELinux context | `user:role:type:level` |
+|   | The "type" | `etc_t`, `net_conf_t`, `httpd_sys_content_t` — the field that matters |
+|   | `ls -Z` | Reads the file's current context |
+|   | `matchpathcon` | Reads policy's expected context for a path |
+|   | `semanage fcontext -l` | Lists all policy rules |
+|   | `unconfined_u` | Default user context for files you create as a regular user |
+|   | `system_u` | Default user context for system files |
+|   | `user_tmp_t` | Default type for files in `/tmp` (limited reach) |
+| 🪤 **Trap Risk (T01)** | Setting permissive instead of fixing context | If an app fails on a `/var/www/html` file just copied from `/tmp`, the file is still `user_tmp_t`. Fix: `restorecon -Rv /var/www/html`. Do NOT `setenforce 0` |
 
-| 🪤 Trap Risk | What goes wrong | How to avoid |
-|---|---|---|
-| T01 | You blame SELinux for a DAC permission problem | Read `ls -l` first; SELinux is second layer, not first |
-
-### 🔁 Persistence Check
-
-| What was configured | Verification command | Why it matters |
-|---|---|---|
-| Sandbox file modes | `ls -l /tmp/lsZ-lab/regular.txt /tmp/lsZ-lab/sampledir` | confirms chmod results |
-| Symlink target | `ls -l /tmp/lsZ-lab/symlink.txt` | confirms link arrow points to regular.txt |
-| Reboot survival | `ls /tmp/lsZ-lab` after reboot | expected to fail; sandbox is temporary |
-
-```bash
-ls -l /tmp/lsZ-lab/regular.txt /tmp/lsZ-lab/sampledir /tmp/lsZ-lab/symlink.txt
-```
-
-### 📓 Journal Write — Before Cleanup
+### k) 🧹 Cleanup
 
 ```bash
 LAB=lab06
@@ -349,147 +413,187 @@ TASK=task2
 JDIR="/root/rhcsa_journal/${LAB}/${TASK}"
 mkdir -p "$JDIR"
 cat > "$JDIR/done.txt" <<EOF
-LAB:    lab06
-TASK:   task2
+LAB:    ${LAB}
+TASK:   ${TASK}
 DATE:   $(date -Is)
 USER:   $(whoami)@$(hostname)
 STATUS: COMPLETE
 EOF
-cat > "$JDIR/notes.txt" <<EOF
-TOPIC:    File types and permission characters
-COMMANDS: touch, mkdir -p, ln -s, chmod 644, chmod 755, ls -l
-TRAPS:    T01
-MISSED:   none
-NEXT:     task3 — SELinux contexts with ls -Z
+cat > "$JDIR/notes.txt" <<'EOF'
+TOPIC:    Reading SELinux file contexts with ls -Z
+COMMANDS: ls -Z, ls -Zd, semanage fcontext -l, matchpathcon
+TRAPS:    T01 (permissive ≠ fix)
+MISSED:   —
+NEXT:     task3 — ps -eZ + semanage/restorecon (T02)
 EOF
-ls -la "$JDIR"
+echo "Journal written: $(ls -la $JDIR)"
+
+cd /tmp/lsZ-lab
+rm -rf task02-target
+rm -f task02-warmup.log task02-contexts.txt task02-semanage.txt
 echo "exit was: $?"
 ```
 
-### 🧹 Cleanup
-
-```bash
-rm -f /tmp/lsZ-lab/task02-etc-files.txt /tmp/lsZ-lab/task02-etc-dirs.txt /tmp/lsZ-lab/task02-types.txt /tmp/lsZ-lab/task02-first-column.txt /tmp/lsZ-lab/regular.txt /tmp/lsZ-lab/symlink.txt
-rm -rf /tmp/lsZ-lab/sampledir
-echo "exit was: $?"
-```
-
-### Troubleshoot Table
+### l) Troubleshoot Table
 
 | Symptom | Fix |
 |---|---|
-| `ln: failed to create symbolic link` | Remove old link with `rm -f symlink.txt` and retry |
-| `chmod` denied | You are not root or path is wrong; run inside `/tmp/lsZ-lab` |
-| Symlink shows `lrwxrwxrwx` | Normal; symlink permissions are not the target's permissions |
+| `ls -Z` shows `?` for context | SELinux disabled or context lost — run `sestatus` |
+| `semanage: command not found` | `sudo dnf install policycoreutils-python-utils` |
+| `matchpathcon` shows wrong type | Your local policy may be stale — `restorecon -Rv` rebuilds |
+| Context has `unconfined_u` everywhere | Normal for files created by a logged-in user; RHEL defaults |
+
+### m) STOP
 
 > **STOP — paste output before Task 3.**
 
+### n) 🔁 Persistence Check
+
+| What was configured | Verification command | Why it matters |
+|---|---|---|
+| SELinux still enforcing | `getenforce` | Should say `Enforcing` (or note Permissive/Disabled in journal) |
+| File contexts unchanged on `/etc` | `ls -Z /etc/hostname` | Should still be `net_conf_t` |
+| Journal task2 | `cat /root/rhcsa_journal/lab06/task2/done.txt` | Reboot-proof |
+
 ---
 
-## Task 3 — Read SELinux Contexts with `ls -Z`, `id -Z`, and `ps -eZ`
+## Task 3 — Tie It Together: `ps -eZ` + `semanage fcontext` + `restorecon`
+
+### a) Directory Context
 
 **Practice directory this task:** `/etc`
+We will create a fake `/etc/` config file under our sandbox, register a persistent context rule for the sandbox path, and prove `restorecon` applies it. This is the exact RHCSA muscle memory.
 
-`/etc` is heavily labeled by SELinux, so it is the right directory for context reading.
-
-### 🔁 Warm-Up — Commands from Previous Labs
+### b) 🔁 Warm-Up — Commands from Previous Labs
 
 ```bash
 cd /tmp/lsZ-lab
-getenforce 2>&1 | tee task03-getenforce.txt
-ls -l /etc/passwd /etc/shadow > task03-dac.txt 2>&1
-grep -n 'passwd' task03-dac.txt
+ls -Z /etc/hostname /etc/hosts /etc/resolv.conf | tee task03-warmup.log
+grep -c "net_conf_t" task03-warmup.log
 echo "Warm-up done by $(whoami) at $(date -Is)"
 echo "exit was: $?"
 ```
 
-### Purpose
+### c) Purpose
 
-Read SELinux user, role, type, and level fields on files and processes.
+Connect three SELinux artifacts: **process contexts** (`ps -eZ`), **file contexts** (`ls -Z`), and **policy rules** (`semanage fcontext` + `restorecon`).
 
-### Main Command Block
+### d) Main Command Block
 
 ```bash
 cd /tmp/lsZ-lab
-ls -Z /etc/passwd /etc/shadow /etc/ssh/sshd_config 2>&1 | tee task03-file-contexts.txt
-id -Z 2>&1 | tee task03-my-context.txt
-ps -eZ 2>/dev/null | head -n 8 | tee task03-process-contexts.txt
-echo "context lines: $(wc -l < task03-file-contexts.txt)"
-grep -E 'passwd|shadow|sshd_config' task03-file-contexts.txt
+ps -eZ | head -n 10 | tee task03-procs.txt
+echo "---"
+ps -eZ | grep -E "sshd|systemd" | head -n 5
+
+mkdir -p /tmp/lsZ-lab/fake-etc
+echo "ServerName fake.example.com" > /tmp/lsZ-lab/fake-etc/httpd.conf
+ls -Z /tmp/lsZ-lab/fake-etc/httpd.conf
+
+semanage fcontext -a -t httpd_config_t "/tmp/lsZ-lab/fake-etc(/.*)?" 2>&1 | tee task03-semanage.txt
+echo "registered exit: ${PIPESTATUS[0]}"
+
+restorecon -Rv /tmp/lsZ-lab/fake-etc 2>&1 | tee task03-restorecon.txt
+echo "restorecon exit: ${PIPESTATUS[0]}"
+
+ls -Z /tmp/lsZ-lab/fake-etc/httpd.conf
+matchpathcon /tmp/lsZ-lab/fake-etc/httpd.conf
+
+semanage fcontext -d "/tmp/lsZ-lab/fake-etc(/.*)?"
+restorecon -Rv /tmp/lsZ-lab/fake-etc
+ls -Z /tmp/lsZ-lab/fake-etc/httpd.conf
 ```
 
-### Human-Readable Breakdown
+### e) Human-Readable Breakdown
 
-- `ls -Z` shows file SELinux contexts.
-- `id -Z` shows your current SELinux user context.
-- `ps -eZ` shows process contexts.
-- `2>&1 | tee` captures both success and errors, useful when SELinux tooling is unavailable.
-- `grep -E` filters multiple names with one regular expression.
+- `ps -eZ` — list every process with its SELinux context (`system_u:system_r:sshd_t:s0-s0:c0.c1023`).
+- `mkdir -p fake-etc; echo ... > httpd.conf` — create a fake config file.
+- `ls -Z` initially shows `user_tmp_t` (because `/tmp` defaults).
+- `semanage fcontext -a -t httpd_config_t "PATH(/.*)?"` — register a **persistent** policy rule that says "this path and everything inside should be type `httpd_config_t`." The `(/.*)?` regex covers the directory and all descendants.
+- `restorecon -Rv PATH` — actually **apply** the policy rule, relabeling existing files. **This is the half people forget (T02).**
+- `ls -Z` after — confirm the type changed to `httpd_config_t`.
+- `semanage fcontext -d "PATH(/.*)?"` + `restorecon -Rv` — remove the rule and relabel back, leaving no policy debris.
 
-### Reading It Left to Right
+### f) Reading It Left to Right
 
-`ls -Z /etc/passwd /etc/shadow /etc/ssh/sshd_config 2>&1 | tee task03-file-contexts.txt`
+`semanage fcontext -a -t httpd_config_t "/tmp/lsZ-lab/fake-etc(/.*)?"`
 
-1. `ls -Z` requests SELinux labels.
-2. Three `/etc` paths are inspected.
-3. `2>&1` merges errors with normal output.
-4. `| tee` displays and saves the transcript.
+1. `semanage` — SELinux management CLI.
+2. `fcontext` — manage **file context** rules (vs `port`, `login`, `boolean`).
+3. `-a` — **add** a rule (vs `-d` delete, `-m` modify, `-l` list).
+4. `-t httpd_config_t` — assign this type.
+5. `"/tmp/lsZ-lab/fake-etc(/.*)?"` — path **regex**. `(/.*)?` = "optionally followed by `/anything`." Covers the dir and all contents.
 
-### The Story
+### g) The Story
 
-SELinux does not care only about users. It mainly cares about *types*. The file type (`passwd_file_t`, `shadow_t`, `sshd_etc_t`, etc.) must match what the policy expects for the process trying to use it.
+The full RHCSA SELinux flow is exactly this three-line dance:
 
-### Expected Output
+```
+semanage fcontext -a -t TYPE "PATH(/.*)?"   # tell policy
+restorecon -Rv PATH                          # apply policy
+ls -Z PATH                                   # verify
+```
+
+The catastrophic bug (T02) is running the `semanage` line, walking away, and never running `restorecon`. The policy rule is registered in `/etc/selinux/targeted/contexts/files/file_contexts.local` but **nothing on disk has been relabeled**. A reboot eventually relabels, but the exam grader runs in seconds, not after a reboot.
+
+### h) Expected Output
 
 ```text
-system_u:object_r:passwd_file_t:s0 /etc/passwd
-system_u:object_r:shadow_t:s0 /etc/shadow
-system_u:object_r:sshd_etc_t:s0 /etc/ssh/sshd_config
-unconfined_u:unconfined_r:unconfined_t:s0-s0:c0.c1023
+LABEL                              PID TTY          TIME CMD
+system_u:system_r:init_t:s0          1 ?        00:00:01 systemd
+system_u:system_r:kernel_t:s0        2 ?        00:00:00 kthreadd
+...
+---
+system_u:system_r:sshd_t:s0-s0:c0.c1023  ...
+system_u:system_r:init_t:s0              ...
+
+unconfined_u:object_r:user_tmp_t:s0  /tmp/lsZ-lab/fake-etc/httpd.conf
+   ↑ before semanage
+
+Restorecon reset /tmp/lsZ-lab/fake-etc context unconfined_u:object_r:user_tmp_t:s0->unconfined_u:object_r:httpd_config_t:s0
+Restorecon reset /tmp/lsZ-lab/fake-etc/httpd.conf context unconfined_u:object_r:user_tmp_t:s0->unconfined_u:object_r:httpd_config_t:s0
+restorecon exit: 0
+
+unconfined_u:object_r:httpd_config_t:s0  /tmp/lsZ-lab/fake-etc/httpd.conf
+   ↑ after semanage + restorecon — policy now matches reality
+
+/tmp/lsZ-lab/fake-etc/httpd.conf  system_u:object_r:httpd_config_t:s0
+
+unconfined_u:object_r:user_tmp_t:s0  /tmp/lsZ-lab/fake-etc/httpd.conf
+   ↑ after deletion + restorecon — back to default
 ```
 
-If SELinux is disabled, commands may print `?` or errors. Record that as an environment warning, not a lab failure.
-
-### Switches Table
+### i) Switches Table
 
 | Token | Meaning |
 |---|---|
-| `ls -Z` | Show SELinux context |
-| `id -Z` | Show current user's SELinux context |
-| `ps -eZ` | Show all process contexts |
-| `grep -E` | Extended regular expression |
-| `grep -n` | Include line numbers |
-| `2>&1 | tee` | Merge errors and save visible transcript |
+| `ps -eZ` | All processes with SELinux contexts |
+| `semanage fcontext -a -t TYPE PATH` | Add policy rule |
+| `semanage fcontext -d PATH` | Delete policy rule |
+| `semanage fcontext -l` | List rules |
+| `semanage fcontext -m -t TYPE PATH` | Modify existing rule |
+| `restorecon -R` | Recursive |
+| `restorecon -v` | Verbose (show what was changed) |
+| `restorecon -Rv PATH` | Apply policy, recursive + verbose |
+| `matchpathcon PATH` | Show expected context for path |
+| `(/.*)?` | Optional `/` + anything (regex covering descendants) |
+| `${PIPESTATUS[0]}` | Exit status of first pipeline stage |
 
-### 🧠 Concept Card
+### j) 🧠 Concept Card
 
 | ✅ | Concept | What it does |
 |---|---|---|
-|  | SELinux user | First context field |
-|  | SELinux role | Second context field |
-|  | SELinux type | Third field; most important for RHCSA |
-|  | SELinux level | Fourth field (`s0`, MLS/MCS) |
-|  | Process context | What a running process is allowed to access |
+|   | `ps -eZ` | Process contexts (`system_r` role) |
+|   | `ls -Z` | File contexts (`object_r` role) |
+|   | Type enforcement | Process type + file type pair must be allowed by policy |
+|   | `semanage fcontext -a` | Persistent policy rule |
+|   | `restorecon -Rv` | Apply policy to disk |
+|   | Three-step flow | semanage → restorecon → verify |
+|   | `(/.*)?` regex | Covers a directory and all descendants |
+| 🪤 **Trap Risk (T02)** | semanage fcontext without restorecon -Rv afterward | Rule is registered but files are still mislabeled. Always pair the two commands — make it muscle memory |
+| 🪤 **Trap Risk (T01)** | Setting permissive instead of fixing context | If `restorecon` did not fix it, *read the actual AVC denial* with `ausearch -m avc -ts recent`. Do not reach for `setenforce 0` |
 
-| 🪤 Trap Risk | What goes wrong | How to avoid |
-|---|---|---|
-| T01 | You switch to permissive and hide the real label problem | Keep enforcing; inspect `ls -Z`, `ps -eZ`, and AVC logs before changing mode |
-
-### 🔁 Persistence Check
-
-| What was configured | Verification command | Why it matters |
-|---|---|---|
-| SELinux current mode | `getenforce` | confirms enforcing/permissive/disabled |
-| File contexts visible | `ls -Z /etc/passwd` | confirms label reading works |
-| Process contexts visible | `ps -eZ | head` | confirms process labels are visible |
-
-```bash
-getenforce 2>/dev/null || echo "getenforce unavailable"
-ls -Z /etc/passwd 2>/dev/null || echo "file contexts unavailable"
-ps -eZ 2>/dev/null | head -n 3 || echo "process contexts unavailable"
-```
-
-### 📓 Journal Write — Before Cleanup
+### k) 🧹 Cleanup
 
 ```bash
 LAB=lab06
@@ -497,392 +601,75 @@ TASK=task3
 JDIR="/root/rhcsa_journal/${LAB}/${TASK}"
 mkdir -p "$JDIR"
 cat > "$JDIR/done.txt" <<EOF
-LAB:    lab06
-TASK:   task3
+LAB:    ${LAB}
+TASK:   ${TASK}
 DATE:   $(date -Is)
 USER:   $(whoami)@$(hostname)
 STATUS: COMPLETE
 EOF
-cat > "$JDIR/notes.txt" <<EOF
-TOPIC:    SELinux contexts on files, users, and processes
-COMMANDS: ls -Z, id -Z, ps -eZ, getenforce, grep -E
-TRAPS:    T01
-MISSED:   note SELinux disabled if getenforce says Disabled
-NEXT:     task4 — expected contexts and restorecon dry run
+cat > "$JDIR/notes.txt" <<'EOF'
+TOPIC:    ps -eZ, semanage fcontext -a/-d, restorecon -Rv
+COMMANDS: ps -eZ, semanage fcontext, restorecon, matchpathcon
+TRAPS:    T01 + T02 (both rehearsed)
+MISSED:   —
+NEXT:     Lab 07 — touch + timestamps (/boot practice dir)
 EOF
-ls -la "$JDIR"
-echo "exit was: $?"
-```
+echo "Journal written: $(ls -la $JDIR)"
 
-### 🧹 Cleanup
-
-```bash
-rm -f /tmp/lsZ-lab/task03-getenforce.txt /tmp/lsZ-lab/task03-dac.txt /tmp/lsZ-lab/task03-file-contexts.txt /tmp/lsZ-lab/task03-my-context.txt /tmp/lsZ-lab/task03-process-contexts.txt
-echo "exit was: $?"
-```
-
-### Troubleshoot Table
-
-| Symptom | Fix |
-|---|---|
-| `ls -Z` shows `?` | SELinux may be disabled; run `getenforce` |
-| `ps -eZ` fails | SELinux tools/policy not available; record environment warning |
-| `id -Z` says not enabled | Practice DAC tasks now; redo SELinux tasks on enforcing host |
-
-> **STOP — paste output before Task 4.**
-
----
-
-## Task 4 — Compare Actual and Expected Contexts Safely
-
-**Practice directory this task:** `/etc`
-
-SELinux fixes require the right order: define expected context, apply it with `restorecon`, then verify.
-
-### 🔁 Warm-Up — Commands from Previous Labs
-
-```bash
-cd /tmp/lsZ-lab
-set -o noclobber
-ls -Z /etc/passwd > task04-context.txt 2>&1
-echo "second write" > task04-context.txt 2>/dev/null || echo "noclobber blocked overwrite"
-ls -Z /etc/group >| task04-context.txt 2>&1
-set +o noclobber
-tail -n 1 task04-context.txt
-echo "Warm-up done by $(whoami) at $(date -Is)"
-echo "exit was: $?"
-```
-
-### Purpose
-
-Practice the safe SELinux verification flow without changing system policy: inspect expected contexts, dry-run `restorecon`, and rehearse the `semanage` → `restorecon` order.
-
-### Main Command Block
-
-```bash
-cd /tmp/lsZ-lab
-matchpathcon /etc/passwd /etc/shadow /etc/ssh/sshd_config 2>&1 | tee task04-expected.txt
-restorecon -nRv /etc/ssh 2>&1 | head -n 10 | tee task04-restorecon-dryrun.txt
-semanage fcontext -l 2>/dev/null | grep -E '/etc/(passwd|shadow|ssh)' | head -n 10 | tee task04-fcontext-list.txt || echo "semanage unavailable"
-echo "expected lines: $(wc -l < task04-expected.txt)"
-```
-
-### Human-Readable Breakdown
-
-- `matchpathcon` shows the context SELinux expects for a path.
-- `restorecon -nRv` dry-runs a recursive relabel and prints what it *would* do.
-- `semanage fcontext -l` lists persistent file-context rules.
-- `grep -E` filters for important `/etc` paths.
-- No system file is modified because `restorecon` uses `-n` (no change).
-
-### Reading It Left to Right
-
-`restorecon -nRv /etc/ssh 2>&1 | head -n 10 | tee task04-restorecon-dryrun.txt`
-
-1. `restorecon` checks SELinux contexts.
-2. `-n` means no changes.
-3. `-R` means recursive.
-4. `-v` means verbose.
-5. `/etc/ssh` is the target.
-6. Output is merged, limited, displayed, and saved.
-
-### The Story
-
-The correct persistent SELinux fix is not “set permissive.” It is: add or confirm the fcontext rule, run `restorecon -Rv`, then verify with `ls -Z`. Task 4 rehearses that order safely.
-
-### Expected Output
-
-```text
-/etc/passwd system_u:object_r:passwd_file_t:s0
-/etc/shadow system_u:object_r:shadow_t:s0
-/etc/ssh/sshd_config system_u:object_r:sshd_etc_t:s0
-expected lines: 3
-```
-
-`restorecon -nRv` may print nothing if everything is already correct.
-
-### Switches Table
-
-| Token | Meaning |
-|---|---|
-| `matchpathcon` | Show expected SELinux context |
-| `restorecon -n` | No changes; dry run |
-| `restorecon -R` | Recursive |
-| `restorecon -v` | Verbose |
-| `semanage fcontext -l` | List persistent file-context rules |
-| `set -o noclobber` | Prevent accidental overwrite |
-| `>|` | Force overwrite intentionally |
-| `tail -n 1` | Last line only |
-
-### 🧠 Concept Card
-
-| ✅ | Concept | What it does |
-|---|---|---|
-|  | Expected context | Policy's correct label for a path |
-|  | Actual context | What `ls -Z` currently shows |
-|  | `restorecon -nRv` | Dry-run relabel recursively and verbosely |
-|  | `semanage fcontext -l` | Persistent context rules |
-|  | `noclobber` | Protects evidence files from overwrite |
-
-| 🪤 Trap Risk | What goes wrong | How to avoid |
-|---|---|---|
-| T02 | You add an fcontext rule but forget `restorecon -Rv` | Always run `restorecon -Rv PATH`, then verify with `ls -Z PATH` |
-
-### 🔁 Persistence Check
-
-| What was configured | Verification command | Why it matters |
-|---|---|---|
-| Persistent fcontext rules | `semanage fcontext -l | grep PATH` | confirms policy store rule exists |
-| Applied label | `ls -Z PATH` | confirms inode label changed |
-| Dry-run safety | `restorecon -nRv /etc/ssh` | proves what would change before changing it |
-
-```bash
-semanage fcontext -l 2>/dev/null | grep -E '/etc/(passwd|shadow|ssh)' | head || echo "semanage unavailable"
-restorecon -nRv /etc/ssh 2>&1 | head
-ls -Z /etc/ssh/sshd_config 2>/dev/null || echo "context unavailable"
-```
-
-### 📓 Journal Write — Before Cleanup
-
-```bash
-LAB=lab06
-TASK=task4
-JDIR="/root/rhcsa_journal/${LAB}/${TASK}"
-mkdir -p "$JDIR"
-cat > "$JDIR/done.txt" <<EOF
-LAB:    lab06
-TASK:   task4
-DATE:   $(date -Is)
-USER:   $(whoami)@$(hostname)
-STATUS: COMPLETE
-EOF
-cat > "$JDIR/notes.txt" <<EOF
-TOPIC:    Expected SELinux contexts and restorecon dry run
-COMMANDS: matchpathcon, restorecon -nRv, semanage fcontext -l, ls -Z
-TRAPS:    T02
-MISSED:   none
-NEXT:     task5 — capstone audit with ls -lZ, ps -eZ, journal index
-EOF
-ls -la "$JDIR"
-echo "exit was: $?"
-```
-
-### 🧹 Cleanup
-
-```bash
-rm -f /tmp/lsZ-lab/task04-context.txt /tmp/lsZ-lab/task04-expected.txt /tmp/lsZ-lab/task04-restorecon-dryrun.txt /tmp/lsZ-lab/task04-fcontext-list.txt
-echo "exit was: $?"
-```
-
-### Troubleshoot Table
-
-| Symptom | Fix |
-|---|---|
-| `matchpathcon: command not found` | Install policycoreutils tools or use `ls -Z` for now |
-| `semanage: command not found` | Install `policycoreutils-python-utils` on RHEL/Rocky |
-| `restorecon` wants to change many files | You used a broad target; narrow the path before real relabeling |
-
-> **STOP — paste output before Task 5.**
-
----
-
-## Task 5 — Capstone: Audit `/etc` with DAC and SELinux Evidence
-
-**Practice directory this task:** `/etc`
-
-This capstone combines `ls -l`, `ls -Z`, process contexts, expected-context checks, persistence verification, and final cleanup.
-
-### 🔁 Warm-Up — Commands from Previous Labs
-
-```bash
-cd /tmp/lsZ-lab
-false | true
-echo "PIPESTATUS=${PIPESTATUS[@]}"
-journalctl --no-pager -n 3 2>/dev/null | tee task05-journal-sample.txt
-ls /proc/self/fd | sort -n | tee task05-fds.txt
-echo "Warm-up done by $(whoami) at $(date -Is)"
-echo "exit was: $?"
-```
-
-### Purpose
-
-Produce a compact audit bundle proving you can read `/etc` file metadata and SELinux context evidence.
-
-### Main Command Block
-
-```bash
-cd /tmp/lsZ-lab
-ls -lZ /etc/passwd /etc/group /etc/ssh/sshd_config 2>&1 | tee task05-file-audit.txt
-ps -eZ 2>/dev/null | head -n 10 | tee task05-process-audit.txt || echo "process contexts unavailable"
-matchpathcon /etc/passwd /etc/group /etc/ssh/sshd_config 2>&1 | tee task05-expected-audit.txt || echo "matchpathcon unavailable"
-echo "file audit lines: $(wc -l < task05-file-audit.txt)"
-echo "process audit lines: $(wc -l < task05-process-audit.txt 2>/dev/null || echo 0)"
-find /root/rhcsa_journal/lab06 -name done.txt 2>/dev/null | sort
-```
-
-### Human-Readable Breakdown
-
-- `ls -lZ` combines DAC metadata and SELinux context in one view.
-- `ps -eZ` connects process context to file context thinking.
-- `matchpathcon` shows expected labels.
-- `wc -l < file` proves evidence files have content.
-- `find /root/rhcsa_journal/lab06 -name done.txt` proves progress is resumable.
-
-### Reading It Left to Right
-
-`ls -lZ /etc/passwd /etc/group /etc/ssh/sshd_config 2>&1 | tee task05-file-audit.txt`
-
-1. `ls` lists files.
-2. `-l` includes DAC metadata.
-3. `-Z` includes SELinux context.
-4. `/etc` files are targets.
-5. `2>&1` merges errors.
-6. `tee` saves and displays.
-
-### The Story
-
-When a service fails, your first audit is simple: what are the Unix permissions, who owns the file, what SELinux type does it have, and what process type is trying to access it? This capstone builds that forensic reflex.
-
-### Expected Output
-
-```text
--rw-r--r--. root root system_u:object_r:passwd_file_t:s0 /etc/passwd
--rw-r--r--. root root system_u:object_r:etc_t:s0 /etc/group
--rw-------. root root system_u:object_r:sshd_etc_t:s0 /etc/ssh/sshd_config
-file audit lines: 3
-/root/rhcsa_journal/lab06/task1/done.txt
-...
-```
-
-Exact contexts vary slightly by distro and SELinux state.
-
-### Switches Table
-
-| Token | Meaning |
-|---|---|
-| `ls -lZ` | Long listing plus SELinux context |
-| `ps -eZ` | Process list plus SELinux context |
-| `matchpathcon` | Expected context lookup |
-| `journalctl --no-pager -n 3` | Last three journal lines, no pager |
-| `/proc/self/fd` | Current process file descriptors |
-| `sort -n` | Numeric sort |
-| `find -name done.txt` | Locate journal completion markers |
-
-### 🧠 Concept Card
-
-| ✅ | Concept | What it does |
-|---|---|---|
-|  | `ls -lZ` | DAC and MAC evidence in one command |
-|  | `ps -eZ` | Process SELinux type evidence |
-|  | `matchpathcon` | Expected file label |
-|  | `done.txt` journal | Reboot-safe completion marker |
-|  | `/proc/self/fd` | Open descriptors for current shell process |
-
-| 🪤 Trap Risk | What goes wrong | How to avoid |
-|---|---|---|
-| T03 | You change a SELinux boolean without `-P` and it vanishes after reboot | Use `setsebool -P BOOLEAN on`, then verify with `getsebool BOOLEAN` |
-
-### 🔁 Persistence Check
-
-| What was configured | Verification command | Why it matters |
-|---|---|---|
-| Journal entries | `find /root/rhcsa_journal/lab06 -name done.txt | sort` | confirms resumable completion |
-| SELinux boolean persistence habit | `getsebool -a | head` | confirms boolean inspection command works |
-| Any real boolean change | `setsebool -P NAME on` then `getsebool NAME` | `-P` is what survives reboot |
-
-```bash
-find /root/rhcsa_journal/lab06 -name done.txt | sort
-getsebool -a 2>/dev/null | head || echo "getsebool unavailable"
-```
-
-### 📓 Journal Write — Before Cleanup
-
-```bash
-LAB=lab06
-TASK=task5
-JDIR="/root/rhcsa_journal/${LAB}/${TASK}"
-mkdir -p "$JDIR"
-cat > "$JDIR/done.txt" <<EOF
-LAB:    lab06
-TASK:   task5
-DATE:   $(date -Is)
-USER:   $(whoami)@$(hostname)
-STATUS: COMPLETE
-EOF
-cat > "$JDIR/notes.txt" <<EOF
-TOPIC:    Capstone audit with ls -lZ, ps -eZ, matchpathcon, journal index
-COMMANDS: ls -lZ, ps -eZ, matchpathcon, journalctl --no-pager, find done.txt, getsebool
-TRAPS:    T03
-MISSED:   none
-NEXT:     lab07 — touch timestamps (5-task format)
-EOF
-find /root/rhcsa_journal/lab06 -name done.txt | sort
-echo "exit was: $?"
-```
-
-### 🧹 Cleanup
-
-```bash
-cd /tmp
+semanage fcontext -d "/tmp/lsZ-lab/fake-etc(/.*)?" 2>/dev/null
 rm -rf /tmp/lsZ-lab
 echo "exit was: $?"
-exit
 ```
 
-### Troubleshoot Table
+### l) Troubleshoot Table
 
 | Symptom | Fix |
 |---|---|
-| `getsebool` unavailable | Install SELinux tools or redo on RHEL/Rocky |
-| `process audit lines: 0` | SELinux disabled; record environment warning |
-| `sshd_config` missing | Use another `/etc/ssh/*` file from `ls /etc/ssh` |
+| `semanage fcontext -a` says "already defined" | Use `-m` to modify instead of `-a` |
+| `restorecon` does not change anything | Verify the path regex with `semanage fcontext -l \| grep PATH` |
+| `ls -Z` still shows old type after `restorecon` | The semanage rule is wrong; check `matchpathcon` says the expected type |
+| `ausearch: not found` | `sudo dnf install audit` |
+| App still denied after fix | Read the AVC: `ausearch -m avc -ts recent`; the type may need different perms |
 
-> **STOP — paste output. Lab 06 complete.**
+### m) STOP
 
----
+> **STOP — paste output before declaring Lab 06 complete.**
 
-## Checklist (5 Tasks — Permanent)
+### n) 🔁 Persistence Check
 
-- [ ] Task 1 — read `ls -l` columns on `/etc`
-- [ ] Task 2 — identify file types and permission characters
-- [ ] Task 3 — read SELinux contexts with `ls -Z`, `id -Z`, `ps -eZ`
-- [ ] Task 4 — compare actual and expected contexts safely
-- [ ] Task 5 — capstone audit with DAC + SELinux evidence
+| What was configured | Verification command | Why it matters |
+|---|---|---|
+| Policy rule REMOVED | `semanage fcontext -l \| grep fake-etc` (empty) | Confirms no leftover policy debris |
+| Sandbox removed | `test -d /tmp/lsZ-lab \|\| echo CLEAN` | Confirms `rm -rf` worked |
+| All 3 journal entries | `find /root/rhcsa_journal/lab06 -name done.txt \| wc -l` (expect 3) | Reboot-proof study record |
+| SELinux still enforcing | `getenforce` | Confirms we did NOT fall for T01 |
 
----
-
-## Trap Rotation
-
-| Trap | Rehearsed where |
-|---|---|
-| T01 | Tasks 1–3 — inspect evidence instead of setting permissive |
-| T02 | Task 4 — `semanage fcontext` requires `restorecon -Rv` |
-| T03 | Task 5 — `setsebool` needs `-P` for persistence |
-
-Next lab should rotate to a different category, such as fstab/mount traps T07–T10.
+> **Reboot question:** "If we rebooted now, would the `httpd_config_t` change on `fake-etc` have survived?" — Answer: yes, **as long as the semanage rule still existed**. That is the whole point of `semanage fcontext` (vs `chcon`, which is non-persistent). Since we deleted the rule, the next `restorecon` reverts the labels. Boot or no boot.
 
 ---
 
-## Resume Command
+## 🪤 Trap Registry Update — End of Lab 06
 
-```bash
-find /root/rhcsa_journal -name done.txt | sort | tail -5
-```
+| Trap ID | Category | Rehearsed? | If hit, repeat in |
+|---|---|---|---|
+| T01 | SELinux | ✅ | — |
+| T02 | SELinux | ✅ | — |
 
----
+Next lab (07) traps: **T07** (Wrong UUID in fstab — always copy-paste from blkid) · **T43** (Getting stuck >10 min on one task).
 
-## Related Labs
-
-| Lab | Connection |
-|---|---|
-| Lab 05 — Directory Navigation | Gives the `pwd`, `cd`, and `ls` foundation |
-| Lab 07 — Timestamps with `touch` | Creates files whose metadata you inspect here |
-| Lab 40 — Standard File Permissions | Changes the DAC bits decoded in this lab |
-| Lab 47 — ACL Support | Explains `+` in the long-listing mode string |
-| Lab 78 — Managing SELinux Modes | Deepens `getenforce` and `setenforce` |
+3-lab trap window (05+06+07 once complete): T41, T43, T01, T02, T07 = **5 traps minimum** ✓
 
 ---
 
-## Author
+## 🎓 What You Now Own
 
-**Kelvin R. Tobias** — [kelvinintech.com](https://kelvinintech.com) · [GitHub](https://github.com/kelvintechnical)
+After this lab you can:
+
+1. Read every column of `ls -l` on autopilot.
+2. Identify SELinux contexts with `ls -Z` and `ls -Zd`.
+3. Connect process contexts (`ps -eZ`) to file contexts (`ls -Z`).
+4. Add a persistent context with `semanage fcontext -a -t TYPE "PATH(/.*)?"`.
+5. **Always** pair `semanage fcontext` with `restorecon -Rv` (T02 lifesaver).
+6. Refuse the trap of `setenforce 0` as a "fix" (T01 lifesaver).
+7. Roll back a context with `semanage -d` + `restorecon -Rv`.
+8. Diagnose denials with `matchpathcon` and `ausearch -m avc -ts recent`.
