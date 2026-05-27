@@ -177,7 +177,7 @@ Labs organized by official RHCSA EX200 exam objectives.
 
 | # | Lab | Key Commands |
 |---|-----|-------------|
-| 05 | [Directory Navigation](https://github.com/kelvintechnical/directory-nav/blob/main/README.md)| `cd`, `pwd`, `ls` — Move through the filesystem using absolute paths, relative paths, `..`, and `~` |
+| 05 | [Directory Navigation](labs/directory-nav/) | `cd`, `pwd`, `ls` — Five-task ADHD-format drill for absolute paths, relative paths, `..`, `cd -`, and `ls` evidence capture |
 | 06 | [Listing Files and SELinux Contexts](https://github.com/kelvintechnical/listing-files-selinux/blob/main/README.md) | `ls -l`, `ls -Z` — Use long listings and display SELinux contexts of files and directories |
 | 07 | [Creating Empty Files and Timestamps](https://github.com/kelvintechnical/touch-timestamps/blob/main/README.md) | `touch` — Create an empty file and update the last modification timestamp |
 | 08 | [Copying Files and Directories](https://github.com/kelvintechnical/copying-files-directories) | `cp`, `cp -R`, `cp -a` — Copy single files and entire directory structures recursively |
