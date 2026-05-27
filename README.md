@@ -363,12 +363,12 @@ Labs organized by official RHCSA EX200 exam objectives.
 | # | Lab | Key Commands |
 |---|-----|-------------|
 | 100 | [Analyze Boot Performance](https://github.com/kelvintechnical/analyze-boot-performance) | `systemd-analyze blame` — Run `systemd-analyze blame` to identify services slowing down the boot process |
-| 101 | Query Logs with journalctl *(coming soon)* | `journalctl -u`, `-p`, `--since`, `--until` — Use `journalctl` to read and filter system logs by priority using `-p warning` |
-| 102 | Configure Persistent Journal Logs *(coming soon)* | `/var/log/journal` — Create `/var/log/journal` directory to force systemd to write logs persistently to disk |
-| 103 | Understand Log Routing *(coming soon)* | `/etc/rsyslog.conf` — Review `/etc/rsyslog.conf` to identify where different system and kernel messages are logged |
-| 104 | Monitor Authentication Logs *(coming soon)* | `/var/log/secure` — Check `/var/log/secure` to track user logins, SSH access, and failed authentication attempts |
-| 105 | Filter systemd Journals by Priority *(coming soon)* | `journalctl -p alert` — Use `journalctl -p alert` to query the journal filtering for high-priority errors |
-| 106 | Service-Specific Journal Logs *(coming soon)* | `journalctl -u httpd` — Display journal entries for a specific daemon using `journalctl -u` |
+| 101 | [Query Logs with journalctl](https://github.com/kelvintechnical/query-logs-with-journalctl) | `journalctl -u`, `-p`, `--since`, `--until` — Use `journalctl` to read and filter system logs by priority using `-p warning` |
+| 102 | [Configure Persistent Journal Logs](https://github.com/kelvintechnical/configure-persistent-journal-logs) | `/var/log/journal` — Create `/var/log/journal` directory to force systemd to write logs persistently to disk |
+| 103 | [Understand Log Routing](https://github.com/kelvintechnical/understand-log-routing) | `/etc/rsyslog.conf` — Review `/etc/rsyslog.conf` to identify where different system and kernel messages are logged |
+| 104 | [Monitor Authentication Logs](https://github.com/kelvintechnical/monitor-authentication-logs) | `/var/log/secure` — Check `/var/log/secure` to track user logins, SSH access, and failed authentication attempts |
+| 105 | [Filter systemd Journals by Priority](https://github.com/kelvintechnical/filter-systemd-journals-by-priority) | `journalctl -p alert` — Use `journalctl -p alert` to query the journal filtering for high-priority errors |
+| 106 | [Service-Specific Journal Logs](https://github.com/kelvintechnical/service-specific-journal-logs) | `journalctl -u httpd` — Display journal entries for a specific daemon using `journalctl -u` |
 
 ---
 
@@ -379,7 +379,7 @@ Labs organized by official RHCSA EX200 exam objectives.
 | # | Lab | Key Commands |
 |---|-----|-------------|
 | 107 | [Configure Timezone and Time Synchronization](https://github.com/kelvintechnical/Configure-Timezone-and-Time-Synchronization) | `timedatectl`, `systemctl enable --now chronyd` — List timezones with `timedatectl list-timezones` and set timezone |
-| 108 | Check NTP Sync Status *(coming soon)* | `ntpq -p`, `chronyc tracking` — Verify NTP is actively synchronizing using `ntpq -p` or `chronyc tracking` |
+| 108 | [Check NTP Sync Status](https://github.com/kelvintechnical/check-ntp-sync-status) | `ntpq -p`, `chronyc tracking` — Verify NTP is actively synchronizing using `ntpq -p` or `chronyc tracking` |
 | 109 | [Configure NTP Time Source](https://github.com/kelvintechnical/configure-ntp) | `/etc/chrony.conf`, `chronyc sources`, `iburst` — Open `/etc/chrony.conf` and configure server or peer directives for NTP synchronization |
 
 ---
@@ -390,17 +390,17 @@ Labs organized by official RHCSA EX200 exam objectives.
 
 | # | Lab | Key Commands |
 |---|-----|-------------|
-| 110 | Inspect Filesystems *(coming soon)* | `df -h`, `findmnt` — Use `df -h` to view space on mounted filesystems and `findmnt` for tree-like view |
-| 111 | Display Partition Tables *(coming soon)* | `fdisk -l` — Run `fdisk -l` to list configured partitions from all attached hard drives |
-| 112 | Create MBR Partition with fdisk *(coming soon — needs EBS)* | `fdisk /dev/vdb` — Launch `fdisk`, create partition with `n`, print with `p`, write with `w` |
-| 113 | Change Partition Types in fdisk *(coming soon — needs EBS)* | `fdisk t` command — Use `t` command in `fdisk` with identifier `83` for Linux filesystem or `8e` for LVM |
-| 114 | Create GPT Partition with gdisk *(coming soon — needs EBS)* | `gdisk` — Launch `gdisk` to practice creating a GPT-based partition table |
-| 115 | Command-Line Partitioning with parted *(coming soon — needs EBS)* | `parted`, `mklabel`, `mkpart` — Use `parted` to create partitions directly from the command line |
-| 116 | Format Partition with XFS *(coming soon — needs EBS)* | `mkfs.xfs` — Use `mkfs.xfs` to format a newly created partition with the default RHEL XFS filesystem |
-| 117 | Format Partition with Ext4 *(coming soon — needs EBS)* | `mkfs.ext4` — Use `mkfs.ext4` to format a partition with the ext4 journaling filesystem |
-| 118 | Check Filesystem Consistency *(coming soon — needs EBS)* | `fsck.ext4` — Check integrity of an unmounted ext partition using `fsck.ext4` |
-| 119 | Inspect Filesystem Features *(coming soon — needs EBS)* | `dumpe2fs -h \| grep features` — Run `dumpe2fs` to analyze features on an ext volume |
-| 120 | Create and Activate Swap Space *(coming soon)* | `mkswap`, `swapon`, `swapoff`, `/etc/fstab` |
+| 110 | [Inspect Filesystems](https://github.com/kelvintechnical/inspect-filesystems) | `df -h`, `findmnt` — Use `df -h` to view space on mounted filesystems and `findmnt` for tree-like view |
+| 111 | [Display Partition Tables](https://github.com/kelvintechnical/display-partition-tables) | `fdisk -l` — Run `fdisk -l` to list configured partitions from all attached hard drives |
+| 112 | [Create MBR Partition with fdisk](https://github.com/kelvintechnical/create-mbr-partition-fdisk) *(needs spare disk)* | `fdisk /dev/vdb` — Launch `fdisk`, create partition with `n`, print with `p`, write with `w` |
+| 113 | [Change Partition Types in fdisk](https://github.com/kelvintechnical/change-partition-types-fdisk) *(needs spare disk)* | `fdisk t` command — Use `t` command in `fdisk` with identifier `83` for Linux filesystem or `8e` for LVM |
+| 114 | [Create GPT Partition with gdisk](https://github.com/kelvintechnical/create-gpt-partition-gdisk) *(needs spare disk)* | `gdisk` — Launch `gdisk` to practice creating a GPT-based partition table |
+| 115 | [Command-Line Partitioning with parted](https://github.com/kelvintechnical/command-line-partitioning-parted) *(needs spare disk)* | `parted`, `mklabel`, `mkpart` — Use `parted` to create partitions directly from the command line |
+| 116 | [Format Partition with XFS](https://github.com/kelvintechnical/format-partition-xfs) *(needs spare disk)* | `mkfs.xfs` — Use `mkfs.xfs` to format a newly created partition with the default RHEL XFS filesystem |
+| 117 | [Format Partition with Ext4](https://github.com/kelvintechnical/format-partition-ext4) *(needs spare disk)* | `mkfs.ext4` — Use `mkfs.ext4` to format a partition with the ext4 journaling filesystem |
+| 118 | [Check Filesystem Consistency](https://github.com/kelvintechnical/check-filesystem-consistency-fsck) *(needs spare disk or loop file)* | `fsck.ext4` — Check integrity of an unmounted ext partition using `fsck.ext4` |
+| 119 | [Inspect Filesystem Features](https://github.com/kelvintechnical/inspect-filesystem-features-dumpe2fs) *(needs spare disk or loop file)* | `dumpe2fs -h \| grep features` — Run `dumpe2fs` to analyze features on an ext volume |
+| 120 | [Create and Activate Swap Space](https://github.com/kelvintechnical/create-and-activate-swap) | `mkswap`, `swapon`, `swapoff`, `/etc/fstab` |
 
 ---
 
@@ -410,16 +410,16 @@ Labs organized by official RHCSA EX200 exam objectives.
 
 | # | Lab | Key Commands |
 |---|-----|-------------|
-| 121 | Initialize Physical Volumes *(coming soon — needs EBS)* | `pvcreate` — Use `pvcreate` to initialize a disk or partition for use by LVM |
-| 122 | Display Physical Volumes *(coming soon — needs EBS)* | `pvs`, `pvdisplay` — Run `pvs` and `pvdisplay` to view configured physical volumes and sizes |
-| 123 | Create Volume Group *(coming soon — needs EBS)* | `vgcreate` — Use `vgcreate` to pool one or more physical volumes into a volume group |
-| 124 | Display Volume Groups *(coming soon — needs EBS)* | `vgs`, `vgdisplay` — Run `vgs` and `vgdisplay` to check status and free space in volume groups |
-| 125 | Create Logical Volume *(coming soon — needs EBS)* | `lvcreate` — Use `lvcreate` to allocate space from a volume group into a logical volume |
-| 126 | Display Logical Volumes *(coming soon — needs EBS)* | `lvs`, `lvdisplay` — Run `lvs` and `lvdisplay` to list all configured logical volumes |
-| 127 | Extend Volume Group *(coming soon — needs EBS)* | `vgextend` — Add a new physical volume to an existing volume group using `vgextend` |
-| 128 | Extend Logical Volume *(coming soon — needs EBS)* | `lvextend` — Use `lvextend` to increase space allocated to an existing logical volume |
-| 129 | Resize Filesystem After Extend *(coming soon — needs EBS)* | `xfs_growfs`, `resize2fs` — Use `xfs_growfs` or `resize2fs` to expand filesystem to fill new space |
-| 130 | Remove LVM Components *(coming soon — needs EBS)* | `lvremove`, `vgremove`, `pvremove` — Unmount, then remove LV with `lvremove`, VG with `vgremove`, PV with `pvremove` |
+| 121 | [Initialize Physical Volumes](https://github.com/kelvintechnical/lvm-initialize-physical-volumes) *(needs spare disk)* | `pvcreate` — Use `pvcreate` to initialize a disk or partition for use by LVM |
+| 122 | [Display Physical Volumes](https://github.com/kelvintechnical/lvm-display-physical-volumes) *(needs spare disk)* | `pvs`, `pvdisplay` — Run `pvs` and `pvdisplay` to view configured physical volumes and sizes |
+| 123 | [Create Volume Group](https://github.com/kelvintechnical/lvm-create-volume-group) *(needs spare disk)* | `vgcreate` — Use `vgcreate` to pool one or more physical volumes into a volume group |
+| 124 | [Display Volume Groups](https://github.com/kelvintechnical/lvm-display-volume-groups) *(needs spare disk)* | `vgs`, `vgdisplay` — Run `vgs` and `vgdisplay` to check status and free space in volume groups |
+| 125 | [Create Logical Volume](https://github.com/kelvintechnical/lvm-create-logical-volume) *(needs spare disk)* | `lvcreate` — Use `lvcreate` to allocate space from a volume group into a logical volume |
+| 126 | [Display Logical Volumes](https://github.com/kelvintechnical/lvm-display-logical-volumes) *(needs spare disk)* | `lvs`, `lvdisplay` — Run `lvs` and `lvdisplay` to list all configured logical volumes |
+| 127 | [Extend Volume Group](https://github.com/kelvintechnical/lvm-extend-volume-group) *(needs spare disk)* | `vgextend` — Add a new physical volume to an existing volume group using `vgextend` |
+| 128 | [Extend Logical Volume](https://github.com/kelvintechnical/lvm-extend-logical-volume) *(needs spare disk)* | `lvextend` — Use `lvextend` to increase space allocated to an existing logical volume |
+| 129 | [Resize Filesystem After Extend](https://github.com/kelvintechnical/resize-filesystem-after-lvm-extend) *(needs spare disk)* | `xfs_growfs`, `resize2fs` — Use `xfs_growfs` or `resize2fs` to expand filesystem to fill new space |
+| 130 | [Remove LVM Components](https://github.com/kelvintechnical/remove-lvm-components) *(needs spare disk)* | `lvremove`, `vgremove`, `pvremove` — Unmount, then remove LV with `lvremove`, VG with `vgremove`, PV with `pvremove` |
 | LAB | [Create LV `lvol1` (ext4, 280 MB)](https://github.com/kelvintechnical/lvm-create-lvol1-ext4) | `pvcreate`, `vgcreate`, `lvcreate -L 280M -n lvol1 vgtest`, `mkfs.ext4`, `blkid`, `/etc/fstab` — Build a 280 MiB ext4 logical volume end-to-end and mount it persistently by UUID on `/mnt/mnt1` |
 
 ---

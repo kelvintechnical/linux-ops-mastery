@@ -779,12 +779,12 @@ Foundation → advanced. Each step locks in prerequisites for the next. Mirrors 
 | Status | # | Lab | Full Path |
 |---|---|---|---|
 | ✅ | 100 | Analyze Boot Performance | <https://github.com/kelvintechnical/analyze-boot-performance> |
-| 🚧 | 101 | Query Logs with journalctl | *(coming soon — see Lab #101 in [README](README.md#-log-management))* |
-| 🚧 | 102 | Configure Persistent Journal Logs | *(coming soon — see Lab #102 in [README](README.md#-log-management))* |
-| 🚧 | 103 | Understand Log Routing | *(coming soon — see Lab #103 in [README](README.md#-log-management))* |
-| 🚧 | 104 | Monitor Authentication Logs | *(coming soon — see Lab #104 in [README](README.md#-log-management))* |
-| 🚧 | 105 | Filter systemd Journals by Priority | *(coming soon — see Lab #105 in [README](README.md#-log-management))* |
-| 🚧 | 106 | Service-Specific Journal Logs | *(coming soon — see Lab #106 in [README](README.md#-log-management))* |
+| ✅ | 101 | Query Logs with journalctl | <https://github.com/kelvintechnical/query-logs-with-journalctl> |
+| ✅ | 102 | Configure Persistent Journal Logs | <https://github.com/kelvintechnical/configure-persistent-journal-logs> |
+| ✅ | 103 | Understand Log Routing | <https://github.com/kelvintechnical/understand-log-routing> |
+| ✅ | 104 | Monitor Authentication Logs | <https://github.com/kelvintechnical/monitor-authentication-logs> |
+| ✅ | 105 | Filter systemd Journals by Priority | <https://github.com/kelvintechnical/filter-systemd-journals-by-priority> |
+| ✅ | 106 | Service-Specific Journal Logs | <https://github.com/kelvintechnical/service-specific-journal-logs> |
 
 ---
 
@@ -793,7 +793,7 @@ Foundation → advanced. Each step locks in prerequisites for the next. Mirrors 
 | Status | # | Lab | Full Path |
 |---|---|---|---|
 | ✅ | 107 | Configure Timezone and Time Synchronization | <https://github.com/kelvintechnical/Configure-Timezone-and-Time-Synchronization> |
-| 🚧 | 108 | Check NTP Sync Status | *(coming soon — see Lab #108 in [README](README.md#-system-time--locale))* |
+| ✅ | 108 | Check NTP Sync Status | <https://github.com/kelvintechnical/check-ntp-sync-status> |
 | ✅ | 109 | Configure NTP Time Source | <https://github.com/kelvintechnical/configure-ntp> |
 
 **Future Labs (planned):**
@@ -809,17 +809,17 @@ Foundation → advanced. Each step locks in prerequisites for the next. Mirrors 
 
 | Status | # | Lab | Full Path |
 |---|---|---|---|
-| 🚧 | 110 | Inspect Filesystems | *(coming soon — see Lab #110 in [README](README.md#-storage-management))* |
-| 🚧 | 111 | Display Partition Tables | *(coming soon — see Lab #111 in [README](README.md#-storage-management))* |
-| 🚧 | 112 | Create MBR Partition with fdisk | *(coming soon — see Lab #112 in [README](README.md#-storage-management))* |
-| 🚧 | 113 | Change Partition Types in fdisk | *(coming soon — see Lab #113 in [README](README.md#-storage-management))* |
-| 🚧 | 114 | Create GPT Partition with gdisk | *(coming soon — see Lab #114 in [README](README.md#-storage-management))* |
-| 🚧 | 115 | Command-Line Partitioning with parted | *(coming soon — see Lab #115 in [README](README.md#-storage-management))* |
-| 🚧 | 116 | Format Partition with XFS | *(coming soon — see Lab #116 in [README](README.md#-storage-management))* |
-| 🚧 | 117 | Format Partition with Ext4 | *(coming soon — see Lab #117 in [README](README.md#-storage-management))* |
-| 🚧 | 118 | Check Filesystem Consistency | *(coming soon — see Lab #118 in [README](README.md#-storage-management))* |
-| 🚧 | 119 | Inspect Filesystem Features | *(coming soon — see Lab #119 in [README](README.md#-storage-management))* |
-| 🚧 | 120 | Create and Activate Swap Space | *(coming soon — see Lab #120 in [README](README.md#-storage-management))* |
+| ✅ | 110 | Inspect Filesystems | <https://github.com/kelvintechnical/inspect-filesystems> |
+| ✅ | 111 | Display Partition Tables | <https://github.com/kelvintechnical/display-partition-tables> |
+| ✅ | 112 | Create MBR Partition with fdisk | <https://github.com/kelvintechnical/create-mbr-partition-fdisk> |
+| ✅ | 113 | Change Partition Types in fdisk | <https://github.com/kelvintechnical/change-partition-types-fdisk> |
+| ✅ | 114 | Create GPT Partition with gdisk | <https://github.com/kelvintechnical/create-gpt-partition-gdisk> |
+| ✅ | 115 | Command-Line Partitioning with parted | <https://github.com/kelvintechnical/command-line-partitioning-parted> |
+| ✅ | 116 | Format Partition with XFS | <https://github.com/kelvintechnical/format-partition-xfs> |
+| ✅ | 117 | Format Partition with Ext4 | <https://github.com/kelvintechnical/format-partition-ext4> |
+| ✅ | 118 | Check Filesystem Consistency | <https://github.com/kelvintechnical/check-filesystem-consistency-fsck> |
+| ✅ | 119 | Inspect Filesystem Features | <https://github.com/kelvintechnical/inspect-filesystem-features-dumpe2fs> |
+| ✅ | 120 | Create and Activate Swap Space | <https://github.com/kelvintechnical/create-and-activate-swap> |
 | 🚧 | — | Create a Swap Partition by UUID (in-repo) | [`labs/storage-swap-partition-uuid/`](labs/storage-swap-partition-uuid/) |
 | 🚧 | — | Create an Ext4 Partition Mounted by LABEL (in-repo) | [`labs/storage-ext4-partition-label/`](labs/storage-ext4-partition-label/) |
 
@@ -836,16 +836,16 @@ Foundation → advanced. Each step locks in prerequisites for the next. Mirrors 
 
 | Status | # | Lab | Full Path |
 |---|---|---|---|
-| 🚧 | 121 | Initialize Physical Volumes | *(coming soon — see Lab #121 in [README](README.md#-lvm-logical-volume-management))* |
-| 🚧 | 122 | Display Physical Volumes | *(coming soon — see Lab #122 in [README](README.md#-lvm-logical-volume-management))* |
-| 🚧 | 123 | Create Volume Group | *(coming soon — see Lab #123 in [README](README.md#-lvm-logical-volume-management))* |
-| 🚧 | 124 | Display Volume Groups | *(coming soon — see Lab #124 in [README](README.md#-lvm-logical-volume-management))* |
-| 🚧 | 125 | Create Logical Volume | *(coming soon — see Lab #125 in [README](README.md#-lvm-logical-volume-management))* |
-| 🚧 | 126 | Display Logical Volumes | *(coming soon — see Lab #126 in [README](README.md#-lvm-logical-volume-management))* |
-| 🚧 | 127 | Extend Volume Group | *(coming soon — see Lab #127 in [README](README.md#-lvm-logical-volume-management))* |
-| 🚧 | 128 | Extend Logical Volume | *(coming soon — see Lab #128 in [README](README.md#-lvm-logical-volume-management))* |
-| 🚧 | 129 | Resize Filesystem After Extend | *(coming soon — see Lab #129 in [README](README.md#-lvm-logical-volume-management))* |
-| 🚧 | 130 | Remove LVM Components | *(coming soon — see Lab #130 in [README](README.md#-lvm-logical-volume-management))* |
+| ✅ | 121 | Initialize Physical Volumes | <https://github.com/kelvintechnical/lvm-initialize-physical-volumes> |
+| ✅ | 122 | Display Physical Volumes | <https://github.com/kelvintechnical/lvm-display-physical-volumes> |
+| ✅ | 123 | Create Volume Group | <https://github.com/kelvintechnical/lvm-create-volume-group> |
+| ✅ | 124 | Display Volume Groups | <https://github.com/kelvintechnical/lvm-display-volume-groups> |
+| ✅ | 125 | Create Logical Volume | <https://github.com/kelvintechnical/lvm-create-logical-volume> |
+| ✅ | 126 | Display Logical Volumes | <https://github.com/kelvintechnical/lvm-display-logical-volumes> |
+| ✅ | 127 | Extend Volume Group | <https://github.com/kelvintechnical/lvm-extend-volume-group> |
+| ✅ | 128 | Extend Logical Volume | <https://github.com/kelvintechnical/lvm-extend-logical-volume> |
+| ✅ | 129 | Resize Filesystem After Extend | <https://github.com/kelvintechnical/resize-filesystem-after-lvm-extend> |
+| ✅ | 130 | Remove LVM Components | <https://github.com/kelvintechnical/remove-lvm-components> |
 | ✅ | LAB | Create LV `lvol1` (ext4, 280 MB) | <https://github.com/kelvintechnical/lvm-create-lvol1-ext4> ([also `labs/lvm-create-lvol1-ext4/`](labs/lvm-create-lvol1-ext4/)) |
 | ✅ | — | Create LV with XFS Filesystem (in-repo) | [`labs/lvm-create-lv1-xfs/`](labs/lvm-create-lv1-xfs/) |
 | 🚧 | — | Online Extend an LV and Its Filesystem Without Unmounting (in-repo) | [`labs/lvm-online-extend-xfs/`](labs/lvm-online-extend-xfs/) |
