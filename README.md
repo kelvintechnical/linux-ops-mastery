@@ -398,9 +398,9 @@ Labs organized by official RHCSA EX200 exam objectives.
 | 115 | [Command-Line Partitioning with parted](https://github.com/kelvintechnical/partitioning-with-parted) *(needs spare disk / loop lab)* | `parted`, `mklabel`, `mkpart` — Use `parted` to create partitions directly from the command line |
 | 116 | [Format Partition with XFS](https://github.com/kelvintechnical/format-partition-xfs) *(needs spare disk / loop lab)* | `mkfs.xfs` — Use `mkfs.xfs` to format a newly created partition with the default RHEL XFS filesystem |
 | 117 | [Format Partition with Ext4](https://github.com/kelvintechnical/format-partition-ext4) *(needs spare disk / loop lab)* | `mkfs.ext4` — Use `mkfs.ext4` to format a partition with the ext4 journaling filesystem |
-| 118 | [Check Filesystem Consistency](https://github.com/kelvintechnical/check-filesystem-fsck) *(needs spare disk / loop lab)* | `fsck.ext4` — Check integrity of an unmounted ext partition using `fsck.ext4` |
-| 119 | [Inspect Filesystem Features](https://github.com/kelvintechnical/inspect-filesystem-dumpe2fs) *(needs spare disk / loop lab)* | `dumpe2fs -h \| grep features` — Run `dumpe2fs` to analyze features on an ext volume |
-| 120 | [Create and Activate Swap Space](https://github.com/kelvintechnical/create-activate-swap-space) | `mkswap`, `swapon`, `swapoff`, `/etc/fstab` |
+| 118 | [Check Filesystem Consistency](https://github.com/kelvintechnical/check-filesystem-fsck) *(needs spare disk / loop lab)* | `fsck.ext4`, `e2fsck -b BACKUP_SB`, `xfs_repair -n` — Detect corruption, recover via backup superblock, decode fsck exit codes |
+| 119 | [Inspect Filesystem Features](https://github.com/kelvintechnical/inspect-filesystem-dumpe2fs) *(needs spare disk / loop lab)* | `dumpe2fs -h`, `tune2fs -O FEAT`, `xfs_info` — Read ext4 superblock features, classify COMPAT/INCOMPAT/RO_COMPAT, toggle feature bits |
+| 120 | [Create and Activate Swap Space](https://github.com/kelvintechnical/create-activate-swap-space) | `mkswap`, `swapon`, `swapoff`, `/etc/fstab`, `vm.swappiness` — Format a swap partition + swap file, persist via fstab with priorities, tune `vm.swappiness` |
 
 ---
 
@@ -410,16 +410,16 @@ Labs organized by official RHCSA EX200 exam objectives.
 
 | # | Lab | Key Commands |
 |---|-----|-------------|
-| 121 | [Initialize Physical Volumes](labs/lvm-pvcreate-initialize-pv/) *(in-repo; loopback in lab; optional spare disk)* | `pvcreate` — Use `pvcreate` to initialize a disk or partition for use by LVM |
-| 122 | [Display Physical Volumes](labs/lvm-display-physical-volumes/) *(in-repo; loopback in lab; optional spare disk)* | `pvs`, `pvdisplay` — Run `pvs` and `pvdisplay` to view configured physical volumes and sizes |
-| 123 | [Create Volume Group](labs/lvm-create-volume-group/) *(in-repo; loopback in lab; optional spare disk)* | `vgcreate` — Use `vgcreate` to pool one or more physical volumes into a volume group |
-| 124 | [Display Volume Groups](labs/lvm-display-volume-groups/) *(in-repo; loopback in lab; optional spare disk)* | `vgs`, `vgdisplay` — Run `vgs` and `vgdisplay` to check status and free space in volume groups |
-| 125 | [Create Logical Volume](labs/lvm-create-logical-volume/) *(in-repo; loopback in lab; optional spare disk)* | `lvcreate` — Use `lvcreate` to allocate space from a volume group into a logical volume |
-| 126 | [Display Logical Volumes](labs/lvm-display-logical-volumes/) *(in-repo; loopback in lab; optional spare disk)* | `lvs`, `lvdisplay` — Run `lvs` and `lvdisplay` to list all configured logical volumes |
-| 127 | [Extend Volume Group](labs/lvm-extend-volume-group/) *(in-repo; loopback in lab; optional spare disk)* | `vgextend` — Add a new physical volume to an existing volume group using `vgextend` |
-| 128 | [Extend Logical Volume](labs/lvm-extend-logical-volume/) *(in-repo; loopback in lab; optional spare disk)* | `lvextend` — Use `lvextend` to increase space allocated to an existing logical volume |
-| 129 | [Resize Filesystem After Extend](labs/lvm-resize-filesystem-after-extend/) *(in-repo; loopback in lab; optional spare disk)* | `xfs_growfs`, `resize2fs` — Use `xfs_growfs` or `resize2fs` to expand filesystem to fill new space |
-| 130 | [Remove LVM Components](labs/lvm-remove-components/) *(in-repo; loopback in lab; optional spare disk)* | `lvremove`, `vgremove`, `pvremove` — Unmount, then remove LV with `lvremove`, VG with `vgremove`, PV with `pvremove` |
+| 121 | [Initialize Physical Volumes](https://github.com/kelvintechnical/lvm-pvcreate-initialize-pv) *(needs spare disk / loop lab)* | `pvcreate`, `pvscan`, `wipefs -a`, `--dataalignment` — Write the LVM label, read it back with `hexdump`, and bake idempotency into ensure-pv scripts |
+| 122 | [Display Physical Volumes](https://github.com/kelvintechnical/lvm-display-physical-volumes) *(needs spare disk / loop lab)* | `pvs -o`, `pvdisplay --maps`, `--reportformat json`, `--select`, `--sort` — Treat `pvs` as a SQL cursor and emit Prometheus-style PV metrics |
+| 123 | [Create Volume Group](https://github.com/kelvintechnical/lvm-create-volume-group) *(needs spare disk / loop lab)* | `vgcreate -s`, `vgrename`, `vgcfgbackup`, `vgcfgrestore`, `--addtag` — Pool PVs, pick the extent size, back up metadata, and restore from `/etc/lvm/archive/` |
+| 124 | [Display Volume Groups](https://github.com/kelvintechnical/lvm-display-volume-groups) *(needs spare disk / loop lab)* | `vgs -o`, `vgdisplay`, `--select 'vg_tags=prod'`, `--reportformat json` — Read the 6-char `vg_attr`, compute percent-free in awk, and export to node_exporter |
+| 125 | [Create Logical Volume](https://github.com/kelvintechnical/lvm-create-logical-volume) *(needs spare disk / loop lab)* | `lvcreate -L`, `-l +100%FREE`, `--type striped`, `--type thin-pool`, `-s` — Build linear, striped, snapshot, and thin LVs; trace the device-mapper plumbing with `dmsetup` |
+| 126 | [Display Logical Volumes](https://github.com/kelvintechnical/display-logical-volumes-lvs-lvdisplay) *(needs spare disk / loop lab)* | `lvs -o`, `lvs -a`, `lvdisplay --maps`, `--select 'data_percent>80'` — Decode the 10-char `lv_attr`, surface hidden `_tdata`/`_tmeta`, monitor thin-pool fill |
+| 127 | [Extend Volume Group](https://github.com/kelvintechnical/extend-volume-group-vgextend) *(needs spare disk / loop lab)* | `vgextend`, `pvmove`, `vgreduce`, `vgreduce --removemissing` — Live hot-add of a new PV; drain a PV with `pvmove`; recover from a failed disk |
+| 128 | [Extend Logical Volume](https://github.com/kelvintechnical/extend-logical-volume-lvextend) *(needs spare disk / loop lab)* | `lvextend -L +SIZE`, `-l +100%FREE`, `--resizefs / -r`, ext4 safe-shrink — Grow LV every way the exam asks; learn why XFS cannot shrink |
+| 129 | [Resize Filesystem After Extend](https://github.com/kelvintechnical/resize-filesystem-xfs-growfs-resize2fs) *(needs spare disk / loop lab)* | `resize2fs DEV [SIZE]`, `xfs_growfs MOUNTPOINT`, `resize2fs -M`, `growpart + resize2fs` — Complete the grow workflow at the FS layer for ext4 and XFS |
+| 130 | [Remove LVM Components](https://github.com/kelvintechnical/remove-lvm-components-lvremove-vgremove-pvremove) *(needs spare disk / loop lab)* | `lvremove`, `vgremove`, `pvremove`, `wipefs -a`, `vgcfgrestore` — Destroy in reverse; thin-pool teardown order; recover from accidental `vgremove` |
 | LAB | [Create LV `lvol1` (ext4, 280 MB)](https://github.com/kelvintechnical/lvm-create-lvol1-ext4) | `pvcreate`, `vgcreate`, `lvcreate -L 280M -n lvol1 vgtest`, `mkfs.ext4`, `blkid`, `/etc/fstab` — Build a 280 MiB ext4 logical volume end-to-end and mount it persistently by UUID on `/mnt/mnt1` |
 
 ---
