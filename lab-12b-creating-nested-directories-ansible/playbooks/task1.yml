@@ -1,0 +1,38 @@
+---
+# Lab 12b Task 1 — build projects tree with mode 0750 owned root:wheel
+#
+# Preview:  ansible-playbook --check --diff /root/rhcsa_journal/lab-12b/playbooks/task1.yml
+# Apply:    ansible-playbook /root/rhcsa_journal/lab-12b/playbooks/task1.yml
+#
+# Builds /tmp/mk-ansible-lab/projects/{web,api,db}/{logs,configs,backups}
+# 9 leaves total, each with mode 0750 owned root:wheel.
+
+- name: "Lab 12b Task 1 — build projects tree with mode 0750 owned root:wheel"
+  hosts: localhost
+  connection: local
+  gather_facts: false
+
+  vars:
+    base_dir: /tmp/mk-ansible-lab/projects
+    services: [web, api, db]
+    folders:  [logs, configs, backups]
+
+  tasks:
+    - name: "Ensure each leaf directory exists with correct mode + ownership"
+      ansible.builtin.file:
+        path: "{{ base_dir }}/{{ item.0 }}/{{ item.1 }}"
+        state: directory
+        mode: '0750'
+        owner: root
+        group: wheel
+      loop: "{{ services | product(folders) | list }}"
+      loop_control:
+        label: "{{ item.0 }}/{{ item.1 }}"
+      register: build_result
+
+    - name: "Show what Ansible did (the register: + debug: pattern)"
+      ansible.builtin.debug:
+        msg: "{{ item.path }}  changed={{ item.changed }}  mode={{ item.mode | default('?') }}"
+      loop: "{{ build_result.results }}"
+      loop_control:
+        label: "{{ item.path }}"

@@ -1,0 +1,36 @@
+---
+# Lab 14b Task 2 — /etc capstone (mirrors Lab 14a Task 2 predicates)
+- name: Lab 14b Task 2 — find root-owned recent .conf files under /etc
+  hosts: localhost
+  connection: local
+  become: true
+  tasks:
+    - name: Find .conf files under /etc (Ansible filters)
+      ansible.builtin.find:
+        paths: /etc
+        patterns: "*.conf"
+        file_type: file
+        recurse: true
+        age: 90d
+        age_stamp: mtime
+        size: 100
+        size_unit: b
+        owner: root
+      register: etc_confs
+
+    - name: Show match count
+      ansible.builtin.debug:
+        msg: "Matched {{ etc_confs.matched }} files"
+
+    - name: Write human-readable path list
+      ansible.builtin.copy:
+        dest: /root/conf-list-ansible.txt
+        content: |
+          {% for f in etc_confs.files | sort(attribute='path') %}
+          {{ f.path }}
+          {% endfor %}
+        mode: "0600"
+
+    - name: Report first five paths
+      ansible.builtin.debug:
+        msg: "{{ (etc_confs.files | map(attribute='path') | list)[:5] }}"

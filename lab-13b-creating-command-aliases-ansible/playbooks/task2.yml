@@ -1,0 +1,48 @@
+---
+# Lab 13b Task 2 — re-assert managed alias block for idempotence + drift correction
+#
+# Run in this sequence:
+#   1. Clean rerun (no drift) → expect PLAY RECAP changed=0
+#   2. After `sed -i '/^alias srv=/d' /etc/profile.d/lab13b-managed-aliases.sh`
+#      → expect PLAY RECAP changed=1 (block restored)
+#
+# Both behaviors must hold. The `changed_when:` on the restorecon task is what
+# keeps the clean rerun honest — without it, every run would flip changed=1.
+
+- name: "Lab 13b Task 2 — re-assert managed alias block for idempotence + drift correction"
+  hosts: localhost
+  connection: local
+  gather_facts: false
+
+  vars:
+    aliases_file: /etc/profile.d/lab13b-managed-aliases.sh
+    aliases:
+      - { name: ll,     body: "ls -lhA --color=auto" }
+      - { name: srv,    body: "cd /srv" }
+      - { name: svc,    body: "systemctl --no-pager status" }
+      - { name: listen, body: "ss -tunap" }
+
+  tasks:
+    - name: "Re-assert the managed alias block"
+      ansible.builtin.blockinfile:
+        path: "{{ aliases_file }}"
+        create: yes
+        owner: root
+        group: root
+        mode: '0644'
+        marker: "# {mark} LAB 13B ALIASES"
+        block: |
+          {% for a in aliases %}
+          alias {{ a.name }}='{{ a.body }}'
+          {% endfor %}
+      register: rerun_result
+
+    - name: "Re-assert SELinux context"
+      ansible.builtin.command:
+        cmd: "restorecon -v {{ aliases_file }}"
+      register: restorecon_result
+      changed_when: "'Relabeled' in restorecon_result.stdout"
+
+    - name: "Per-task idempotence report"
+      ansible.builtin.debug:
+        msg: "block changed={{ rerun_result.changed }}  selinux changed={{ restorecon_result.changed }}"

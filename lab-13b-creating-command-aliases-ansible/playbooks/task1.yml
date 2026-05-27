@@ -1,0 +1,48 @@
+---
+# Lab 13b Task 1 — deploy managed alias block via blockinfile
+#
+# Preview: ansible-playbook --check --diff /root/rhcsa_journal/lab-13b/playbooks/task1.yml
+# Apply:   ansible-playbook /root/rhcsa_journal/lab-13b/playbooks/task1.yml
+#
+# Deploys /etc/profile.d/lab13b-managed-aliases.sh containing four aliases,
+# inside a custom marker block ("# {mark} LAB 13B ALIASES").
+# Trap T13-D fixed by `create: yes` — file doesn't have to pre-exist.
+# Trap T13-C avoided by using blockinfile (not shell: echo >>).
+
+- name: "Lab 13b Task 1 — deploy managed alias block via blockinfile"
+  hosts: localhost
+  connection: local
+  gather_facts: false
+
+  vars:
+    aliases_file: /etc/profile.d/lab13b-managed-aliases.sh
+    aliases:
+      - { name: ll,     body: "ls -lhA --color=auto" }
+      - { name: srv,    body: "cd /srv" }
+      - { name: svc,    body: "systemctl --no-pager status" }
+      - { name: listen, body: "ss -tunap" }
+
+  tasks:
+    - name: "Deploy the managed alias block (creates file if missing, mode 0644)"
+      ansible.builtin.blockinfile:
+        path: "{{ aliases_file }}"
+        create: yes
+        owner: root
+        group: root
+        mode: '0644'
+        marker: "# {mark} LAB 13B ALIASES"
+        block: |
+          {% for a in aliases %}
+          alias {{ a.name }}='{{ a.body }}'
+          {% endfor %}
+      register: block_result
+
+    - name: "Restore SELinux context to bin_t (sourced scripts in /etc need this)"
+      ansible.builtin.command:
+        cmd: "restorecon -v {{ aliases_file }}"
+      register: restorecon_result
+      changed_when: "'Relabeled' in restorecon_result.stdout"
+
+    - name: "Show the result"
+      ansible.builtin.debug:
+        msg: "{{ aliases_file }}  block changed={{ block_result.changed }}  selinux changed={{ restorecon_result.changed }}"

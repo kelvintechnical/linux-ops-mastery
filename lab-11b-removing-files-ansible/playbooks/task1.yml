@@ -1,0 +1,29 @@
+---
+# Lab 11b Task 1 — remove three targets idempotently
+#
+# Run preview:
+#   ansible-playbook --check --diff /root/rhcsa_journal/lab-11b/playbooks/task1.yml
+# Apply:
+#   ansible-playbook /root/rhcsa_journal/lab-11b/playbooks/task1.yml
+#
+# The setup block in Lab 11b README creates the three targets first.
+
+- name: "Lab 11b Task 1 — remove three targets idempotently"
+  hosts: localhost
+  connection: local
+  gather_facts: false
+
+  tasks:
+    - name: "Remove the stale log, the tmp file, and the cache tree"
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: absent
+      loop:
+        - /tmp/rm-ansible-lab/old.log
+        - /tmp/rm-ansible-lab/stale.tmp
+        - /tmp/rm-ansible-lab/cache
+      register: removal_result
+
+    - name: "Show what Ansible did (the register: pattern RHCE graders look for)"
+      ansible.builtin.debug:
+        var: removal_result

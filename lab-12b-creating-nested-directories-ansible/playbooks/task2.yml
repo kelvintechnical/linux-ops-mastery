@@ -1,0 +1,39 @@
+---
+# Lab 12b Task 2 — rerun for idempotence + drift correction
+#
+# Run twice in this lab:
+#   1. Clean rerun (immediately after task1.yml apply) → expect changed=0
+#   2. After deliberate chmod/chown drift on one leaf → expect changed=1
+#
+# Both behaviors must hold for the play to be RHCE-grade. If clean rerun shows
+# changed=1, the play is wrong (T12-D) — likely YAML parsed mode as int.
+
+- name: "Lab 12b Task 2 — rerun for idempotence + drift correction"
+  hosts: localhost
+  connection: local
+  gather_facts: false
+
+  vars:
+    base_dir: /tmp/mk-ansible-lab/projects
+    services: [web, api, db]
+    folders:  [logs, configs, backups]
+
+  tasks:
+    - name: "Re-assert state=directory on every leaf"
+      ansible.builtin.file:
+        path: "{{ base_dir }}/{{ item.0 }}/{{ item.1 }}"
+        state: directory
+        mode: '0750'
+        owner: root
+        group: wheel
+      loop: "{{ services | product(folders) | list }}"
+      loop_control:
+        label: "{{ item.0 }}/{{ item.1 }}"
+      register: rerun_result
+
+    - name: "Per-leaf idempotence proof"
+      ansible.builtin.debug:
+        msg: "{{ item.path }}  changed={{ item.changed }}"
+      loop: "{{ rerun_result.results }}"
+      loop_control:
+        label: "{{ item.path }}"

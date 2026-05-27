@@ -1,0 +1,47 @@
+---
+# Lab 14b Task 1 — ansible.builtin.find on sandbox tree
+- name: Lab 14b Task 1 — find .log files in sandbox
+  hosts: localhost
+  connection: local
+  become: true
+  vars:
+    sandbox: /tmp/find-ansible-lab
+  tasks:
+    - name: Create sandbox directories and log files
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: directory
+      loop:
+        - "{{ sandbox }}/logs/2026/01"
+        - "{{ sandbox }}/docs"
+
+    - name: Create sample log files
+      ansible.builtin.copy:
+        dest: "{{ sandbox }}/logs/2026/01/{{ item }}.log"
+        content: "sample log {{ item }}\n"
+        mode: "0644"
+      loop:
+        - a
+        - b
+        - c
+
+    - name: Find all .log files under sandbox
+      ansible.builtin.find:
+        paths: "{{ sandbox }}"
+        patterns: "*.log"
+        file_type: file
+        recurse: true
+      register: found_logs
+
+    - name: Show match count
+      ansible.builtin.debug:
+        msg: "Matched {{ found_logs.matched }} .log files"
+
+    - name: Write manifest of paths
+      ansible.builtin.copy:
+        dest: "{{ sandbox }}/manifest.txt"
+        content: |
+          {% for f in found_logs.files %}
+          {{ f.path }}
+          {% endfor %}
+        mode: "0644"

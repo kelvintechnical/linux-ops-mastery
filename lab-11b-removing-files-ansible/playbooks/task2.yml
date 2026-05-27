@@ -1,0 +1,32 @@
+---
+# Lab 11b Task 2 — re-run for idempotence proof
+#
+# Run:
+#   ansible-playbook /root/rhcsa_journal/lab-11b/playbooks/task2.yml
+#
+# Expected: PLAY RECAP shows `changed=0` because Task 1 already removed everything.
+# If `changed=1` appears, the module call is wrong (T11-D) — likely you swapped
+# `ansible.builtin.file` for `ansible.builtin.command: rm`. Fix before continuing.
+
+- name: "Lab 11b Task 2 — re-run for idempotence proof (changed=0 expected)"
+  hosts: localhost
+  connection: local
+  gather_facts: false
+
+  tasks:
+    - name: "Re-assert state=absent on the same three targets"
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: absent
+      loop:
+        - /tmp/rm-ansible-lab/old.log
+        - /tmp/rm-ansible-lab/stale.tmp
+        - /tmp/rm-ansible-lab/cache
+      register: removal_result
+
+    - name: "Show idempotence proof — every result must have changed=false"
+      ansible.builtin.debug:
+        msg: "Item {{ item.item }} changed={{ item.changed }}"
+      loop: "{{ removal_result.results }}"
+      loop_control:
+        label: "{{ item.item }}"

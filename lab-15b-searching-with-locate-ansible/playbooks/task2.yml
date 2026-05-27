@@ -1,0 +1,68 @@
+---
+# Lab 15b Task 2 — PRUNEPATHS + pem capstone (mirrors Lab 15a Task 2)
+- name: Lab 15b Task 2 — prune /srv/scratch and verify locate
+  hosts: localhost
+  connection: local
+  become: true
+  vars:
+    probe_etc: /etc/locate-lab-probe
+    probe_scr: /srv/scratch/locate-lab/hidden
+  tasks:
+    - name: Ensure /srv/scratch is in PRUNEPATHS
+      ansible.builtin.lineinfile:
+        path: /etc/updatedb.conf
+        regexp: '^PRUNEPATHS='
+        line: 'PRUNEPATHS="/afs /media /mnt /net /sfs /tmp /udev /var/cache/ccache /var/spool/cups /var/spool/squid /var/tmp /srv/scratch"'
+        backup: true
+      register: prune_edit
+
+    - name: Create probe directories
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: directory
+        mode: "0755"
+      loop:
+        - "{{ probe_etc }}"
+        - "{{ probe_scr }}"
+
+    - name: Place test PEM in /etc (should be indexed)
+      ansible.builtin.copy:
+        dest: "{{ probe_etc }}/test-capstone.pem"
+        content: "etc probe\n"
+        mode: "0644"
+
+    - name: Place test PEM in /srv/scratch (should be pruned)
+      ansible.builtin.copy:
+        dest: "{{ probe_scr }}/secret.pem"
+        content: "scratch probe\n"
+        mode: "0644"
+
+    - name: Rebuild locate index after config change
+      ansible.builtin.command: updatedb
+      changed_when: true
+
+    - name: Search for pem files via locate
+      ansible.builtin.command: locate '*.pem'
+      register: pem_hits
+      changed_when: false
+      failed_when: false
+
+    - name: Assert /etc probe appears in results
+      ansible.builtin.assert:
+        that:
+          - probe_etc in pem_hits.stdout
+        fail_msg: "Expected {{ probe_etc }} in locate output"
+
+    - name: Assert /srv/scratch probe does NOT appear
+      ansible.builtin.assert:
+        that:
+          - probe_scr not in pem_hits.stdout
+        fail_msg: "{{ probe_scr }} should be pruned from index"
+
+    - name: Remove probe files and directories
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: absent
+      loop:
+        - "{{ probe_etc }}"
+        - /srv/scratch/locate-lab
