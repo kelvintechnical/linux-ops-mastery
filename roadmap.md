@@ -111,6 +111,27 @@ The RHCSA curriculum has three buckets:
 2. **In-repo labs** under [`labs/`](labs/) — listed inline in the relevant section.
 3. **Future planned labs** — the `*-F##`-tagged entries from [`future_labs.txt`](future_labs.txt), grouped by category.
 
+### 📋 Complete Labs in This Order
+
+Foundation → advanced. Each step locks in prerequisites for the next. Mirrors the [Suggested Learning Path](README.md#-suggested-learning-path) in the main README and folds the `*-F##` future labs into the matching module.
+
+| # | Module | Labs to Complete |
+|---|---|---|
+| 1 | **Shells & Text Fluency** | README **01–27** (stdout/stderr/pipes, file ops, find/grep/sed/awk, vi) → future labs **FILES-F01…F07** · **TEXT-F01…F03** |
+| 2 | **Documentation & Networking** | README **28–39** (man/whatis/info, nmcli, /etc/hosts, DNS, SSH key auth) → future labs **DOC-F01** · **NET-F01…F05** |
+| 3 | **Permissions, ACLs, Firewall** | README **40–67** (chmod/chown, SUID/SGID, ACLs, firewalld zones + NAT) → future labs **PERM-F01…F06** · **FW-F01…F02** |
+| 4 | **TCP Wrappers, PAM, SELinux** | README **68–84** (hosts.allow/deny, pam_pwquality/securetty, sestatus, semanage, restorecon, sealert) + in-repo [`labs/selinux-recursive-contexts-direct01/`](labs/selinux-recursive-contexts-direct01/) → future labs **SEL-F02…F06** |
+| 5 | **Boot, Systemd, Logging** | README **85–106** (GRUB, rd.break root reset, systemctl, journalctl, rsyslog) → future labs **BOOT-F01** · **SYSD-F01** |
+| 6 | **Storage, LVM, Mounts** | README **107–136** (partitioning, mkfs.ext4/xfs, fstab UUID/LABEL, pvcreate→vgcreate→lvcreate, autofs) + in-repo [`labs/lvm-create-lvol1-ext4/`](labs/lvm-create-lvol1-ext4/), [`labs/lvm-create-lv1-xfs/`](labs/lvm-create-lv1-xfs/), [`labs/lvm-online-extend-xfs/`](labs/lvm-online-extend-xfs/), [`labs/storage-swap-partition-uuid/`](labs/storage-swap-partition-uuid/), [`labs/storage-ext4-partition-label/`](labs/storage-ext4-partition-label/) → future labs **STOR-F03…F04** · **LVM-F02…F09** · **NFS-F01…F06** · **TIME-F01…F02** |
+| 7 | **Packages, Users, Sudo** | README **137–183** (rpm/dnf, custom repos, useradd/groupadd, chage, visudo, /etc/skel) + in-repo [`labs/dnf-install-dev-tools-capture/`](labs/dnf-install-dev-tools-capture/), [`labs/user-lock-capture-regex/`](labs/user-lock-capture-regex/) → future labs **PKG-F02…F03** · **USER-F01…F08** · **SUDO-F01…F03** |
+| 8 | **Processes, Archives, Cron** | README **184–207** (ps/top/nice/renice/kill, tar/gzip/bzip2/xz, crontab, at, anacron) + in-repo [`labs/scheduling-jobs-systemd-timer/`](labs/scheduling-jobs-systemd-timer/), [`labs/cron-user-find-exec-coredir/`](labs/cron-user-find-exec-coredir/), [`labs/find-files-by-mtime/`](labs/find-files-by-mtime/) → future labs **PROC-F01…F04** · **ARCH-F01…F03** · **CRON-F02…F07** |
+| 9 | **GPG, Remote Admin, Security** | README **208–220** (gpg keygen/encrypt, ssh/scp, telnet/nmap, bastion hardening) → future labs **SSH-F01…F06** |
+| 10 | **Web, Tuning, Scripting, Containers** | README **221–227** + Container LAB row (httpd + SELinux contexts, tuned-adm, argument-validating bash, podman) + in-repo [`labs/bash-bidirectional-arg-script/`](labs/bash-bidirectional-arg-script/), [`labs/podman-rootless-bind-mount-systemd/`](labs/podman-rootless-bind-mount-systemd/) → future labs **WEB-F01…F05** · **PERF-F01…F02** · **SCRIPT-F02…F09** · **CON-F02…F14** · **ENV-F01** |
+
+> **About this order:** within each module, labs are sequenced foundation → advanced. Across modules, prerequisites flow forward — you can't fully grok LVM (Step 6) until you have `find`/`grep` from Step 1, and you can't do SELinux (Step 4) until you've configured standard permissions in Step 3. **Skip at your own risk.**
+
+---
+
 ### 🖥 Shells, Terminals & Redirection (README Labs 01–04)
 
 | Status | # | Lab | Full Path |
@@ -789,6 +810,21 @@ The RHCSA curriculum has three buckets:
 
 > Sample-exam scenario labs (Sander van Vugt-style end-to-end Ansible playbooks). All entries below are 📅 Planned — they're the "build an entire control project" tier, distinct from the chapter-grained Ansible labs in the [Ansible Track](#-ansible-track-mastering-ansible-4th-ed--rhce-companion-repos) section. The Foundation labs share inventory + repo-server setup across all three sample-exam paths.
 
+### 📋 Complete Labs in This Order
+
+Foundation builds the control project that every later lab reuses. After that, each exam-practice block is a self-contained mock exam — work them in order so you compound difficulty.
+
+| # | Phase | Labs to Complete |
+|---|---|---|
+| 1 | **Foundation — build the control project** | **RHCE-F01** (control project skeleton) → **RHCE-F02** (bootstrap managed hosts) → **RHCE-F03** (repo server playbook) → **RHCE-F04** (managed repo clients) |
+| 2 | **Exam Practice 1 — Apache + Roles + Storage** | **RHCE-F05** (webserver/webclient playbooks) → **RHCE-F06** (refactor into role) → **RHCE-F07** (storage role with SELinux) |
+| 3 | **Exam Practice 2 — Roles path + LVM + Vault + Galaxy + Users** | **RHCE-F08** (roles_path) → **RHCE-F09** (conditional LVM) → **RHCE-F10** (package facts) → **RHCE-F11** (vault credentials) → **RHCE-F12** (Galaxy roles) → **RHCE-F13** (Apache template w/ facts) → **RHCE-F14** (users from YAML) |
+| 4 | **Exam Practice 3 — Conditionals + Vault rotate + Time + Group vars** | **RHCE-F15** (conditional package install) → **RHCE-F16** (conditional LVM w/ failure messages) → **RHCE-F17** (sysreport hardware template) → **RHCE-F18** (vault password rotation) → **RHCE-F19** (timesync system role) → **RHCE-F20** (web content + group vars + symlink) |
+
+> **Prerequisite:** finish the **Ansible Track** chapter labs (at minimum Ch 1, Ch 2, Ch 7, Ch 8) before starting RHCE-F01 — Foundation assumes you can read a playbook, write a role, and trace variable precedence.
+
+---
+
 ### Foundation (Common Tasks across all sample exams)
 
 | Status | ID | Lab | Details |
@@ -832,6 +868,24 @@ The RHCSA curriculum has three buckets:
 ---
 
 ## 🎯 CKA Track (Kubernetes Administrator)
+
+### 📋 Complete Labs in This Order
+
+Follows the official CKA exam domain weights (Cluster Architecture 25% → Workloads 15% → Networking 20% → Storage 10% → Troubleshooting 30%). Build the cluster first, deploy on top of it, then break it on purpose.
+
+| # | Domain | Labs to Complete |
+|---|---|---|
+| 1 | **Cluster Architecture, Installation, Configuration** | README CKA **#01** (cluster components) → **#02** (install with kubeadm) → **CKA-F01** (HA control plane) → **CKA-F02** (Helm) → **CKA-F03** (Kustomize) → **CKA-F04** (CRI/CNI/CSI) → **CKA-F05** (operators + CRDs) |
+| 2 | **Workloads & Scheduling** | README CKA **#03** (Pods) → **#04** (Deployments + scale) → **#05** (DaemonSets + Jobs) → **CKA-F06** (rolling update + rollback) → **CKA-F07** (ConfigMaps) → **CKA-F09** (ReplicaSet self-healing) → **CKA-F10** (resource limits + LimitRanges) → **CKA-F11** (ResourceQuotas) → **CKA-F12** (node affinity/anti-affinity) → **CKA-F13** (taints + tolerations) → **CKA-F14** (topology spread) → **CKA-F08** (HPA — needs metrics-server) |
+| 3 | **Services & Networking** | README CKA **#06** (expose with Services) → **#07** (Ingress) → **#08** (NetworkPolicy) → **CKA-F16** (Gateway API) → **CKA-F17** (CoreDNS service discovery) |
+| 4 | **Storage** | README CKA **#09** (PVs + PVCs) → **#10** (StorageClasses) → **CKA-F15** (access modes + reclaim policies) |
+| 5 | **Security** | README CKA **#11** (RBAC) → **#12** (Secrets + ServiceAccounts) |
+| 6 | **Cluster Maintenance** | README CKA **#13** (cluster upgrade) → **#14** (etcd backup/restore) |
+| 7 | **Troubleshooting (heaviest exam weight)** | README CKA **#15** (debug Pods/Deployments) → **#16** (debug nodes/cluster) → **CKA-F18** (metrics-server + `kubectl top`) → **CKA-F19** (`kubectl logs` modes + sidecar patterns) → **CKA-F20** (Services/Networking iptables trace) |
+
+> **Prerequisite:** finish RHCSA at least through **Step 4 (SELinux)** and **Step 6 (Storage/LVM)** before starting — CKA assumes you can fix a Linux node, not just `kubectl describe pod`.
+
+---
 
 ### README Labs 01–16 (placeholder rows in main README)
 
@@ -907,6 +961,22 @@ The RHCSA curriculum has three buckets:
 
 > All entries below are 📅 Planned — sourced from the CKAD Study Guide Appendix B (all five curriculum domains).
 
+### 📋 Complete Labs in This Order
+
+Domains follow the official CKAD curriculum weights (Design 20% → Deployment 20% → Observability 15% → Environment/Config/Security 25% → Networking 20%). Build images and Pods first, then layer in rollout strategies, probes, configuration, and finally Services + Ingress.
+
+| # | Domain | Labs to Complete |
+|---|---|---|
+| 1 | **Application Design and Build** | **CKAD-DES-F01** (build image w/ Dockerfile) → **CKAD-DES-F02** (Job) → **CKAD-DES-F03** (CronJob) → **CKAD-DES-F04** (sidecar logging) → **CKAD-DES-F05** (init container) → **CKAD-DES-F06** (PV + PVC) → **CKAD-DES-F07** (emptyDir shared volume) |
+| 2 | **Application Deployment** | **CKAD-DEP-F01** (canary) → **CKAD-DEP-F02** (blue-green via selector switch) → **CKAD-DEP-F03** (Helm chart + custom values) |
+| 3 | **Application Observability & Maintenance** | **CKAD-OBS-F01** (liveness + readiness + startup probes) → **CKAD-OBS-F02** (deprecated API migration) → **CKAD-OBS-F03** (debug failing pod end-to-end) |
+| 4 | **Application Environment, Configuration & Security** | **CKAD-ENV-F03** (resource requests/limits) → **CKAD-ENV-F04** (ConfigMap env vs envFrom vs volume) → **CKAD-ENV-F05** (Secrets env vs mounted) → **CKAD-ENV-F06** (custom ServiceAccount) → **CKAD-ENV-F02** (RBAC for SA) → **CKAD-ENV-F07** (SecurityContext) → **CKAD-ENV-F01** (CRD + custom resource) |
+| 5 | **Services & Networking** | **CKAD-NET-F02** (Service types tour) → **CKAD-NET-F01** (NetworkPolicy default-deny) → **CKAD-NET-F03** (Ingress path-based + TLS) |
+
+> **Prerequisite:** finish CKA **Steps 1–4** (cluster up + workloads + services + storage) before CKAD — you can't deploy applications cleanly on a cluster you can't troubleshoot.
+
+---
+
 ### Application Design and Build
 
 | Status | ID | Lab | Details |
@@ -964,6 +1034,31 @@ The RHCSA curriculum has three buckets:
 > 2. **Future Labs Planned — Mastering Ansible 4th Edition** (73 labs across chapters 1, 2, 7, 8, 13, sourced from [`future_labs.txt`](future_labs.txt))
 >
 > For the scenario-based RHCE labs (build the whole control project, run sample-exam playbooks end-to-end), see the [RHCE Track (EX294)](#-rhce-track-ex294) section above.
+
+### 📋 Complete Labs in This Order
+
+Read each *Mastering Ansible, 4th Ed.* chapter first, then work the matching companion-repo lab, then drill the chapter's future labs. This gets you fluent in the chapter's mental model before you grind individual edge cases.
+
+| # | Chapter / Module | Built Lab (companion repo) | Then Drill These Future Labs |
+|---|---|---|---|
+| 1 | **Ch 1 — System Architecture & Design** | RHCE #01: <https://github.com/kelvintechnical/ansible-architecture-and-inventory> | **ANS-CH1-F01…F08** (inventory) → **F09…F14** (parsing & exec order) → **F15…F20** (variable precedence & magic vars) → **F21…F25** (module transport, performance, safety) |
+| 2 | **Ch 2 — Collections / FQCNs / Migration** | RHCE #02: <https://github.com/kelvintechnical/ansible-collections-and-migration> | **ANS-CH2-F01…F11** (clean install → custom collection → FQCN → requirements.yml → publish to Galaxy) |
+| 3 | **Ch 3 — Ansible Vault** | RHCE #08: <https://github.com/kelvintechnical/ansible-vault-secrets> | *(no future-lab block yet — see RHCE-F11 + RHCE-F18 in the RHCE track for vault credentials + rotation)* |
+| 4 | **Ch 6 — Jinja2 Templates** | RHCE #07: <https://github.com/kelvintechnical/ansible-jinja2-templates> | *(no future-lab block yet — applied in RHCE-F13 + RHCE-F17)* |
+| 5 | **Ch 7 — Task Conditions, Error Recovery, Loops** | RHCE #03: <https://github.com/kelvintechnical/ansible-task-conditions-loops> | **ANS-CH7-F01…F06** (ignore_errors → failed_when → changed_when → creates/removes) → **F07…F09** (block/rescue/always + ignore_unreachable) → **F10…F12** (loop / with_items / until / nested loops) |
+| 6 | **Ch 8 — Roles, Includes & ansible-galaxy** | RHCE #05: <https://github.com/kelvintechnical/ansible-roles> | **ANS-CH8-F01…F07** (task includes + conditional/tagged includes + loop_control) → **F08…F11** (vars_files vs include_vars, with_first_found, `-e @file`, import_playbook) → **F12…F15** (build role from scratch, dependencies, handler-flush ordering, install from Galaxy/Git/tarball) |
+| 7 | **Ch 9 — Troubleshooting** | RHCE #09: <https://github.com/kelvintechnical/ansible-troubleshooting> | *(no future-lab block yet — practice `--check` / `--diff` / `-vvv` across every lab above)* |
+| 8 | **Ch 4 — Windows Automation** | RHCE #10: <https://github.com/kelvintechnical/ansible-windows-automation> | *(no future-lab block yet)* |
+| 9 | **Ch 5 — AWX / Tower** | RHCE #11: <https://github.com/kelvintechnical/ansible-awx-tower> | *(no future-lab block yet)* |
+| 10 | **Ch 10 — Extending Ansible** | RHCE #12: <https://github.com/kelvintechnical/ansible-extending-modules-plugins> | *(no future-lab block yet — re-uses the custom collection from ANS-CH2-F03)* |
+| 11 | **Ch 11 — Rolling Deployments** | RHCE #13: <https://github.com/kelvintechnical/ansible-rolling-deployments> | *(no future-lab block yet)* |
+| 12 | **Ch 12 — Infrastructure Provisioning** | RHCE #14: <https://github.com/kelvintechnical/ansible-infrastructure-provisioning> | *(no future-lab block yet — overlaps with ANS-CH1-F04 dynamic inventory)* |
+| 13 | **Ch 13 — Network Automation** | RHCE #15: <https://github.com/kelvintechnical/ansible-network-automation> | **ANS-CH13-F01** (connection protocol decision matrix) → **F02…F03** (Cisco IOS inventory + ios_config) → **F04…F05** (Arista vEOS bring-up + interfaces) → **F06…F08** (Cumulus Linux + multi-vendor inventory + conditional facts) → **F09…F10** (jump host + raw fallback) |
+| 14 | **Capstone — RHCE Sample Exams** | — | Move to the [RHCE Track (EX294)](#-rhce-track-ex294) section: **RHCE-F01…F04** (Foundation) → **RHCE-F05…F07** (Exam 1) → **RHCE-F08…F14** (Exam 2) → **RHCE-F15…F20** (Exam 3) |
+
+> **Prerequisite:** finish RHCSA at least through **Step 7 (Packages, Users, Sudo)** — Ansible automates everything RHCSA teaches by hand, and you can't write a correct playbook for a system you can't configure manually.
+
+---
 
 ### Currently Built — RHCE Ansible Companion Repos
 
