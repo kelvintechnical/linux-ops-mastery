@@ -83,7 +83,7 @@ Each planned lab gets a stable per-category identifier so cross-referencing surv
 
 ## ✨ Currently Built
 
-The 13 labs with full or placeholder content in **this** repository today (under [`labs/`](labs/)), plus links straight to the file. External companion repos linked from the main [README](README.md) are listed by track below.
+The **13** labs with full or placeholder content in **this** repository today (under [`labs/`](labs/)), plus links straight to the file. External companion repos linked from the main [README](README.md) are listed by track below.
 
 | Status | Lab | Location |
 |---|---|---|
@@ -305,16 +305,16 @@ Foundation → advanced. Each step locks in prerequisites for the next. Mirrors 
 | 18 | 📅 | STOR-F04 | Create a Companion LVM-Type Partition on the Same Disk | `parted mkpart`, `set 2 lvm on`, prove with `fdisk -l` |
 | 19 | 🚧 | in-repo | Create a Swap Partition by UUID | `mkswap`, `blkid`, fstab `UUID=... swap sw 0 0`, `swapon -a` |
 | 20 | 🚧 | in-repo | Create an Ext4 Partition Mounted by LABEL | `mkfs.ext4 -L`, fstab `LABEL=... ext4 defaults 0 2` |
-| 21 | 🚧 | 121 | Initialize Physical Volumes | `pvcreate` |
-| 22 | 🚧 | 122 | Display Physical Volumes | `pvs`, `pvdisplay` |
-| 23 | 🚧 | 123 | Create Volume Group | `vgcreate` — pool PVs into VG |
-| 24 | 🚧 | 124 | Display Volume Groups | `vgs`, `vgdisplay` |
-| 25 | 🚧 | 125 | Create Logical Volume | `lvcreate` — allocate from VG |
-| 26 | 🚧 | 126 | Display Logical Volumes | `lvs`, `lvdisplay` |
-| 27 | 🚧 | 127 | Extend Volume Group | `vgextend` — add PV to existing VG |
-| 28 | 🚧 | 128 | Extend Logical Volume | `lvextend` — grow LV |
-| 29 | 🚧 | 129 | Resize Filesystem After Extend | `xfs_growfs`, `resize2fs` |
-| 30 | 🚧 | 130 | Remove LVM Components | `lvremove`, `vgremove`, `pvremove` |
+| 21 | ✅ | in-repo | Initialize Physical Volumes | [`labs/lvm-pvcreate-initialize-pv/`](labs/lvm-pvcreate-initialize-pv/) — `pvcreate`, `pvremove`, loopback practice |
+| 22 | ✅ | in-repo | Display Physical Volumes | [`labs/lvm-display-physical-volumes/`](labs/lvm-display-physical-volumes/) — `pvs`, `pvdisplay`, `pvscan` |
+| 23 | ✅ | in-repo | Create Volume Group | [`labs/lvm-create-volume-group/`](labs/lvm-create-volume-group/) — `vgcreate`, `-s` PE size |
+| 24 | ✅ | in-repo | Display Volume Groups | [`labs/lvm-display-volume-groups/`](labs/lvm-display-volume-groups/) — `vgs`, `vgdisplay` |
+| 25 | ✅ | in-repo | Create Logical Volume | [`labs/lvm-create-logical-volume/`](labs/lvm-create-logical-volume/) — `lvcreate -L`, `-l`, `100%FREE` |
+| 26 | ✅ | in-repo | Display Logical Volumes | [`labs/lvm-display-logical-volumes/`](labs/lvm-display-logical-volumes/) — `lvs`, `lvdisplay`, `lv_attr` |
+| 27 | ✅ | in-repo | Extend Volume Group | [`labs/lvm-extend-volume-group/`](labs/lvm-extend-volume-group/) — `vgextend` |
+| 28 | ✅ | in-repo | Extend Logical Volume | [`labs/lvm-extend-logical-volume/`](labs/lvm-extend-logical-volume/) — `lvextend` |
+| 29 | ✅ | in-repo | Resize Filesystem After Extend | [`labs/lvm-resize-filesystem-after-extend/`](labs/lvm-resize-filesystem-after-extend/) — `xfs_growfs`, `resize2fs` |
+| 30 | ✅ | in-repo | Remove LVM Components | [`labs/lvm-remove-components/`](labs/lvm-remove-components/) — `lvremove`, `vgremove`, `pvremove` |
 | 31 | ✅ | in-repo (LAB) | Create LV `lvol1` (ext4, 280 MB) | `pvcreate`, `vgcreate`, `lvcreate -L 280M -n lvol1`, mkfs.ext4, UUID fstab on `/mnt/mnt1` |
 | 32 | ✅ | in-repo | Create LV with XFS Filesystem | `lvcreate -l 10 -n lv1 vg1` (8 MB PE × 10 LE), mkfs.xfs, persistent mount `/mnt/lvfs1` |
 | 33 | 🚧 | in-repo | Online Extend an LV and Its Filesystem Without Unmounting | `lvextend -L +64M`, `xfs_growfs` while mounted |
@@ -836,16 +836,16 @@ Foundation → advanced. Each step locks in prerequisites for the next. Mirrors 
 
 | Status | # | Lab | Full Path |
 |---|---|---|---|
-| ✅ | 121 | Initialize Physical Volumes | <https://github.com/kelvintechnical/lvm-initialize-physical-volumes> |
-| ✅ | 122 | Display Physical Volumes | <https://github.com/kelvintechnical/lvm-display-physical-volumes> |
-| ✅ | 123 | Create Volume Group | <https://github.com/kelvintechnical/lvm-create-volume-group> |
-| ✅ | 124 | Display Volume Groups | <https://github.com/kelvintechnical/lvm-display-volume-groups> |
-| ✅ | 125 | Create Logical Volume | <https://github.com/kelvintechnical/lvm-create-logical-volume> |
-| ✅ | 126 | Display Logical Volumes | <https://github.com/kelvintechnical/lvm-display-logical-volumes> |
-| ✅ | 127 | Extend Volume Group | <https://github.com/kelvintechnical/lvm-extend-volume-group> |
-| ✅ | 128 | Extend Logical Volume | <https://github.com/kelvintechnical/lvm-extend-logical-volume> |
-| ✅ | 129 | Resize Filesystem After Extend | <https://github.com/kelvintechnical/resize-filesystem-after-lvm-extend> |
-| ✅ | 130 | Remove LVM Components | <https://github.com/kelvintechnical/remove-lvm-components> |
+| ✅ | 121 | Initialize Physical Volumes | [`labs/lvm-pvcreate-initialize-pv/`](labs/lvm-pvcreate-initialize-pv/) |
+| ✅ | 122 | Display Physical Volumes | [`labs/lvm-display-physical-volumes/`](labs/lvm-display-physical-volumes/) |
+| ✅ | 123 | Create Volume Group | [`labs/lvm-create-volume-group/`](labs/lvm-create-volume-group/) |
+| ✅ | 124 | Display Volume Groups | [`labs/lvm-display-volume-groups/`](labs/lvm-display-volume-groups/) |
+| ✅ | 125 | Create Logical Volume | [`labs/lvm-create-logical-volume/`](labs/lvm-create-logical-volume/) |
+| ✅ | 126 | Display Logical Volumes | [`labs/lvm-display-logical-volumes/`](labs/lvm-display-logical-volumes/) |
+| ✅ | 127 | Extend Volume Group | [`labs/lvm-extend-volume-group/`](labs/lvm-extend-volume-group/) |
+| ✅ | 128 | Extend Logical Volume | [`labs/lvm-extend-logical-volume/`](labs/lvm-extend-logical-volume/) |
+| ✅ | 129 | Resize Filesystem After Extend | [`labs/lvm-resize-filesystem-after-extend/`](labs/lvm-resize-filesystem-after-extend/) |
+| ✅ | 130 | Remove LVM Components | [`labs/lvm-remove-components/`](labs/lvm-remove-components/) |
 | ✅ | LAB | Create LV `lvol1` (ext4, 280 MB) | <https://github.com/kelvintechnical/lvm-create-lvol1-ext4> ([also `labs/lvm-create-lvol1-ext4/`](labs/lvm-create-lvol1-ext4/)) |
 | ✅ | — | Create LV with XFS Filesystem (in-repo) | [`labs/lvm-create-lv1-xfs/`](labs/lvm-create-lv1-xfs/) |
 | 🚧 | — | Online Extend an LV and Its Filesystem Without Unmounting (in-repo) | [`labs/lvm-online-extend-xfs/`](labs/lvm-online-extend-xfs/) |

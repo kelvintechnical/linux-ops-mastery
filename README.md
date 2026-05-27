@@ -410,16 +410,16 @@ Labs organized by official RHCSA EX200 exam objectives.
 
 | # | Lab | Key Commands |
 |---|-----|-------------|
-| 121 | [Initialize Physical Volumes](https://github.com/kelvintechnical/lvm-pvcreate-initialize-pv) *(needs spare disk / loop lab)* | `pvcreate` — Use `pvcreate` to initialize a disk or partition for use by LVM |
-| 122 | [Display Physical Volumes](https://github.com/kelvintechnical/lvm-display-physical-volumes) *(needs spare disk / loop lab)* | `pvs`, `pvdisplay` — Run `pvs` and `pvdisplay` to view configured physical volumes and sizes |
-| 123 | [Create Volume Group](https://github.com/kelvintechnical/lvm-create-volume-group) *(needs spare disk / loop lab)* | `vgcreate` — Use `vgcreate` to pool one or more physical volumes into a volume group |
-| 124 | [Display Volume Groups](https://github.com/kelvintechnical/lvm-display-volume-groups) *(needs spare disk / loop lab)* | `vgs`, `vgdisplay` — Run `vgs` and `vgdisplay` to check status and free space in volume groups |
-| 125 | [Create Logical Volume](https://github.com/kelvintechnical/lvm-create-logical-volume) *(needs spare disk / loop lab)* | `lvcreate` — Use `lvcreate` to allocate space from a volume group into a logical volume |
-| 126 | [Display Logical Volumes](https://github.com/kelvintechnical/lvm-display-logical-volumes) *(needs spare disk / loop lab)* | `lvs`, `lvdisplay` — Run `lvs` and `lvdisplay` to list all configured logical volumes |
-| 127 | [Extend Volume Group](https://github.com/kelvintechnical/lvm-extend-volume-group) *(needs spare disk / loop lab)* | `vgextend` — Add a new physical volume to an existing volume group using `vgextend` |
-| 128 | [Extend Logical Volume](https://github.com/kelvintechnical/lvm-extend-logical-volume) *(needs spare disk / loop lab)* | `lvextend` — Use `lvextend` to increase space allocated to an existing logical volume |
-| 129 | [Resize Filesystem After Extend](https://github.com/kelvintechnical/lvm-resize-filesystem-after-extend) *(needs spare disk / loop lab)* | `xfs_growfs`, `resize2fs` — Use `xfs_growfs` or `resize2fs` to expand filesystem to fill new space |
-| 130 | [Remove LVM Components](https://github.com/kelvintechnical/lvm-remove-components) *(needs spare disk / loop lab)* | `lvremove`, `vgremove`, `pvremove` — Unmount, then remove LV with `lvremove`, VG with `vgremove`, PV with `pvremove` |
+| 121 | [Initialize Physical Volumes](labs/lvm-pvcreate-initialize-pv/) *(in-repo; loopback in lab; optional spare disk)* | `pvcreate` — Use `pvcreate` to initialize a disk or partition for use by LVM |
+| 122 | [Display Physical Volumes](labs/lvm-display-physical-volumes/) *(in-repo; loopback in lab; optional spare disk)* | `pvs`, `pvdisplay` — Run `pvs` and `pvdisplay` to view configured physical volumes and sizes |
+| 123 | [Create Volume Group](labs/lvm-create-volume-group/) *(in-repo; loopback in lab; optional spare disk)* | `vgcreate` — Use `vgcreate` to pool one or more physical volumes into a volume group |
+| 124 | [Display Volume Groups](labs/lvm-display-volume-groups/) *(in-repo; loopback in lab; optional spare disk)* | `vgs`, `vgdisplay` — Run `vgs` and `vgdisplay` to check status and free space in volume groups |
+| 125 | [Create Logical Volume](labs/lvm-create-logical-volume/) *(in-repo; loopback in lab; optional spare disk)* | `lvcreate` — Use `lvcreate` to allocate space from a volume group into a logical volume |
+| 126 | [Display Logical Volumes](labs/lvm-display-logical-volumes/) *(in-repo; loopback in lab; optional spare disk)* | `lvs`, `lvdisplay` — Run `lvs` and `lvdisplay` to list all configured logical volumes |
+| 127 | [Extend Volume Group](labs/lvm-extend-volume-group/) *(in-repo; loopback in lab; optional spare disk)* | `vgextend` — Add a new physical volume to an existing volume group using `vgextend` |
+| 128 | [Extend Logical Volume](labs/lvm-extend-logical-volume/) *(in-repo; loopback in lab; optional spare disk)* | `lvextend` — Use `lvextend` to increase space allocated to an existing logical volume |
+| 129 | [Resize Filesystem After Extend](labs/lvm-resize-filesystem-after-extend/) *(in-repo; loopback in lab; optional spare disk)* | `xfs_growfs`, `resize2fs` — Use `xfs_growfs` or `resize2fs` to expand filesystem to fill new space |
+| 130 | [Remove LVM Components](labs/lvm-remove-components/) *(in-repo; loopback in lab; optional spare disk)* | `lvremove`, `vgremove`, `pvremove` — Unmount, then remove LV with `lvremove`, VG with `vgremove`, PV with `pvremove` |
 | LAB | [Create LV `lvol1` (ext4, 280 MB)](https://github.com/kelvintechnical/lvm-create-lvol1-ext4) | `pvcreate`, `vgcreate`, `lvcreate -L 280M -n lvol1 vgtest`, `mkfs.ext4`, `blkid`, `/etc/fstab` — Build a 280 MiB ext4 logical volume end-to-end and mount it persistently by UUID on `/mnt/mnt1` |
 
 ---
