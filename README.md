@@ -27,6 +27,7 @@
 - [Certification Path](#-certification-path) 
 - [Suggested Learning Path](#-suggested-learning-path) 
 - [Roadmap (212+ labs)](#-roadmap) 
+- [RHCSA v10 Exam Objectives Reference](#-rhcsa-v10-exam-objectives-reference)
 - [RHCSA Labs](#-rhcsa-ex200-labs) 
 - [RHCE Labs](#-rhce-ex294-labs)
 - [CKA Labs](#-cka-labs)
@@ -151,7 +152,21 @@ The labs in this README are the *currently scoped* curriculum. The full multi-ce
 > See [roadmap.md](./roadmap.md) for the full per-lab breakdown. Every lab now lives at the repository root — click any lab title in the tables below to jump straight into its folder. 
  
 --- 
- 
+
+## 🎯 RHCSA v10 Exam Objectives Reference
+
+Looking for the *exact command* the exam wants for a given operation? See **[rhcsa-v10-exam-objectives.md](./rhcsa-v10-exam-objectives.md)** — a per-module command index (Mod 04 – Mod 24) paired with the official Red Hat RHCSA v10 (EX200) objectives list (1.a – 10.g).
+
+| Use it to… | Example |
+|---|---|
+| Find the canonical command for an exam task | "What's the command to add a SELinux port mapping?" → `semanage port -a -t TYPE -p tcp NUM` |
+| Cross-reference an objective number to a module | "What's 5.d about?" → *Extend existing logical volumes* → see Mod 11 (LVM & Swap) |
+| Verify which RHEL version a sub-objective targets | `.RHEL8` / `.RHEL9` tags mark version-scoped items (e.g., `5.c.RHEL9 Configure Autofs`) |
+
+> The objectives reference is a *command index*, not a curriculum. Use it alongside the [Roadmap](./roadmap.md) (study order) and the lab tables below (hands-on practice).
+
+---
+
 ## 🧪 RHCSA EX200 Labs 
 
 Labs organized by official RHCSA EX200 exam objectives.
