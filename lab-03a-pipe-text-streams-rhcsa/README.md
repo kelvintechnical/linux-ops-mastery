@@ -1,7 +1,7 @@
 # Lab 03a: Pipe Text Streams (RHCSA) — `|`, `less`, `grep`, `tee`, `wc -l`
 
 - **Series:** linux-ops-mastery — Shells, Terminals & Redirection
-- **Trilogy:** `03a` (RHCSA hand-typed) → ⛔ no `03b` (Section 18 boundary — `|`/`tee` have no honest Ansible module) → `03c` (Verify capstone — audit + persistence)
+- **Trilogy:** `03a` (RHCSA hand-typed) → [`03b`](../lab-03b-pipe-text-streams-ansible/) (Ansible — `ansible.builtin.shell` pipelines + `set -o pipefail`) → `03c` (Verify capstone — audit + persistence)
 - **Career arcs covered:** RHCSA EX200 (every "filter and count" task), RHCE EX294 (Ansible `shell:` + `register:` exposes `stdout_lines` — the pipeline result), SRE (alerting pipelines, log grep-and-count), DevOps (CI build summaries), AI/MLOps (dataset inspection: `wc -l`, `head`, `tail`, `grep` patterns)
 - **Prerequisite:** [`Lab 01a`](../lab-01a-stdout-redirection-rhcsa/) + [`Lab 01c`](../lab-01c-stdout-redirection-verify/) (stdout + Tier B) · [`Lab 02a`](../lab-02a-stderr-redirection-rhcsa/) + [`Lab 02c`](../lab-02c-stderr-redirection-verify/) (stderr + Tier B)
 - **Time Estimate:** 25–35 minutes

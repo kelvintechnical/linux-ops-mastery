@@ -1,7 +1,7 @@
 # Lab 03c: Verifying Pipe Text Streams (Capstone) — Audit + Persistence Drill
 
 - **Series:** linux-ops-mastery — Shells, Terminals & Redirection
-- **Trilogy:** [`03a`](../lab-03a-pipe-text-streams-rhcsa/) (RHCSA hand-typed) → ⛔ no `03b` (Section 18 boundary — `|`/`tee` have no honest Ansible module) → **`03c`** (Verify — you are here)
+- **Trilogy:** [`03a`](../lab-03a-pipe-text-streams-rhcsa/) (RHCSA hand-typed) → [`03b`](../lab-03b-pipe-text-streams-ansible/) (Ansible — pipelines via `ansible.builtin.shell` and `set -o pipefail`) → **`03c`** (Verify — you are here)
 - **Career arcs covered:** RHCSA EX200 (every "filter, save the answer, count it" task — the grader reads only the file), SRE (alert-pipeline forensics), DevOps (CI summary verification), AI/MLOps (post-run dataset audits)
 - **Prerequisite:** [`Lab 03a`](../lab-03a-pipe-text-streams-rhcsa/) completed; `/root/rhcsa_journal/lab-03a/task1/` and `task2/` populated
 - **Time Estimate:** 25–35 minutes
@@ -741,7 +741,7 @@ echo "exit was: $?"
 | Lab | Connection |
 |---|---|
 | **Lab 03a** — Pipe Text Streams RHCSA | The creator-seat lab this audits |
-| ⛔ **Lab 03b is intentionally absent** | Section 18 boundary — `|`, `tee`, `pipefail` have no honest Ansible module |
+| **Lab 03b** — Pipe Text Streams Ansible | `ansible.builtin.shell` is the only honest path for a pipeline; the b-lab is kept here as a trap-rehearsal artifact (T03-B forgetting `set -o pipefail`, T03-C ignoring `${PIPESTATUS[@]}` when registering the result). |
 | **Lab 01c / 02c** — Stdout / Stderr Verify | Previous topics' verify capstones — same Tier B + destroy-restore pattern |
 | Lab 04a — Combined Redirection | Next topic — `&>` and `2>&1` deep dive |
 

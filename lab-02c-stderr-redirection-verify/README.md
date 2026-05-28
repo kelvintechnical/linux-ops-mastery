@@ -1,7 +1,7 @@
 # Lab 02c: Verifying Standard Error Redirection (Capstone) — Audit + Persistence Drill
 
 - **Series:** linux-ops-mastery — Shells, Terminals & Redirection
-- **Trilogy:** [`02a`](../lab-02a-stderr-redirection-rhcsa/) (RHCSA hand-typed) → ⛔ no `02b` (Section 18 boundary — `2>` has no honest Ansible module) → **`02c`** (Verify — you are here)
+- **Trilogy:** [`02a`](../lab-02a-stderr-redirection-rhcsa/) (RHCSA hand-typed) → [`02b`](../lab-02b-stderr-redirection-ansible/) (Ansible — `ansible.builtin.shell` with `register:` exposing `stderr_lines`) → **`02c`** (Verify — you are here)
 - **Career arcs covered:** RHCSA EX200 (every "save stderr separately" task), SRE (post-incident stderr archeology — was the `Permission denied` really there, or did somebody redirect it away?), DevOps (CI failure forensics), AI/MLOps (training-job error capture audit)
 - **Prerequisite:** [`Lab 02a`](../lab-02a-stderr-redirection-rhcsa/) completed; `/root/rhcsa_journal/lab-02a/task1/` and `task2/` populated
 - **Time Estimate:** 25–35 minutes
@@ -723,7 +723,7 @@ echo "exit was: $?"
 | Lab | Connection |
 |---|---|
 | **Lab 02a** — Stderr Redirection RHCSA | The creator-seat lab this audits |
-| ⛔ **Lab 02b is intentionally absent** | Section 18 boundary — `2>`/`2>/dev/null` has no honest Ansible module |
+| **Lab 02b** — Stderr Redirection Ansible | `ansible.builtin.shell` + `register:` splits the streams into `result.stdout_lines` and `result.stderr_lines` automatically. Trap rehearsal: T02-C (not checking `stderr_lines`) and T02-D (`ignore_errors: yes` vs `failed_when:`). |
 | **Lab 01c** — Stdout Verify | Previous topic's verify — same destroy-restore pattern, FD 1 evidence |
 | Lab 03a — Pipe Text Streams RHCSA | Next topic — `|` connects what `2>` and `>` capture |
 | Lab 03c — Pipes Verify | The 03 verify analog |

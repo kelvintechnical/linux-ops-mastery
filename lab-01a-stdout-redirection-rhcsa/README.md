@@ -1,7 +1,7 @@
 # Lab 01a: Standard Output Redirection (RHCSA) — `>`, `>>`, `cat`
 
 - **Series:** linux-ops-mastery — Shells, Terminals & Redirection
-- **Trilogy:** `01a` (RHCSA hand-typed) → ⛔ no `01b` (Section 18 boundary — `>`/`>>` has no honest Ansible module) → `01c` (Verify capstone — audit + persistence)
+- **Trilogy:** `01a` (RHCSA hand-typed) → [`01b`](../lab-01b-stdout-redirection-ansible/) (Ansible — `ansible.builtin.copy: content:`) → `01c` (Verify capstone — audit + persistence)
 - **Career arcs covered:** RHCSA EX200 (every "save the output to…" task), RHCE EX294 (Ansible `shell:` + `register:` mirrors `>` semantics), SRE (incident-evidence capture without losing prior log lines), DevOps (CI/CD artifact files), AI/MLOps (training-script stdout → experiment log)
 - **Prerequisite:** Basic shell familiarity — you can `ls`, `pwd`, `cat`, and you know what a file path is
 - **Time Estimate:** 25–35 minutes

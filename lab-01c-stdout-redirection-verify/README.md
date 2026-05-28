@@ -1,7 +1,7 @@
 # Lab 01c: Verifying Standard Output Redirection (Capstone) — Audit + Persistence Drill
 
 - **Series:** linux-ops-mastery — Shells, Terminals & Redirection
-- **Trilogy:** [`01a`](../lab-01a-stdout-redirection-rhcsa/) (RHCSA hand-typed) → ⛔ no `01b` (Section 18 boundary — `>`/`>>` has no honest Ansible module) → **`01c`** (Verify — you are here)
+- **Trilogy:** [`01a`](../lab-01a-stdout-redirection-rhcsa/) (RHCSA hand-typed) → [`01b`](../lab-01b-stdout-redirection-ansible/) (Ansible — `ansible.builtin.copy: content:` as the idempotent `>`) → **`01c`** (Verify — you are here)
 - **Career arcs covered:** RHCSA EX200 (every grader script reads files — this trains the *prove-it-without-the-screen* reflex), SRE (post-incident evidence reconstruction from on-disk artifacts), DevOps (CI artifact verification), AI/MLOps (reproducibility audit on captured training logs)
 - **Prerequisite:** [`Lab 01a`](../lab-01a-stdout-redirection-rhcsa/) completed; `/root/rhcsa_journal/lab-01a/task1/` and `task2/` populated
 - **Time Estimate:** 25–35 minutes
@@ -698,7 +698,7 @@ The journal in `/root/rhcsa_journal/lab-01a/` and `/root/rhcsa_journal/lab-01c/`
 | Lab | Connection |
 |---|---|
 | **Lab 01a** — Stdout Redirection RHCSA | The creator-seat lab this capstone audits |
-| ⛔ **Lab 01b is intentionally absent** | Section 18 boundary — `>`/`>>` has no honest Ansible module |
+| **Lab 01b** — Stdout Redirection Ansible | The closest module-native expression: `ansible.builtin.copy: content:` as an idempotent `>`. Section 18 says boundary, but the b-lab is kept here as a trap-rehearsal artifact (T01-C `src:` vs `content:`, T01-D omitting `mode:`). |
 | Lab 02a — Stderr Redirection RHCSA | Next topic in the trilogy — same Tier B + verify pattern, FD 2 instead of FD 1 |
 | Lab 02c — Stderr Verify | The 02 analog of this lab |
 | Lab 03a — Pipe Text Streams RHCSA | Builds on stdout; `tee` is a pipeline-stage `>` |
