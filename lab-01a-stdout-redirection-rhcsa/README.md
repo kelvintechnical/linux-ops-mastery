@@ -1,24 +1,20 @@
 # Lab 01a: Standard Output Redirection (RHCSA) — `>`, `>>`, `cat`
 
 - **Series:** linux-ops-mastery — Shells, Terminals & Redirection
-- **Trilogy:** `01a` (RHCSA) → `01b` (Ansible, planned) → `01c` (Verify, planned)
-- **Career arcs covered:** RHCSA EX200 (every "save the output to..." task), RHCE EX294 (Ansible `command:`/`shell:` `register:` mirrors `>` semantics), SRE (incident-evidence capture without losing prior log lines), DevOps (CI/CD artifact files), AI/MLOps (training-script stdout → experiment log)
+- **Trilogy:** `01a` (RHCSA hand-typed) → ⛔ no `01b` (Section 18 boundary — `>`/`>>` has no honest Ansible module) → `01c` (Verify capstone — audit + persistence)
+- **Career arcs covered:** RHCSA EX200 (every "save the output to…" task), RHCE EX294 (Ansible `shell:` + `register:` mirrors `>` semantics), SRE (incident-evidence capture without losing prior log lines), DevOps (CI/CD artifact files), AI/MLOps (training-script stdout → experiment log)
 - **Prerequisite:** Basic shell familiarity — you can `ls`, `pwd`, `cat`, and you know what a file path is
-- **Time Estimate:** 30–40 minutes
-- **Tasks:** 2 (ADHD spec — Task 1 canonical, Task 2 contrast)
-- **Practice Directory (rotation #01):** `/bin`
-- **Sandbox:** `/tmp/labsandbox_01`
-- **Sandbox User/Group:** `labuser_01_stdout` / `labgrp_01_stdout`
-- **📌 ANCHOR TYPE:** none (regular lab)
-- **📌 TRILOGY POS:** `a` (rhcsa)
-- **📌 PREREQ:** —
-- **Traps rehearsed this lab:** **T01-A** (`>` truncates BEFORE the command runs — pre-existing content lost) · **T01-B** (`cat file > file` — self-clobber, file ends up empty) · **T44** (cleanup audit — must verify no orphan user/group/sandbox)
+- **Time Estimate:** 25–35 minutes
+- **Tasks:** 2 (Task 1 = `>` and `>>` basics + `sudo -u ${USER}` weave · Task 2 = multi-source report + T01-B trap proof + `sudo -u ${USER}` weave)
+- **Practice Directory (rotation #01):** `/tmp`
+- **Sandbox (Tier B per Section 1.5):** `/tmp/lab01a` with `USER=labuser_01_stdout`, `GROUP=labgrp_01_stdout`, `USER_HOME=/tmp/lab01a/home_labuser_01_stdout`. Built in Lab-Wide Setup; torn down + audited in **Lab Closeout** after Task 2.
+- **Traps rehearsed this lab:** **T01-A** (`>` truncates BEFORE the command runs — pre-existing content lost) · **T01-B** (unquoted space in redirect target corrupts command parsing) · **T41** (skipping the destroy-restore drill — done in 01c) · **T44** (cleanup-left-orphan-user — Lab Closeout audit block proves no residue)
 
-> **This lab's practice directory is: `/bin`** — every task references it in at least two commands.
+> **This lab's practice directory is: `/tmp`** — every task writes artifacts here, mirrors real sysadmin capture patterns (`/tmp` is the canonical "safe scratch space" on exam VMs).
 
 ---
 
-## 🖥️ LAB HEADER BLOCK — run this FIRST
+## LAB HEADER BLOCK
 
 ```bash
 echo "🖥️  ENV:   ${ENV:-DECLARE_ME}"
@@ -28,521 +24,640 @@ echo "🔐  SE:    $(getenforce 2>/dev/null || echo n/a)"
 echo "📦  OS:    $(cat /etc/redhat-release 2>/dev/null || grep PRETTY_NAME /etc/os-release)"
 echo "🕒  TIME:  $(date -Is)"
 echo "👤  USER:  $(whoami)@$(hostname)"
-echo "⚠️  TRAP REMINDERS THIS LAB: T01-A T01-B T44"
-echo "📁  PRACTICE DIR: /bin"
+echo "⚠️  TRAP REMINDERS THIS LAB: T01-A T01-B T41"
+echo "📁  PRACTICE DIR: /tmp"
 echo ""
-echo "💡 /bin occupants (read-only context — we never write here):"
-ls -ld /bin
-ls /bin | wc -l
+echo "💡 /tmp context (our write target):"
+ls -ld /tmp
+df -h /tmp 2>/dev/null | tail -n 1
+echo "Shell version: $BASH_VERSION"
 ```
 
 > **STOP — paste header output before running setup.**
 
 ---
 
-## 🎯 Objective
+## Objective
 
 Make output redirection a reflex. By the end of this lab you can:
 
-1. Send the stdout of any command to a file with `>` (truncate) or `>>` (append) without losing data you needed.
+1. Send the stdout of any command to a file with `>` (overwrite/create) or `>>` (append).
 2. Read it back with `cat` and confirm what landed on disk matches what was on screen.
-3. Survive the two redirection traps that cost real RHCSA points: **truncate-before-run** and **self-redirect-clobbers-source**.
+3. Build a multi-source composite file by mixing `>` and `>>` in the correct order.
+4. Survive the two traps that cost exam points: **truncate-before-run** (T01-A) and **unquoted space in redirect target** (T01-B).
 
-Every RHCSA task that says *"save the output of X to /root/Y"* reduces to a `>` or `>>` decision plus a `cat` verification. You will own both decisions.
+Every RHCSA task that says *"save the output of X to /root/Y"* reduces to a `>` or `>>` decision plus a `cat` verification. You will own both.
 
 ---
 
-## 🧠 Concept: stdout Is a Stream, Not a Screen
+## Concept: stdout Is a Stream, Not a Screen
 
 When a command "prints to the screen," what actually happens is the kernel writes bytes to **file descriptor 1** of the process. The terminal happens to be connected to FD 1 by default, but FD 1 is a *handle* — point it at a file and the bytes land in the file instead.
 
 ```
    ┌─────────────────────────────────────────────────────┐
-   │   Your command (ls, ps, cat, awk, find, ...)        │
+   │   Your command (ls, ps, cat, date, hostname, ...)   │
    ├─────────────────────────────────────────────────────┤
    │   FD 0  stdin   ← keyboard (default)                │
-   │   FD 1  stdout  → terminal screen (default)         │  ← `>`, `>>` retarget THIS
-   │   FD 2  stderr  → terminal screen (default)         │      (lab 02 covers FD 2)
+   │   FD 1  stdout  → terminal  (default) ◄─ retarget   │
+   │   FD 2  stderr  → terminal  (default)               │
    └─────────────────────────────────────────────────────┘
-                                  │
-                  ┌───────────────┴───────────────┐
-                  │                               │
-            `> file`                       `>> file`
-       truncate then write              create if missing, append
-       (destroys existing content)      (preserves existing content)
+                    │
+        ┌───────────┴───────────────┐
+        │                           │
+   `> file`                    `>> file`
+   open O_TRUNC then write      seek to EOF then write
+   destroys existing content    preserves existing content
+   creates file if missing      creates file if missing
 ```
 
 The shell sets up the redirection **before** the command starts. That means `cmd > existing.txt` empties `existing.txt` first, then runs `cmd`. If `cmd` fails immediately, you've lost the file's content for nothing. This is **trap T01-A** and it costs exam points every year.
 
 ---
 
-## 📚 Redirection Reference (everything used in Tasks 1–2)
+## Redirection Reference
 
-| Pattern | What it does | First reach for it when... |
-|---|---|---|
-| `cmd > file` | Truncate `file` (or create), write stdout | First write of a fresh artifact |
-| `cmd >> file` | Append stdout, create if missing | Adding to logs / notes / collected output |
-| `cmd > /dev/null` | Discard stdout | Suppress noisy command output |
-| `set -o noclobber` | Refuse `>` on existing files | Script safety net |
-| `cmd >\| file` | Force overwrite even under noclobber | Explicit "yes, clobber" override |
-| `cat FILE` | Stream `FILE` to stdout | Read back what `>` just wrote |
-| `cat F1 F2` | Concatenate F1 then F2 to stdout | Combine multiple captures |
-| `cat <<'EOF' > file` | Heredoc into a file | Write multi-line content with quoted vars |
-
-> **Rule of `>`:** every `>` is a *destructive write*. Pre-flight with `ls -l FILE` if the file already exists. If you want to keep what's there, use `>>`.
+| Operator / Command | What it does                                          | Use when…                           |
+|--------------------|-------------------------------------------------------|--------------------------------------|
+| `cmd > file`       | Redirect stdout — overwrite (or create) target file   | First write of a fresh artifact      |
+| `cmd >> file`      | Redirect stdout — append (or create) target file      | Adding to logs, notes, reports       |
+| `cmd > /dev/null`  | Discard stdout                                        | Suppress noisy output                |
+| `set -o noclobber` | Refuse `>` on existing files (safety net)             | Scripts touching production files    |
+| `cat FILE`         | Print file contents to stdout                         | Verify what `>` / `>>` wrote         |
+| `wc -l FILE`       | Count newlines in a file                              | Verify append didn't truncate        |
+| `wc -l < FILE`     | Count lines; filename absent from output              | Clean count for variable capture     |
 
 ---
 
-## 🚦 Lab-Wide Setup — run BEFORE Task 1  (per Section 1.5 of the prompt)
+## Lab-Wide Setup — Tier B Sandbox Stack (Section 1.5)
+
+Per the ADHD prompt's Section 1.5, every lab builds a sandbox dir + a local group + a local user under `/tmp` so the user/group/file/directory reflex compounds across every objective on the exam. The block is **idempotent** — the `getent` guards make it safe to re-run if you resume mid-lab.
 
 ```bash
 sudo -i
 
-# Section 1.5 — strict naming so cleanup never collides
 export LAB_NUM=01
 export LAB_SLUG=stdout
-export SANDBOX=/tmp/labsandbox_${LAB_NUM}
+export SANDBOX=/tmp/lab01a
 export GROUP=labgrp_${LAB_NUM}_${LAB_SLUG}
 export USER=labuser_${LAB_NUM}_${LAB_SLUG}
 export USER_HOME=${SANDBOX}/home_${USER}
 
 mkdir -p "${SANDBOX}" "${USER_HOME}"
+mkdir -p /root/rhcsa_journal/lab-01a/task1
+mkdir -p /root/rhcsa_journal/lab-01a/task2
+
 getent group  "${GROUP}" >/dev/null || groupadd "${GROUP}"
 getent passwd "${USER}"  >/dev/null || useradd \
     -d "${USER_HOME}" -M -s /bin/bash -g "${GROUP}" "${USER}"
 chown -R "${USER}:${GROUP}" "${SANDBOX}"
 
-# Practice-directory context note
-cat > "${SANDBOX}/THIS_DIRECTORY.txt" <<'EOF'
-/bin — Essential user commands (ls, cp, cat)
-
-Every command a logged-in user needs to survive without any other
-filesystem mounted lives here. /bin is on the root partition by
-design — if /usr is not mounted yet, /bin still works. On modern
-RHEL, /bin is a symlink to /usr/bin.
-
-Why this matters for stdout redirection: /bin is the canonical
-read-only source we point commands at (ls /bin, find /bin, etc.)
-so the *output* we redirect is real and reproducible without us
-needing to invent test data.
-EOF
-
-id "${USER}"
+id     "${USER}"
 ls -ld "${SANDBOX}" "${USER_HOME}"
-cat "${SANDBOX}/THIS_DIRECTORY.txt"
+getent group  "${GROUP}"
+getent passwd "${USER}"
 echo "Sandbox built by $(whoami) at $(date -Is)"
 echo "exit was: $?"
 ```
 
-> **STOP — paste setup output (id, ls, exit code) before Task 1.**
+> **STOP — paste the `id` line, the two `ls -ld` lines, and both `getent` lines before Task 1. If `${USER}` already exists from a prior run, the `getent` guard makes the create a no-op — that is correct, not a bug.**
+
+> **Why under `/tmp`, not `/home`?** Section 1.5's `useradd -M` forbids `/home/<name>`. The user's `$HOME` lives under the sandbox so `userdel -r ${USER}` in **Lab Closeout** is guaranteed to clean it up. Putting it in `/home` would leak the home dir if `userdel` runs without `-r`.
 
 ---
 
-## Task 1 — Canonical: truncate-write with `>`, append with `>>`
+## Task 1 — Truncate-write with `>`, append with `>>`
 
-### a) Directory context
+**Practice directory this task:** `/tmp/lab01a` — we create and verify files here, mirroring exam-day "save output to /root/answer.txt" tasks.
 
-**Practice directory this task:** `/bin` · Essential user commands — read-only source for our redirected output.
-
-### b) 🔁 Warm-Up — commands woven into Task 1
+### Warm-Up
 
 ```bash
-ls -ld /bin                                         2>&1 | tee "${SANDBOX}/warmup1.txt"
-wc -l < /bin/.. 2>/dev/null; ls /bin | wc -l        # count of /bin entries
-getent passwd "${USER}"
-id -nG "${USER}"
-set -o noclobber 2>/dev/null; set +o noclobber      # cycle the option (Task 2 uses it for real)
-test -d "${SANDBOX}" && echo "sandbox OK"
+echo "hello from stdout"                               2>&1 | tee /tmp/lab01a/warmup.txt
+date
+hostname
+ls /tmp/lab01a
+cat /etc/hostname
+set -o pipefail
 echo "Warm-up done by $(whoami) at $(date -Is)"
 echo "exit was: $?"
 ```
 
-### c) Purpose
+> Carry from setup: `mkdir -p` underlies every journal write in this series.
 
-Use `>` to create a fresh capture of `ls /bin`, then use `>>` to append a timestamped footer to the same file. Read it back with `cat`. The capture is owned by the lab user so the Tier-B sandbox stack does real work.
+### Purpose
 
-### d) 🧵 WEAVE TRACE — warm-up commands re-used in this task body
+Use `>` to create a fresh capture file, verify it with `cat` and `wc -l`, then use `>>` to append lines to the same file without losing prior content. Prove the count grows with each append. Then prove `>` starts over from zero (Task 1's capstone moment).
 
-| Warm-up command | Role inside Task 1 |
-|---|---|
-| `ls -ld /bin` | Pre-flight proof that the source dir exists *before* we redirect from it |
-| `ls /bin \| wc -l` | Baseline count — the redirected file must have exactly this many lines |
-| `getent passwd "${USER}"` | Confirms the lab user exists before we `chown` the captured file |
-| `id -nG "${USER}"` | Verifies the primary group name matches `${GROUP}` (otherwise `chown user:group` would silently fail) |
-| `test -d "${SANDBOX}"` | Guards the `> ${SANDBOX}/...` redirection — refuses to redirect into a missing dir |
-| `$(date -Is)` | Stamps the footer line appended via `>>` |
+### WEAVE TRACE
 
-### e) Main command block
+| Warm-up / setup command  | Role inside Task 1                                                   |
+|--------------------------|----------------------------------------------------------------------|
+| `echo "hello ..."`       | Same `echo` command we'll redirect in the main block                 |
+| `date`                   | Date output is one source we'll capture into the report file         |
+| `hostname`               | Hostname output is the second source we'll capture                   |
+| `ls /tmp/lab01a`         | Pre-flight: confirms sandbox exists before any `>` writes            |
+| `cat /etc/hostname`      | Shows `cat` reading a file — mirrors the post-write verification     |
+| `set -o pipefail`        | Defensive habit; ensures a failed sub-command in a pipe is visible   |
+| `${USER}` / `${GROUP}` (from Lab-Wide Setup) | Part D writes a file *as* `${USER}` via `sudo -u`; we verify ownership with `stat -c '%U:%G'` — exercises Tier B (user/group/file/dir) instead of just printing the user's name |
+
+### Main command block
 
 ```bash
-cd "${SANDBOX}"
+TASKLOG=/tmp/lab01a/task1.txt
 
-# Pre-flight: prove the source exists and count expected lines
-BIN_COUNT=$(ls /bin | wc -l)
-echo "expect ${BIN_COUNT} lines in capture"
+# ── Part A: > creates file, >> appends ───────────────────────────────
+echo "Line 1: first write" > /tmp/lab01a/output.txt
 
-# 1. Truncate-write — `>` creates ${SANDBOX}/bin-list.txt fresh
-ls /bin > "${SANDBOX}/bin-list.txt"
+echo "after first >"
+wc -l /tmp/lab01a/output.txt                           2>&1 | tee $TASKLOG
 
-# 2. Read it back and verify line count matches the baseline
-CAP_COUNT=$(wc -l < "${SANDBOX}/bin-list.txt")
-echo "captured ${CAP_COUNT} lines (baseline was ${BIN_COUNT})"
-test "${CAP_COUNT}" -eq "${BIN_COUNT}" && echo "✅ counts match"
+echo "Line 2: first append"  >> /tmp/lab01a/output.txt
+echo "Line 3: second append" >> /tmp/lab01a/output.txt
 
-# 3. Append-write — `>>` adds a timestamped footer WITHOUT losing content
-echo "# captured by $(whoami) at $(date -Is)" >> "${SANDBOX}/bin-list.txt"
-echo "# host: $(hostname) kernel: $(uname -r)"   >> "${SANDBOX}/bin-list.txt"
+echo "after two >>s"
+cat /tmp/lab01a/output.txt                             2>&1 | tee -a $TASKLOG
+wc -l /tmp/lab01a/output.txt                           2>&1 | tee -a $TASKLOG
 
-# 4. Hand ownership to the lab user — Tier B requirement
-chown "${USER}:${GROUP}" "${SANDBOX}/bin-list.txt"
+# ── Part B: > resets (T01-A demonstration) ───────────────────────────
+echo "Line overwrites everything" > /tmp/lab01a/output.txt
+echo "after second >"
+cat /tmp/lab01a/output.txt                             2>&1 | tee -a $TASKLOG
+wc -l /tmp/lab01a/output.txt                           2>&1 | tee -a $TASKLOG
 
-# 5. Lab user reads it back — prove the user/group/file relationship
-sudo -u "${USER}" tail -n 5 "${SANDBOX}/bin-list.txt"
+# ── Part C: noclobber safety net ─────────────────────────────────────
+set -o noclobber
+echo "protected" > /tmp/lab01a/precious.txt
+echo "will fail" > /tmp/lab01a/precious.txt 2>&1 | head -n 1 | tee -a $TASKLOG || true
+set +o noclobber
+cat /tmp/lab01a/precious.txt                           2>&1 | tee -a $TASKLOG
 
-# 6. stat audit — owner, group, mode, line count one more time
-stat -c '%n owner=%U:%G mode=%a' "${SANDBOX}/bin-list.txt"
-wc -l "${SANDBOX}/bin-list.txt"
+# ── Part D: write a file AS ${USER} via sudo -u (Tier B weave) ────────
+# Real work as the lab user — proves ${USER}/${GROUP}/${USER_HOME} all wire
+# up correctly. The file ownership is the verification, not the echo output.
+sudo -u "${USER}" bash -c \
+    'echo "owned-by-$(whoami)-at-$(date -Is)" > '"${USER_HOME}"'/task1-asuser.txt'
+
+# Verify ownership lands on ${USER}:${GROUP}, not root:root
+stat -c '%U:%G %a %n' "${USER_HOME}/task1-asuser.txt"  | tee -a $TASKLOG
+cat                  "${USER_HOME}/task1-asuser.txt"  | tee -a $TASKLOG
+
+# Cross-check: root cannot pretend to be ${USER}'s file owner without sudo -u
+echo "wrote-as-$(whoami)" > "${SANDBOX}/task1-asroot.txt"
+stat -c '%U:%G %a %n' "${SANDBOX}/task1-asroot.txt"    | tee -a $TASKLOG
 
 echo "exit was: $?"
 ```
 
-### f) Human-readable breakdown
+### Human-readable breakdown
 
-1. Snapshot how many entries `/bin` has so we have something to verify against.
-2. Use `>` to overwrite-create `bin-list.txt` with the directory listing.
-3. Count the lines in the captured file and confirm they match.
-4. Use `>>` twice to *append* a comment header and a host-info line — without losing the listing.
-5. Hand the file over to the lab user via `chown`.
-6. Read the last 5 lines **as the lab user** (`sudo -u "${USER}"`) to prove the permissions actually let them read it.
-7. Print the final ownership, mode, and line count for the audit.
+- `echo "Line 1: first write"` — generates a one-line string on stdout
+- `> /tmp/lab01a/output.txt` — shell opens the file with `O_TRUNC` (truncate) first, then runs `echo`. New file created with one line.
+- `>> /tmp/lab01a/output.txt` — shell opens the file with `O_APPEND`, seeks to EOF, writes. Existing lines untouched.
+- `wc -l` counts newlines — 1 after first write, 3 after two appends, 1 after the overwrite.
+- `set -o noclobber` — shell refuses `>` on existing files, prints "cannot overwrite existing file". Use `>|` to override explicitly.
+- `sudo -u "${USER}" bash -c '... > FILE'` — runs the entire redirected shell as `${USER}` so the file lands under `${USER}:${GROUP}`. `stat -c '%U:%G'` prints the owner+group as proof. Compare the user-owned file (`task1-asuser.txt`) to the root-owned one (`task1-asroot.txt`) — that contrast IS the Tier B lesson.
 
-### g) Reading it left to right
-
-- `ls /bin > "${SANDBOX}/bin-list.txt"` — the shell **opens the file for truncate-write first**, then runs `ls`. If `ls` had failed, the file would already be empty.
-- `wc -l < FILE` — `<` is the input-redirection counterpart of `>`. `wc -l` reads stdin instead of opening the file itself, so the printed line has no filename. We use it here to capture the count cleanly into a variable.
-- `>>` appends without truncating — same lock-and-write sequence as `>`, but the file pointer starts at the end of file (`O_APPEND`).
-- `chown user:group FILE` — changes ownership; quotes around `"${USER}:${GROUP}"` defend against empty-variable expansion (trap-style discipline).
-- `sudo -u "${USER}" tail -n 5 FILE` — runs `tail` as the lab user; if file mode or ownership were wrong, `tail` would fail with `Permission denied` and we'd catch it.
-- `stat -c '%n owner=%U:%G mode=%a'` — `%n` filename, `%U:%G` owner:group **names** (not numeric IDs), `%a` octal mode.
-
-### h) The story
-
-`>` and `>>` are not "shell tricks." They are the original design of how a Unix program talks to the outside world, dating to 1969 on the PDP-7. Ken Thompson's insight was that every program writes to FD 1 and the **shell** decides what FD 1 is connected to — the terminal, a file, a pipe, another process. That single decision created redirection, pipes, `tee`, and the whole composable-tools philosophy.
-
-The reason RHCSA tests this so heavily is that every grader script reads files, not screens. If your answer scrolled past instead of landing in `/root/answer.txt`, you scored zero on a question you knew. Reflex matters.
-
-### i) Expected output (shape only — your exact line counts will differ)
+### Reading it left to right
 
 ```
-expect 168 lines in capture
-captured 168 lines (baseline was 168)
-✅ counts match
-# captured by root at 2026-05-27T16:35:02-04:00
-# host: rhel9.lab kernel: 5.14.0-503.el9.x86_64
-/tmp/labsandbox_01/bin-list.txt owner=labuser_01_stdout:labgrp_01_stdout mode=644
-170 /tmp/labsandbox_01/bin-list.txt
-exit was: 0
+echo "Line 1: first write"   >   /tmp/lab01a/output.txt
+│                             │   │
+│                             │   └─ destination file (opened O_TRUNC before echo runs)
+│                             └─ redirect stdout (FD 1)
+└─ command that writes to stdout
 ```
 
-### j) Switches table
+### The story
 
-| Token | Meaning |
+`>` and `>>` are not "shell tricks." They are the original design of how a Unix program talks to the outside world, dating to 1969. Ken Thompson's insight: every program writes to FD 1; the **shell** decides what FD 1 is connected to. That single design decision created redirection, pipes, `tee`, and the entire composable-tools philosophy.
+
+The reason RHCSA tests this so heavily: every grader script reads files, not screens. If your answer scrolled past instead of landing in `/root/answer.txt`, you scored zero on a question you understood perfectly. Reflex matters more than knowledge here.
+
+### Expected output
+
+After Part A first `>` (`wc -l`):
+```
+1 /tmp/lab01a/output.txt
+```
+
+After Part A two `>>`s (`cat`):
+```
+Line 1: first write
+Line 2: first append
+Line 3: second append
+```
+
+After Part B second `>` (`cat`):
+```
+Line overwrites everything
+```
+
+Part C (noclobber):
+```
+bash: /tmp/lab01a/precious.txt: cannot overwrite existing file
+protected
+```
+
+Part D (Tier B sudo -u weave):
+```
+labuser_01_stdout:labgrp_01_stdout 644 /tmp/lab01a/home_labuser_01_stdout/task1-asuser.txt
+owned-by-labuser_01_stdout-at-2026-05-28T08:54:13-04:00
+root:root 644 /tmp/lab01a/task1-asroot.txt
+```
+
+### Switches
+
+| Token            | Meaning                                                          |
+|------------------|------------------------------------------------------------------|
+| `>`              | Redirect stdout — truncate-write (or create)                     |
+| `>>`             | Redirect stdout — append-write (or create)                       |
+| `wc -l`          | Count newlines                                                   |
+| `wc -l < FILE`   | Count without filename in output                                  |
+| `set -o noclobber`| Refuse `>` on existing files                                    |
+| `set +o noclobber`| Allow `>` to clobber again                                      |
+| `2>&1 \| tee`    | Capture + display (standard lab transcript pattern)              |
+| `sudo -u USER bash -c '...'` | Run a whole quoted shell pipeline as USER — required when `>` redirect must apply with that user's identity |
+| `stat -c '%U:%G %a %n' FILE` | Print owner, group, mode, and name in one line — the Tier B verification reflex |
+
+### Concept Card
+
+| Concept | What it does |
 |---|---|
-| `>` | Open file for truncate-write of FD 1 (stdout) |
-| `>>` | Open file for append-write of FD 1 (no truncate) |
-| `<` | Open file as FD 0 (stdin) — used here with `wc -l` |
-| `wc -l` | Count newlines |
-| `stat -c '%n %U:%G %a'` | Custom-format stat output: name, owner:group, mode |
-| `sudo -u USER CMD` | Run CMD as USER (not via login shell) |
-| `chown user:group` | Set owner and primary group |
-| `test "$A" -eq "$B"` | Integer equality test for shell `if`/`&&` chains |
-| `$(...)` | Command substitution — capture stdout of `...` into the current command line |
+| `>` | Open-truncate-write FD 1; **destroys existing content** |
+| `>>` | Open-append-write FD 1; **preserves existing content** |
+| Both create file if missing | No error if the file doesn't exist yet |
+| noclobber + `>` | Shell refuses the overwrite — safe script default |
+| `2>&1 \| tee FILE` | Transcript pattern: shows on screen AND saves to file |
+| `sudo -u "${USER}" bash -c '... > FILE'` | Tier B weave: run the redirect as the lab user; ownership lands on `${USER}:${GROUP}` |
+| `stat -c '%U:%G %a %n' FILE` | Print owner/group/mode/name — the canonical Tier B ownership check |
+| **🪤 Trap Risk T01-A** | `cmd > existing.txt` empties the file BEFORE `cmd` runs. If `cmd` crashes, original data is gone. **Fix:** `ls -l FILE` first; use `>>` if file has content you need. |
 
-### k) 🧠 Concept Card
-
-| ✅ | Concept | What it does |
-|---|---|---|
-|   | `>` | Truncate-write FD 1 to a file |
-|   | `>>` | Append-write FD 1 to a file |
-|   | `<` | File becomes FD 0 (stdin) |
-|   | Open-before-run | Shell opens/truncates the target *before* the command starts — failed command still empties the file |
-|   | Command substitution | `$(...)` captures stdout into the calling command line |
-|   | Tier-B weave | The `chown ${USER}:${GROUP}` + `sudo -u ${USER}` pair exercises the sandbox user, group, and file simultaneously |
-|   | Pre-flight | `ls /bin \| wc -l` baseline before `>` redirect makes count verification possible |
-| 🪤 | **Trap Risk T01-A** | `cmd > existing.txt` empties `existing.txt` BEFORE `cmd` runs. If `cmd` fails (typo, missing file), you've destroyed the original for nothing. **Fix:** `ls -l FILE` first, or use `>>`, or `set -o noclobber`. |
-
-### l) 🔁 Persistence Check
+### PERSISTENCE CHECK
 
 | What was configured | Verification command | Why it matters |
 |---|---|---|
-| File on disk via `>` | `cat "${SANDBOX}/bin-list.txt"` | Confirms data survived past the shell session |
-| Append via `>>` | `tail -n 2 "${SANDBOX}/bin-list.txt"` | Confirms `>>` didn't truncate |
-| Ownership transfer | `stat -c '%U:%G' "${SANDBOX}/bin-list.txt"` | Confirms `chown` applied |
-| Lab user can read | `sudo -u "${USER}" cat "${SANDBOX}/bin-list.txt" \| wc -l` | Confirms group/mode permits the user to read |
+| > overwrites (Part B) | `wc -l /tmp/lab01a/output.txt` returns 1 | Proves truncate happened |
+| >> appended (Part A) | `cat` showed 3 lines before Part B | Proves append preserved earlier lines |
+| noclobber blocked clobber | `cat /tmp/lab01a/precious.txt` returns "protected" | Proves safety net works |
+| Task log written | `wc -l /tmp/lab01a/task1.txt` | Evidence file exists |
+| `${USER}` owns the sudo-u file | `stat -c '%U:%G' "${USER_HOME}/task1-asuser.txt"` returns `labuser_01_stdout:labgrp_01_stdout` | Proves Tier B sandbox actually wired up — Lab Closeout depends on it |
+| Root-owned contrast file | `stat -c '%U:%G' /tmp/lab01a/task1-asroot.txt` returns `root:root` | Catches the "I forgot the sudo -u" mistake at the point of contrast |
 
-> If `/tmp` is `tmpfs` (RAM-backed) on your distro, the file does NOT survive reboot — that's expected. The persistence check above is for **session persistence**, not reboot persistence.
+> **Reboot note:** `/tmp` is RAM-backed on most RHEL 9 hosts (`tmpfs`). Files here do NOT survive reboot. The journal write below copies artifacts to `/root/rhcsa_journal/` which IS on the root partition and survives reboot.
 
-### m) 🧹 Cleanup — bulletproof teardown (Section 6)
-
-Run this BEFORE Task 2 so each task starts from a clean state, then run the same block again at the end of Task 2 with the audit.
+### Journal write
 
 ```bash
-set +e
+LAB=lab-01a
+TASK=task1
+JDIR="/root/rhcsa_journal/${LAB}/${TASK}"
+mkdir -p "$JDIR"
+cp /tmp/lab01a/task1.txt              "$JDIR/evidence.txt"
+cp "${USER_HOME}/task1-asuser.txt"    "$JDIR/task1-asuser.txt"
+cp /tmp/lab01a/task1-asroot.txt       "$JDIR/task1-asroot.txt"
 
-# Containers — none in this lab, no-op
-podman ps -aq --filter "name=^lab_01_stdout$" 2>/dev/null \
-    | xargs -r podman rm -f >/dev/null 2>&1
+cat > "$JDIR/done.txt" <<EOF
+LAB:    ${LAB}
+TASK:   ${TASK}
+DATE:   $(date -Is)
+USER:   $(whoami)@$(hostname)
+LAB_USER: ${USER}
+LAB_GROUP: ${GROUP}
+STATUS: COMPLETE
+EOF
 
-# Mounts under sandbox — none in this lab, no-op
-awk -v s="${SANDBOX}" '$2 ~ s {print $2}' /proc/mounts \
-    | tac | xargs -r -n1 umount -l 2>/dev/null
+cat > "$JDIR/notes.txt" <<EOF
+TOPIC:    > overwrites (O_TRUNC); >> appends (O_APPEND); both create if missing; sudo -u places ownership on the lab user
+COMMANDS: >, >>, wc -l, cat, set -o noclobber, sudo -u ${USER} bash -c, stat -c '%U:%G %a %n'
+TRAPS:    T01-A rehearsed (Part B: second > reset file to 1 line)
+TIER B:   task1-asuser.txt owned by ${USER}:${GROUP}; task1-asroot.txt owned by root:root
+MISSED:   (fill in if any ⚠️ flags)
+NEXT:     task2 — multi-source report + T01-B filename trap + sudo -u report append
+EOF
 
-# Sandbox file (Task 1 artifact) — let Task 2 rebuild if needed
-rm -f "${SANDBOX}/bin-list.txt"
-
-set -e
-echo "Task-1 cleanup at $(date -Is); exit was: $?"
+ls -la "$JDIR"
+echo "exit was: $?"
 ```
 
-> **STOP — paste output before Task 2.**
+### Cleanup (per-task — leaves Tier B sandbox intact)
 
-### n) Troubleshoot
+```bash
+# Per-task cleanup removes ONLY the files Task 1 created.
+# The Tier B sandbox/user/group must survive into Task 2 — Lab Closeout
+# (after Task 2) runs the bulletproof Section 6 teardown with the audit block.
+rm -f /tmp/lab01a/output.txt /tmp/lab01a/precious.txt /tmp/lab01a/warmup.txt \
+      /tmp/lab01a/task1-asroot.txt
+rm -f "${USER_HOME}/task1-asuser.txt"
+
+# Sanity-check that ${USER}/${GROUP}/${SANDBOX} still exist for Task 2
+getent passwd "${USER}"   >/dev/null && echo "✅ ${USER} still present"
+getent group  "${GROUP}"  >/dev/null && echo "✅ ${GROUP} still present"
+test -d       "${SANDBOX}"           && echo "✅ ${SANDBOX} still present"
+
+ls /tmp/lab01a
+echo "exit was: $?"
+```
+
+### Troubleshoot
 
 | Symptom | Fix |
 |---|---|
-| `bash: !${SANDBOX}/bin-list.txt: event not found` | History expansion bit you — `set +H` or escape the `!`, but better: don't put `!` in lab filenames |
-| `Permission denied` when `sudo -u "${USER}" tail ...` | The file mode is too restrictive — `chmod 0644 "${SANDBOX}/bin-list.txt"` |
-| Captured line count is **0** even though `ls /bin` shows files | You ran `cat file > file` (T01-C) — the shell truncated `file` before `cat` opened it for read |
-| `useradd: user "labuser_01_stdout" already exists` | The previous lab didn't clean up — re-run the Section 6 audit, then `userdel -r` manually |
+| `wc -l` shows 0 after `>` | The command before `>` failed — check the command independently |
+| `>>` seems to reset the file | You typed `>` instead of `>>` — T01-A happened |
+| `cannot overwrite` after turning off noclobber | You turned it off as `set -o noclobber` — use `set +o noclobber` (`+` disables, `-` enables) |
+| Line count is off by 1 | Some commands (like `printf`) don't emit a trailing newline; `echo` always does |
+
+> **STOP — paste the `wc -l` and `cat` outputs before Task 2.**
 
 ---
 
-## Task 2 — Contrast: `noclobber`, force-overwrite `>|`, discard `/dev/null`
+## Task 2 — Multi-source report file (the exam pattern)
 
-### a) Directory context
+**Practice directory this task:** `/tmp/lab01a` — we build a composite system report, the pattern used in real exam "capture diagnostic output" tasks.
 
-**Practice directory this task:** `/bin` (continued) — still our read-only source.
-
-### b) 🔁 Warm-Up — commands woven into Task 2
+### Warm-Up
 
 ```bash
-ls -la "${SANDBOX}"                                 2>&1 | tee "${SANDBOX}/warmup2.txt"
-stat -c '%n owner=%U:%G mode=%a' "${SANDBOX}/warmup2.txt"
-getent group "${GROUP}"
-sudo -u "${USER}" pwd
-set -o noclobber       # leave it ON for this task — the lesson IS the safety net
-grep -E '^(bin|sbin)$' /etc/passwd | wc -l    # likely 0 but exercises grep -E + wc
+ls -la /tmp/lab01a                                     2>&1 | tee /tmp/lab01a/warmup2.txt
+hostname
+date
+uptime
+id
+uname -r
 echo "Warm-up done by $(whoami) at $(date -Is)"
 echo "exit was: $?"
 ```
 
-### c) Purpose
+> Carry from Task 1: the `2>&1 | tee` transcript pattern — now standard for every warm-up block.
 
-Show what `>` actually **costs you** when you don't think. Cycle through three safer alternatives:
-- `set -o noclobber` — the shell refuses to clobber existing files via `>`.
-- `>|` — explicit override that says "yes, I really mean clobber it."
-- `> /dev/null` — when the output is what you *don't* want.
+### Purpose
 
-The contrast with Task 1: Task 1 was *"capture the output."* Task 2 is *"protect what's already on disk, and discard what doesn't matter."*
+Build a composite system report by using `>` once (header, clean start) then `>>` for every subsequent source. Verify header and footer survive with `head -1` and `tail -1`. Demonstrate T01-B (unquoted space in redirect target corrupts the command). Finalize the report with a line count and hand the evidence to the journal.
 
-### d) 🧵 WEAVE TRACE — warm-up commands re-used in this task body
+### WEAVE TRACE
 
-| Warm-up command | Role inside Task 2 |
-|---|---|
-| `ls -la "${SANDBOX}"` | Proves a file already exists before we try to clobber it — required so the noclobber error actually fires |
-| `stat -c ... warmup2.txt` | The target of the noclobber-protected `>` attempt — we want to prove mode/owner survived the attempted clobber |
-| `getent group "${GROUP}"` | Confirms group still exists (i.e. nothing from Task 1's cleanup over-deleted) |
-| `sudo -u "${USER}" pwd` | Proves the lab user can still authenticate / has a shell after Task 1's cleanup |
-| `set -o noclobber` | THE feature under test — already turned on so the `>` attempt below triggers `cannot overwrite existing file` |
+| Warm-up / setup command | Role inside Task 2                                                  |
+|-----------------|---------------------------------------------------------------------|
+| `ls -la /tmp/lab01a` | Pre-flight: confirms sandbox exists and task1 cleanup ran     |
+| `hostname`      | First data source captured into the report via `>>`                 |
+| `date`          | Second source — timestamps the report                               |
+| `uptime`        | Third source — load/runtime context                                 |
+| `id`            | Fourth source — documents who ran the report                        |
+| `uname -r`      | Fifth source — kernel version for system context                    |
+| `${USER}` (Tier B) | Part D appends a "signed" line into `report.txt` *as* `${USER}` via `sudo -u`, then `stat`/`getfacl` proves the section the lab user wrote vs the ones root wrote — real Tier B work inside the report itself |
 
-### e) Main command block
+### Main command block
 
 ```bash
-# 1. Re-create a target file so we have something to "almost clobber"
-echo "important data — do not lose me" > "${SANDBOX}/precious.txt"
-chown "${USER}:${GROUP}" "${SANDBOX}/precious.txt"
-ls -l "${SANDBOX}/precious.txt"
+TASKLOG=/tmp/lab01a/task2.txt
 
-# noclobber is already ON from the warm-up — confirm:
-set -o | grep noclobber
+# ── Part A: multi-source report ──────────────────────────────────────
+echo "=== System Report ===" > /tmp/lab01a/report.txt               # ONLY `>` in the whole block
 
-# 2. Attempt to clobber — MUST fail under noclobber
-ls /bin > "${SANDBOX}/precious.txt" \
-    && echo "❌ clobber succeeded (noclobber failed?)" \
-    || echo "✅ noclobber blocked the clobber  (exit=$?)"
+echo "--- Hostname ---"    >> /tmp/lab01a/report.txt
+hostname                   >> /tmp/lab01a/report.txt
+echo "--- Date ---"        >> /tmp/lab01a/report.txt
+date                       >> /tmp/lab01a/report.txt
+echo "--- Uptime ---"      >> /tmp/lab01a/report.txt
+uptime                     >> /tmp/lab01a/report.txt
+echo "--- User ---"        >> /tmp/lab01a/report.txt
+id                         >> /tmp/lab01a/report.txt
+echo "--- Kernel ---"      >> /tmp/lab01a/report.txt
+uname -r                   >> /tmp/lab01a/report.txt
+echo "=== End Report ===" >> /tmp/lab01a/report.txt
 
-# Prove the file is intact
-cat "${SANDBOX}/precious.txt"
+cat /tmp/lab01a/report.txt                             2>&1 | tee $TASKLOG
+wc -l /tmp/lab01a/report.txt                           2>&1 | tee -a $TASKLOG
+head -1 /tmp/lab01a/report.txt                         | tee -a $TASKLOG
+tail -1 /tmp/lab01a/report.txt                         | tee -a $TASKLOG
 
-# 3. Explicit force-overwrite — `>|` overrides noclobber
-ls /bin >| "${SANDBOX}/precious.txt"
-wc -l    "${SANDBOX}/precious.txt"
-head -n3 "${SANDBOX}/precious.txt"
+# ── Part B: T01-B — unquoted space in target name ────────────────────
+echo "=== T01-B demo ===" | tee -a $TASKLOG
+# BAD: bash sees `echo "test" > my` with `file.txt` as arg to echo
+echo "test" > /tmp/lab01a/my file.txt 2>&1 | tee -a $TASKLOG || true
+ls -la /tmp/lab01a/my* 2>&1 | tee -a $TASKLOG || echo "(no files created)" | tee -a $TASKLOG
 
-# 4. Discard pattern — `> /dev/null` throws stdout away
-echo "this never lands in any file" > /dev/null
-echo "exit of the discard write: $?"
+# GOOD: quote the path
+echo "test" > "/tmp/lab01a/my file.txt"
+cat "/tmp/lab01a/my file.txt" | tee -a $TASKLOG
+rm -f /tmp/lab01a/my* "/tmp/lab01a/my file.txt" 2>/dev/null
 
-# 5. Append-with-discard idiom — keep stderr, drop stdout
-ls /bin /no/such/dir > /dev/null 2>&1
-echo "exit when both streams discarded: $?"
+# ── Part C: ${USER} signs the report (Tier B weave) ───────────────────
+# Give ${USER} write permission on the report, then append a "signed" line
+# AS that user. We then prove the appended line is the ONLY line whose
+# write was attributable to ${USER} — every other section was written as root.
+chown root:"${GROUP}" /tmp/lab01a/report.txt
+chmod 0664           /tmp/lab01a/report.txt        # group can write
 
-# 6. Reset noclobber so the next lab inherits a normal shell
-set +o noclobber
-set -o | grep noclobber
+sudo -u "${USER}" bash -c \
+    'echo "--- Signed by $(whoami) at $(date -Is) ---" >> /tmp/lab01a/report.txt'
+
+# Verify: file group is now ${GROUP}; last line shows the lab user signed it
+stat -c '%U:%G %a %n' /tmp/lab01a/report.txt           | tee -a $TASKLOG
+tail -n 1 /tmp/lab01a/report.txt                       | tee -a $TASKLOG
+grep -c "Signed by ${USER}" /tmp/lab01a/report.txt     | tee -a $TASKLOG
 
 echo "exit was: $?"
 ```
 
-### f) Human-readable breakdown
+### Human-readable breakdown
 
-1. Make a file that holds real data.
-2. With `noclobber` already on, **try** to clobber the file using `>` — the shell refuses with `cannot overwrite existing file`.
-3. Use `>|` to **explicitly** override noclobber when you mean it.
-4. Throw output away with `> /dev/null` — the canonical "I don't care about stdout."
-5. Combine `> /dev/null 2>&1` to silence both streams (Lab 04 covers `2>&1` fully).
-6. Reset `noclobber` so the next lab in your session isn't surprised.
+1. `>` once at the top creates a clean, empty report file with the header line.
+2. Each `>>` appends exactly one section header and one data line — position in the final file matches the order of calls.
+3. `wc -l` confirms the expected line count (12 lines: header + 5 sections × 2 lines each + footer).
+4. `head -1` and `tail -1` confirm the report boundaries survived all the appends.
+5. T01-B: `echo "test" > my file.txt` — bash parses this as `echo "test" > my` with `file.txt` as an extra argument to `echo`. Result depends on the shell — usually creates a file named `my` containing `test file.txt`. The fix: always quote paths with spaces, or prefer underscores.
 
-### g) Reading it left to right
-
-- `ls /bin > "${SANDBOX}/precious.txt"` under noclobber: the shell calls `open(2)` with `O_CREAT|O_WRONLY|O_EXCL`; the existing file makes `open` return `EEXIST`; the shell prints `bash: precious.txt: cannot overwrite existing file` and **`ls` never runs**.
-- `&&` vs `||` after the redirect — `||` is reached because the redirect failed (exit 1), so we see the success message.
-- `>|` is a single token: pipe is part of the operator, not a separate pipe stage. It means "force overwrite even under noclobber."
-- `> /dev/null` opens the kernel's bit-bucket device for write; all bytes are silently accepted and discarded.
-- `2>&1` after `>` says "make FD 2 point wherever FD 1 currently points" — but order matters; this is Lab 04's deep dive.
-- `set +o noclobber` — `+o` turns options off; `-o` turns them on.
-
-### h) The story
-
-`noclobber` is the seatbelt you put on when you write scripts that touch real production files. It refuses `>` on existing files by default, forcing you to type `>|` when you really mean it. Senior engineers who've lost a config file once *always* turn this on in scripts. The exam doesn't require it — but a senior engineer's instinct does, which is why it appears in real Red Hat training material.
-
-`/dev/null` is a Unix invention: a device file that accepts any write and silently discards it. Pointing FD 1 (or both FD 1 and FD 2) at `/dev/null` is how you call a command for its **side effect** (exit code, file creation, log line elsewhere) without polluting your terminal.
-
-### i) Expected output (shape only)
+### Reading it left to right
 
 ```
--rw-r--r--. 1 labuser_01_stdout labgrp_01_stdout 33 May 27 16:38 /tmp/labsandbox_01/precious.txt
-noclobber       	on
-bash: /tmp/labsandbox_01/precious.txt: cannot overwrite existing file
-✅ noclobber blocked the clobber  (exit=1)
-important data — do not lose me
-168 /tmp/labsandbox_01/precious.txt
-[
-[[
-2to3-3.9
-exit of the discard write: 0
-exit when both streams discarded: 2
-noclobber       	off
-exit was: 0
+hostname   >>   /tmp/lab01a/report.txt
+│          │    │
+│          │    └─ destination (existing file — append to EOF)
+│          └─ redirect stdout (FD 1), append mode
+└─ command whose stdout is one line (hostname output)
 ```
 
-### j) Switches table
+### The story
 
-| Token | Meaning |
+The multi-source report is the canonical exam pattern. A grading script will `cat /root/answer.txt` — if the header is missing (because you used `>>` first), or the footer is missing (because a later `>` wiped everything), you lose points. The rule is simple: one `>` at the top establishes the clean file; every subsequent source uses `>>`.
+
+T01-B exists because shell word-splitting on unquoted strings is one of the most consistent sources of subtle bugs. `echo "test" > my file.txt` looks like it redirects to a two-word filename, but the shell processes word-splitting AFTER the redirect operator, not before. The result is confusing. The professional habit: never use spaces in filenames when you control the naming.
+
+### Expected output
+
+```text
+=== System Report ===
+--- Hostname ---
+yourhost.example.com
+--- Date ---
+Tue May 27 10:23:45 UTC 2026
+--- Uptime ---
+ 10:23:45 up 2 days,  3:11,  1 user,  load average: 0.00, 0.01
+--- User ---
+uid=0(root) gid=0(root) groups=0(root)
+--- Kernel ---
+5.14.0-427.el9.x86_64
+=== End Report ===
+12 /tmp/lab01a/report.txt
+=== System Report ===
+=== End Report ===
+```
+
+### Switches
+
+| Pattern          | Meaning                                              |
+|------------------|------------------------------------------------------|
+| `> file`         | Overwrite — use exactly once, for the header         |
+| `>> file`        | Append — use for every subsequent write              |
+| `head -1 file`   | Confirm header is still first line                   |
+| `tail -1 file`   | Confirm footer is still last line                    |
+| `wc -l file`     | Count lines — verify no truncation happened          |
+
+### Concept Card
+
+| Concept | What it does |
 |---|---|
-| `set -o noclobber` | Refuse `>` on existing files |
-| `set +o noclobber` | Allow `>` to clobber again |
-| `>\|` | Force overwrite even when noclobber is set |
-| `> /dev/null` | Discard stdout |
-| `2>&1` | Duplicate FD 2 to point at whatever FD 1 currently points at |
-| `&&` | Run next command only if previous exit was 0 |
-| `\|\|` | Run next command only if previous exit was non-zero |
+| Multi-source report pattern | `>` once (header) → `>>` for everything else |
+| Order = final file order | Lines appear in file in the exact order `>>` was called |
+| Exam reflex: `>` means "fresh start" | Use before any sequence of `>>` calls |
+| Exam reflex: `>>` means "add to" | Never wipes what's already there |
+| **🪤 Trap Risk T01-B** | `echo "text" > my file.txt` is parsed as `echo "text" > my` with `file.txt` as an arg. **Fix:** quote paths: `echo "text" > "my file.txt"`. |
 
-### k) 🧠 Concept Card
-
-| ✅ | Concept | What it does |
-|---|---|---|
-|   | `set -o noclobber` | Shell-level safety against accidental `>` overwrite |
-|   | `>\|` | Explicit "yes, clobber" override |
-|   | `> /dev/null` | Discard stdout when output is unwanted |
-|   | `> /dev/null 2>&1` | Discard both streams (Lab 04 detail) |
-|   | `&&` / `\|\|` | Short-circuit chain based on previous exit code |
-|   | `set +o`/`-o` | Plus turns option OFF, minus turns option ON (counter-intuitive — memorize) |
-| 🪤 | **Trap Risk T01-B** | `cat file > file` clobbers `file` to empty BEFORE `cat` opens it for read — you'll lose the file in a script. **Fix:** redirect to a temp, then `mv`: `cat file > file.tmp && mv file.tmp file`. |
-
-### l) 🔁 Persistence Check
+### PERSISTENCE CHECK
 
 | What was configured | Verification command | Why it matters |
 |---|---|---|
-| noclobber state across runs | `set -o \| grep noclobber` | Confirms we left the shell in the state we expected |
-| Original file survived | `cat "${SANDBOX}/precious.txt"` (BEFORE step 3) | Confirms `>` refused under noclobber |
-| Force-overwrite worked | `wc -l "${SANDBOX}/precious.txt"` (AFTER step 3) | Confirms `>\|` actually overwrote |
+| Report header present | `head -1 /tmp/lab01a/report.txt` returns `=== System Report ===` | First line must be the header |
+| Report footer present | `tail -1 /tmp/lab01a/report.txt` returns `=== End Report ===` | No accidental `>` wiped the file |
+| Line count correct | `wc -l /tmp/lab01a/report.txt` returns 13 | 12 root sections + 1 `${USER}`-signed line |
+| Report group ownership | `stat -c '%G' /tmp/lab01a/report.txt` returns `labgrp_01_stdout` | Proves the chown that enabled the Tier B append |
+| `${USER}` signed exactly once | `grep -c "Signed by ${USER}" /tmp/lab01a/report.txt` returns 1 | Confirms `sudo -u ${USER}` actually ran the append (vs root pretending) |
+| Journal evidence | `ls /root/rhcsa_journal/lab-01a/task2/` | Files survive `/tmp` tmpfs reboot |
 
-### m) 🧹 Cleanup — bulletproof teardown with audit (Section 6)
-
-This is the **full** Section 6 block. Run it at the end of Task 2 to close the lab cleanly.
+### Journal write
 
 ```bash
-set +e
+LAB=lab-01a
+TASK=task2
+JDIR="/root/rhcsa_journal/${LAB}/${TASK}"
+mkdir -p "$JDIR"
+cp /tmp/lab01a/task2.txt  "$JDIR/evidence.txt"
+cp /tmp/lab01a/report.txt "$JDIR/report.txt"
 
-# 1) Container layer — no containers in this lab
-podman ps -aq --filter "name=^lab_${LAB_NUM}_${LAB_SLUG}$" 2>/dev/null \
-    | xargs -r podman rm -f >/dev/null 2>&1
+cat > "$JDIR/done.txt" <<EOF
+LAB:    ${LAB}
+TASK:   ${TASK}
+DATE:   $(date -Is)
+USER:   $(whoami)@$(hostname)
+STATUS: COMPLETE
+EOF
 
-# 2) Mount layer — no mounts in this lab
+cat > "$JDIR/notes.txt" <<EOF
+TOPIC:    Multi-source report pattern — > once (header), >> for all subsequent sources; ${USER} signs via sudo -u append
+COMMANDS: >, >>, head -1, tail -1, wc -l, cat, chown root:${GROUP}, chmod 0664, sudo -u ${USER} bash -c '>> file', stat -c '%U:%G %a %n'
+TRAPS:    T01-B rehearsed (unquoted space in redirect target)
+TIER B:   report.txt is root:${GROUP} 0664; last line was appended by ${USER}; grep -c "Signed by" returns 1
+MISSED:   (fill in if any ⚠️ flags)
+NEXT:     lab-01c — verify capstone: audit + persistence (destroy-restore drill, T41)
+NOTE:     lab-01b is intentionally absent — Section 18 boundary lab (no honest Ansible module for >, >>, cat)
+EOF
+
+ls -la "$JDIR"
+echo "exit was: $?"
+```
+
+### Cleanup (per-task — leaves Tier B sandbox intact)
+
+```bash
+# Final per-task cleanup before Lab Closeout. Removes only Task 2 files;
+# user/group/sandbox stay so Lab Closeout can audit + tear them down.
+rm -f /tmp/lab01a/report.txt /tmp/lab01a/warmup2.txt /tmp/lab01a/task2.txt
+
+# Sanity-check the Tier B stack is still in place for Lab Closeout to audit
+getent passwd "${USER}"  >/dev/null && echo "✅ ${USER} still present"
+getent group  "${GROUP}" >/dev/null && echo "✅ ${GROUP} still present"
+test -d       "${SANDBOX}"          && echo "✅ ${SANDBOX} still present"
+
+ls /tmp/lab01a
+echo "exit was: $?"
+```
+
+### Troubleshoot
+
+| Symptom | Fix |
+|---|---|
+| Report has only 1 line (just the header) | You used `>` for each section instead of `>>` — every `>` wiped the previous content |
+| `head -1` shows wrong line | You used `>>` for the header too — the header was appended to a file that already had stale content |
+| Line count is wrong | One of the commands (hostname, date, etc.) produced more than one line — inspect with `CMD \| wc -l` |
+| T01-B: `ls -la /tmp/lab01a/my*` shows unexpected files | Expected — the demo creates or tries to create files in the wrong location |
+
+> **STOP — paste the `cat report.txt`, `wc -l`, `head -1`, `tail -1`, the `stat -c '%U:%G'`, and the `grep -c "Signed by ${USER}"` outputs before running Lab Closeout.**
+
+---
+
+## Lab Closeout — Bulletproof Teardown (Section 6)
+
+Runs after Task 2 only. This block tears down the Tier B sandbox the lab built in Lab-Wide Setup and **audits** that nothing was left behind. It's partial-failure tolerant — every step is guarded so a missing artifact doesn't abort the rest of the teardown.
+
+```bash
+set +e                          # tolerate partial failures inside cleanup
+
+# 1) Mount layer — unmount anything we put under ${SANDBOX} (no-op here)
 awk -v s="${SANDBOX}" '$2 ~ s {print $2}' /proc/mounts \
     | tac | xargs -r -n1 umount -l 2>/dev/null
 
-# 3) LVM layer — none
-# 4) Loopback — none
-
-# 5) User then group (user owns files inside USER_HOME and SANDBOX)
+# 2) User / group (USER first because it owns files in ${USER_HOME})
 if getent passwd "${USER}" >/dev/null 2>&1; then
-    userdel -r "${USER}" 2>/dev/null || userdel "${USER}" 2>/dev/null
+    userdel -r "${USER}" 2>/dev/null
 fi
 if getent group "${GROUP}" >/dev/null 2>&1; then
-    groupdel "${GROUP}" 2>/dev/null
+    groupdel "${GROUP}"  2>/dev/null
 fi
 
-# 6) Sandbox dir
+# 3) Sandbox dir — the safety net
 rm -rf "${SANDBOX}"
 
-# 7) Audit — every row MUST print ✅
-echo "── cleanup audit ──"
-getent passwd "${USER}"  >/dev/null 2>&1 && echo "❌ user remains"    || echo "✅ user gone"
-getent group  "${GROUP}" >/dev/null 2>&1 && echo "❌ group remains"   || echo "✅ group gone"
-test -d "${SANDBOX}"                       && echo "❌ sandbox remains" || echo "✅ sandbox gone"
-
-# Reset noclobber if Task 2 left it on
-set +o noclobber
+# 4) Audit — prove nothing was left behind
+echo "── Lab 01a cleanup audit ──"
+getent passwd "${USER}"  >/dev/null && echo "❌ user remains"    || echo "✅ user gone"
+getent group  "${GROUP}" >/dev/null && echo "❌ group remains"   || echo "✅ group gone"
+test -d "${SANDBOX}"                && echo "❌ sandbox remains" || echo "✅ sandbox gone"
+test -d "${USER_HOME}"              && echo "❌ home remains"    || echo "✅ home gone"
 
 set -e
-echo "Lab cleanup complete by $(whoami) at $(date -Is)"
+echo "Cleanup complete by $(whoami) at $(date -Is)"
 echo "exit was: $?"
 ```
 
-> **STOP — paste the audit block output. Every line must read ✅ before this lab is complete (T44).**
+> **STOP — paste the four `✅` audit lines before declaring Lab 01a complete. A single `❌` is a Section 8 mistake: investigate, fix, then re-run the audit.**
 
-### n) Troubleshoot
+The journal in `/root/rhcsa_journal/lab-01a/` survives this teardown — only the `/tmp` Tier B stack is removed. Resume from there for Lab 01c.
 
-| Symptom | Fix |
+---
+
+## Lab 01a Checklist (2 tasks + closeout)
+
+- [ ] Lab-Wide Setup — Tier B sandbox built; `id ${USER}`, both `getent` lines visible
+- [ ] Task 1 — `>` creates file, `>>` appends; `wc -l` grows from 1→3; second `>` resets to 1; **Part D**: file written by `sudo -u ${USER}` is owned by `${USER}:${GROUP}`
+- [ ] Task 2 — Multi-source report; `head -1` and `tail -1` confirm header/footer; T01-B demonstrated; **Part C**: `${USER}`-signed line appended via `sudo -u`; `grep -c` returns 1
+- [ ] Lab Closeout — Section 6 teardown ran; four `✅` audit lines visible; journal in `/root/rhcsa_journal/lab-01a/` survives
+
+---
+
+## Related Labs
+
+| Lab | Connection |
 |---|---|
-| `cannot overwrite existing file` after `set +o noclobber` | You toggled wrong — `+o` is OFF, `-o` is ON. Re-run `set +o noclobber`. |
-| Audit shows `❌ user remains` | Some process is still running as the user — `pkill -u "${USER}"` then re-run `userdel -r`. |
-| Audit shows `❌ sandbox remains` | Something in `${SANDBOX}` is open (open file handle from an editor); close it and `rm -rf` again. |
-| `userdel: user labuser_01_stdout is currently used by process N` | Same as above — kill stale processes first. |
+| ⛔ **Lab 01b is intentionally absent** | Section 18 boundary lab — `>`/`>>`/`cat` have no honest Ansible module. `ansible.builtin.copy` is not the same operation. The boundary is expressed by the absence, per Section 15. |
+| **Lab 01c** — Verifying Stdout | Auditor seat: replays Lab 01a behavior, proves file contents, runs the destroy-restore drill (T41), validates the journal evidence written here |
+| Lab 02a — Stderr Redirection RHCSA | The second stream; `2>` / `2>/dev/null` / order-of-operations |
+| Lab 03a — Pipe Text Streams RHCSA | Connects stdout of one command to stdin of another |
 
 ---
 
-## 🪤 Trap Rehearsal — summary
+## Author
 
-| Trap | Description | Rehearsed where |
-|---|---|---|
-| **T01-A** | `>` truncates BEFORE the command runs — failed command empties the file for nothing | Task 1 Concept Card |
-| **T01-B** | `cat file > file` clobbers its own source to empty | Task 2 Concept Card |
-| **T44** | Cleanup left an orphan user/group/sandbox — next lab inherits broken state | Task 2 audit block |
-
-If any trap fired during the lab (you typed `>` when you meant `>>`, or the audit showed ❌), log it per Section 12:
-
-```
-⚠️ TRAP HIT: [T01-A | T01-B | T44] [what happened]
-Repeat this trap in the next 2 labs.
-```
-
----
-
-## ➡️ What's next
-
-- **Lab 01b — Ansible:** declarative version using `ansible.builtin.copy` and `ansible.builtin.shell` with `register:` — same `>`/`>>` semantics expressed as idempotent tasks.
-- **Lab 01c — Verify:** audit script that diff-compares a fresh capture against a reference, catching the silent T01-B self-clobber.
-- **Lab 02a — stderr (`2>`, `2>/dev/null`):** the second stream, the noisy `find /` problem, exit-code preservation through `2>`.
+**Kelvin R. Tobias**
+[kelvinintech.com](https://kelvinintech.com) · [GitHub](https://github.com/kelvintechnical) · [LinkedIn](https://www.linkedin.com/in/kelvin-r-tobias-211949219)

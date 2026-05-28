@@ -1,24 +1,20 @@
 # Lab 02a: Standard Error Redirection (RHCSA) — `2>`, `2>>`, `2>/dev/null`
 
 - **Series:** linux-ops-mastery — Shells, Terminals & Redirection
-- **Trilogy:** `02a` (RHCSA) → `02b` (Ansible, planned) → `02c` (Verify, planned)
-- **Career arcs covered:** RHCSA EX200 (every `find /` task that emits `Permission denied`), RHCE EX294 (Ansible `result.stderr` is the same stream `2>` captures), SRE (post-mortems read stderr, not stdout — that's where the actual error message is), DevOps (CI/CD failed-build alerts), AI/MLOps (Python tracebacks land on stderr by default)
-- **Prerequisite:** Lab 01a — you understand FD 1, `>`, `>>`, and `noclobber`
-- **Time Estimate:** 30–40 minutes
-- **Tasks:** 2 (ADHD spec — Task 1 canonical, Task 2 contrast)
-- **Practice Directory (rotation #02):** `/sbin`
-- **Sandbox:** `/tmp/labsandbox_02`
-- **Sandbox User/Group:** `labuser_02_stderr` / `labgrp_02_stderr`
-- **📌 ANCHOR TYPE:** none (regular lab)
-- **📌 TRILOGY POS:** `a` (rhcsa)
-- **📌 PREREQ:** Lab 01a complete and cleaned up
-- **Traps rehearsed this lab:** **T02-A** (using `>` thinking it captures errors — it only captures FD 1) · **T02-B** (`cmd 2>&1 > file` vs `cmd > file 2>&1` — order is everything) · **T02-C** (`2>/dev/null` hides the exit code you needed) · **T44** (cleanup audit)
+- **Trilogy:** `02a` (RHCSA hand-typed) → ⛔ no `02b` (Section 18 boundary — `2>`/`2>/dev/null` have no honest Ansible module) → `02c` (Verify capstone — audit + persistence)
+- **Career arcs covered:** RHCSA EX200 (every `find /` task that emits `Permission denied`), RHCE EX294 (Ansible `result.stderr` is the same stream `2>` captures), SRE (post-mortems read stderr — that's where the actual error message is), DevOps (CI/CD failed-build alerts), AI/MLOps (Python tracebacks land on stderr by default)
+- **Prerequisite:** [`Lab 01a`](../lab-01a-stdout-redirection-rhcsa/) + [`Lab 01c`](../lab-01c-stdout-redirection-verify/) — you understand FD 1, `>`, `>>`, `wc -l`, and the Tier B sandbox stack
+- **Time Estimate:** 25–35 minutes
+- **Tasks:** 2 (Task 1 = `2>` capture + `2>/dev/null` silence + `sudo -u ${USER}` weave · Task 2 = `2>>` append + order trap `2>&1` + `sudo -u ${USER}` weave)
+- **Practice Directory (rotation #02):** `/var/log`
+- **Sandbox (Tier B per Section 1.5):** `/tmp/lab02a` with `USER=labuser_02_stderr`, `GROUP=labgrp_02_stderr`, `USER_HOME=/tmp/lab02a/home_labuser_02_stderr`. Built in Lab-Wide Setup; torn down + audited in **Lab Closeout** after Task 2.
+- **Traps rehearsed this lab:** **T02-A** (order matters — `cmd 2>&1 > file` vs `cmd > file 2>&1` do DIFFERENT things) · **T02-B** (using `2>` when you wanted `&>` — stdout still prints to terminal) · **T41** (skipping the destroy-restore drill — done in 02c) · **T44** (cleanup-left-orphan-user — Lab Closeout audit block proves no residue)
 
-> **This lab's practice directory is: `/sbin`** — admin-only commands, mostly unreadable by non-root, so `find /sbin` as the lab user is the perfect natural source of `Permission denied` messages on FD 2.
+> **This lab's practice directory is: `/var/log`** — real log files produce real errors when a non-privileged process tries to read restricted subdirectories, giving us authentic stderr without inventing synthetic data.
 
 ---
 
-## 🖥️ LAB HEADER BLOCK — run this FIRST
+## LAB HEADER BLOCK
 
 ```bash
 echo "🖥️  ENV:   ${ENV:-DECLARE_ME}"
@@ -28,571 +24,663 @@ echo "🔐  SE:    $(getenforce 2>/dev/null || echo n/a)"
 echo "📦  OS:    $(cat /etc/redhat-release 2>/dev/null || grep PRETTY_NAME /etc/os-release)"
 echo "🕒  TIME:  $(date -Is)"
 echo "👤  USER:  $(whoami)@$(hostname)"
-echo "⚠️  TRAP REMINDERS THIS LAB: T02-A T02-B T02-C T44"
-echo "📁  PRACTICE DIR: /sbin"
+echo "⚠️  TRAP REMINDERS THIS LAB: T02-A T02-B T41"
+echo "📁  PRACTICE DIR: /var/log"
 echo ""
-echo "💡 /sbin occupants (admin commands — most rooted-only):"
-ls -ld /sbin
-ls /sbin | wc -l
+echo "💡 /var/log context (our stderr source):"
+ls -ld /var/log
+ls /var/log | head -n 8
+echo "Shell version: $BASH_VERSION"
 ```
 
 > **STOP — paste header output before running setup.**
 
 ---
 
-## 🎯 Objective
+## Objective
 
 Stop letting errors disappear off the top of your terminal scrollback. By the end of this lab you can:
 
-1. Send the stderr of any command to a file with `2>` or `2>>` — independently from stdout.
-2. Silence noisy `Permission denied` lines with `2>/dev/null` while still capturing the legitimate results.
-3. Survive the three stderr traps that cost real RHCSA points: **wrong-stream redirection** (T02-A), **wrong-order combined redirect** (T02-B), **suppressed exit code** (T02-C).
+1. Redirect stderr (FD 2) to a file independently of stdout using `2>` and `2>>`.
+2. Silence noisy `Permission denied` lines with `2>/dev/null` while keeping the clean results.
+3. Understand the order trap: `cmd > file 2>&1` (both streams to file) vs `cmd 2>&1 > file` (stderr stays on screen).
+4. Know that `2>/dev/null` hides the message but NOT the exit code — always check `$?`.
 
-The capstone is the RHCSA-realistic pattern: *"Find every file owned by USER under /etc whose name ends in .conf, suppress all errors, save the clean list to /root/conf-files.txt."* — every exam cycle has at least one task that reduces to this.
+The capstone is the RHCSA-realistic pattern: *"Find every `.conf` file under `/etc`, suppress all errors, save the clean list to `/root/conf-files.txt`."* Every exam cycle has at least one task that reduces to this.
 
 ---
 
-## 🧠 Concept: stderr Is a Second, Independent Stream
+## Concept: stderr Is a Second, Independent Stream
 
-Every Linux process has three FDs by default. Lab 01a covered FD 0 (stdin) and FD 1 (stdout). **FD 2 is stderr.** It exists for one reason: so that error messages do not get tangled into the program's data output.
+Every Linux process has three FDs by default. Lab 01a covered FD 1 (stdout). **FD 2 is stderr.** It exists so that error messages do not tangle into the program's data output.
 
 ```
    ┌─────────────────────────────────────────────────────┐
    │   Your command (find, ls, grep, awk, ...)           │
    ├─────────────────────────────────────────────────────┤
    │   FD 0  stdin   ← keyboard                          │
-   │   FD 1  stdout  → terminal (DATA)         ← `>`     │
-   │   FD 2  stderr  → terminal (ERRORS)       ← `2>`    │
+   │   FD 1  stdout  → terminal (DATA output)    ◄─ `>`  │
+   │   FD 2  stderr  → terminal (ERROR output)   ◄─ `2>` │
    └─────────────────────────────────────────────────────┘
 
-   `> file`    captures FD 1 only — errors STILL hit the screen.   ← T02-A trap
-   `2> file`   captures FD 2 only — data still hits the screen.
-   `&> file`   captures both (Lab 04 — bash shorthand for `> file 2>&1`).
+   `> file`     captures FD 1 only — errors STILL hit the screen.   ← T02-B trap
+   `2> file`    captures FD 2 only — data still hits the screen.
+   `> f 2>&1`   correct merge — both go to `f`.                      ← Task 2
+   `2>&1 > f`   order trap — stderr goes to screen, stdout to `f`.   ← T02-A
 ```
 
 Both streams happen to display on the same terminal by default, which makes them *look* like one stream. They are not. `>` only redirects FD 1; FD 2 keeps going to the screen. That is the source of the bug *"my log file is empty even though the screen was full of red."*
 
 ---
 
-## 📚 stderr Reference (everything used in Tasks 1–2)
+## stderr Redirection Reference
 
-| Pattern | Direction | Notes |
-|---|---|---|
-| `cmd 2> file` | stderr → file (truncate) | Captures errors, leaves stdout on screen |
-| `cmd 2>> file` | stderr → file (append) | Adds to an existing error log |
-| `cmd 2> /dev/null` | stderr → bit-bucket | The "silence the noise" idiom for `find /` |
-| `cmd 2>&1` | stderr → wherever FD 1 currently goes | Merges error into data — **order matters** |
-| `cmd 1>&2` | stdout → wherever FD 2 currently goes | Used in scripts to print errors deliberately |
-| `cmd > out 2> err` | Split streams to two files | Capture both separately |
-| `cmd > /dev/null 2>&1` | Discard both | Run for side effects only |
-
-> **Rule of `2>`:** stderr is "everything that is not the answer." Status, progress, warnings, `Permission denied` — all of it. If you want a clean answer file, redirect FD 1 to the file *and* FD 2 to `/dev/null`.
+| Pattern              | Effect                                                         | Use when…                                    |
+|----------------------|----------------------------------------------------------------|----------------------------------------------|
+| `cmd 2> file`        | stderr → file (truncate/create), stdout to screen             | Capture errors separately                    |
+| `cmd 2>> file`       | stderr → file (append/create), stdout to screen               | Accumulate errors across runs                |
+| `cmd 2> /dev/null`   | Discard stderr, stdout to screen                               | Silence noise like `Permission denied`       |
+| `cmd > f 2>&1`       | Both FD 1 and FD 2 to `f` (correct merge order)               | Capture everything to one file               |
+| `cmd 2>&1 > f`       | FD 2 → screen, FD 1 → `f` (wrong order — T02-A trap)          | Never use this unless you mean it            |
+| `cmd > f1 2> f2`     | Split: stdout to `f1`, stderr to `f2`                         | Separate clean results from error log        |
+| `cmd > /dev/null 2>&1` | Discard both streams                                         | Run for side effects / exit code only        |
 
 ---
 
-## 🚦 Lab-Wide Setup — run BEFORE Task 1  (Section 1.5 sandbox stack)
+## Lab-Wide Setup — Tier B Sandbox Stack (Section 1.5)
 
 ```bash
 sudo -i
 
 export LAB_NUM=02
 export LAB_SLUG=stderr
-export SANDBOX=/tmp/labsandbox_${LAB_NUM}
+export SANDBOX=/tmp/lab02a
 export GROUP=labgrp_${LAB_NUM}_${LAB_SLUG}
 export USER=labuser_${LAB_NUM}_${LAB_SLUG}
 export USER_HOME=${SANDBOX}/home_${USER}
 
 mkdir -p "${SANDBOX}" "${USER_HOME}"
+mkdir -p /root/rhcsa_journal/lab-02a/task1
+mkdir -p /root/rhcsa_journal/lab-02a/task2
+
 getent group  "${GROUP}" >/dev/null || groupadd "${GROUP}"
 getent passwd "${USER}"  >/dev/null || useradd \
     -d "${USER_HOME}" -M -s /bin/bash -g "${GROUP}" "${USER}"
 chown -R "${USER}:${GROUP}" "${SANDBOX}"
 
-cat > "${SANDBOX}/THIS_DIRECTORY.txt" <<'EOF'
-/sbin — Admin-only commands (fdisk, reboot, iptables)
-
-/sbin holds commands the system needs to boot, recover, and be
-administered. Regular users cannot run most of these without sudo.
-On modern RHEL, /sbin is a symlink to /usr/sbin.
-
-Why this matters for stderr redirection: most of /sbin's contents
-are readable but the BINARIES inside it (when executed by a non-
-root user) often write diagnostics to FD 2. We exploit /etc instead
-for the canonical `Permission denied`-while-finding lesson, because
-/etc has subdirectories root can read but our lab user cannot. The
-core fact: stderr-on-find is the most common RHCSA pattern.
-EOF
-
-id "${USER}"
-ls -ld "${SANDBOX}" "${USER_HOME}"
-cat "${SANDBOX}/THIS_DIRECTORY.txt"
+id     "${USER}"
+ls -ld "${SANDBOX}" "${USER_HOME}" /var/log
+getent group  "${GROUP}"
+getent passwd "${USER}"
 echo "Sandbox built by $(whoami) at $(date -Is)"
 echo "exit was: $?"
 ```
 
-> **STOP — paste setup output (id, ls, exit code) before Task 1.**
+> **STOP — paste the `id` line, the three `ls -ld` lines, and both `getent` lines before Task 1. Section 1.5 sandbox stack is idempotent — re-run safe if you resume mid-lab.**
+
+> **Why `${USER}` matters for stderr:** running `find /var/log` as root produces almost no `Permission denied` — root can read everything. The `sudo -u ${USER}` weave below makes the stderr stream *interesting* by running `find` as a non-privileged user against directories root owns.
 
 ---
 
-## Task 1 — Canonical: `2>` capture and `2>/dev/null` silence
+## Task 1 — Capture stderr with `2>` and silence it with `2>/dev/null`
 
-### a) Directory context
+**Practice directory this task:** `/var/log` — `find /var/log` as a non-privileged user generates realistic `Permission denied` errors because some log directories are mode `0700` and owned by system accounts.
 
-**Practice directory this task:** `/sbin` (lookup) and `/etc` (the actual source of stderr) — `/sbin` is the FHS rotation slot we're studying; `/etc` is where the realistic `Permission denied` traffic lives.
-
-### b) 🔁 Warm-Up — commands woven into Task 1
+### Warm-Up
 
 ```bash
-ls -ld /sbin /etc                                   2>&1 | tee "${SANDBOX}/warmup1.txt"
-ls /sbin | wc -l
-getent passwd "${USER}"
-id -nG "${USER}"
-sudo -u "${USER}" pwd
-test -d "${SANDBOX}" && echo "sandbox OK"
+ls -ld /var/log                                        2>&1 | tee /tmp/lab02a/warmup.txt
+ls /var/log | wc -l
+find /var/log -maxdepth 1 -type d | head -n 5
+id
+set -o pipefail
 echo "Warm-up done by $(whoami) at $(date -Is)"
 echo "exit was: $?"
 ```
 
-### c) Purpose
+> Carry from Lab 01a: `2>&1 | tee FILE` captures the transcript — we use it in every warm-up block.
 
-Run `find /etc -name '*.conf'` **as the lab user** (who can't read every subdir) so it emits real `Permission denied` messages. Capture stderr to one file, stdout to another, then re-run with `2>/dev/null` to prove the silencing pattern. The lab user owns the captured files so the Tier-B sandbox stack does real work.
+### Purpose
 
-### d) 🧵 WEAVE TRACE — warm-up commands re-used in this task body
+Run `find /var/log -name '*.log'` without redirects so you see how stderr and stdout mix on screen. Then split the streams to two separate files to prove they are independent. Finally use the RHCSA pattern: keep stdout in a file, throw stderr at `/dev/null`.
 
-| Warm-up command | Role inside Task 1 |
-|---|---|
-| `ls -ld /sbin /etc` | Pre-flight: both source dirs must exist before `find` runs |
-| `getent passwd "${USER}"` | Confirms the lab user exists before `sudo -u "${USER}"` |
-| `id -nG "${USER}"` | Confirms primary group matches — needed because we'll `chown user:group` the captures |
-| `sudo -u "${USER}" pwd` | Smoke-test that `sudo -u` works at all (catches bad sudoers entries early) |
-| `test -d "${SANDBOX}"` | Guards the redirects — refuses to write into a missing dir |
+### WEAVE TRACE
 
-### e) Main command block
+| Warm-up / setup command      | Role inside Task 1                                             |
+|------------------------------|----------------------------------------------------------------|
+| `ls -ld /var/log`            | Pre-flight: source dir must exist before `find` runs          |
+| `ls /var/log \| wc -l`       | Baseline count — helps interpret the stdout line count later  |
+| `find /var/log -maxdepth 1 -type d` | Shows which subdirs could generate `Permission denied` |
+| `id`                         | We're going to RUN as `${USER}` below — `id` here confirms the current EUID so the contrast is clear |
+| `set -o pipefail`            | Ensures a failed `find` in a pipe chain propagates its exit code |
+| `${USER}` (Tier B)           | Part D runs `find /var/log` *as* `${USER}` via `sudo -u`. That's how we actually *get* `Permission denied` lines on stderr — root would silently read every directory |
+
+### Main command block
 
 ```bash
-cd "${SANDBOX}"
+TASKLOG=/tmp/lab02a/task1.txt
 
-# 1. Naive run — both streams hit screen, mixed together
-echo "── run #1: no redirect (errors and data tangled) ──"
-sudo -u "${USER}" find /etc -name '*.conf' -type f | head -n 3
-echo "── (errors were lost above the head -n3 cut)"
+# ── Part A: naive run — stderr and stdout mixed on screen ─────────────
+echo "═══ Run 1: no redirect (streams tangled) ═══"    2>&1 | tee $TASKLOG
+find /var/log -name '*.log' -type f 2>&1 | head -n 5   2>&1 | tee -a $TASKLOG
+echo "(errors tangled with results above)"              | tee -a $TASKLOG
 
-# 2. Capture-everything — stdout to one file, stderr to another
-sudo -u "${USER}" find /etc -name '*.conf' -type f \
-    >  "${SANDBOX}/conf-files.txt" \
-    2> "${SANDBOX}/conf-errors.txt"
+# ── Part B: split streams to separate files ───────────────────────────
+echo "═══ Run 2: split capture ═══"                    2>&1 | tee -a $TASKLOG
+find /var/log -name '*.log' -type f \
+    >  /tmp/lab02a/log-files.txt \
+    2> /tmp/lab02a/log-errors.txt
 
-STDOUT_LINES=$(wc -l < "${SANDBOX}/conf-files.txt")
-STDERR_LINES=$(wc -l < "${SANDBOX}/conf-errors.txt")
-echo "── run #2: split capture ──"
-echo "stdout lines (real results): ${STDOUT_LINES}"
-echo "stderr lines (denied paths): ${STDERR_LINES}"
+STDOUT_LINES=$(wc -l < /tmp/lab02a/log-files.txt)
+STDERR_LINES=$(wc -l < /tmp/lab02a/log-errors.txt)
+echo "stdout lines (real results): ${STDOUT_LINES}"    | tee -a $TASKLOG
+echo "stderr lines (denied paths): ${STDERR_LINES}"    | tee -a $TASKLOG
 
-# 3. Inspect the two captures so we KNOW they're different streams
-echo "── first 3 stdout lines (clean .conf paths) ──"
-head -n 3 "${SANDBOX}/conf-files.txt"
-echo "── first 3 stderr lines (the noise that ruined run #1) ──"
-head -n 3 "${SANDBOX}/conf-errors.txt"
+echo "── first 3 stdout lines (log file paths) ──"     | tee -a $TASKLOG
+head -n 3 /tmp/lab02a/log-files.txt                    | tee -a $TASKLOG
+echo "── first 3 stderr lines (the noise) ──"          | tee -a $TASKLOG
+head -n 3 /tmp/lab02a/log-errors.txt                   | tee -a $TASKLOG
 
-# 4. The RHCSA reflex: clean answer file, silence the noise
-sudo -u "${USER}" find /etc -name '*.conf' -type f \
-    >  "${SANDBOX}/conf-clean.txt" \
+# ── Part C: RHCSA clean-answer pattern ────────────────────────────────
+echo "═══ Run 3: clean answer (stderr discarded) ═══"  | tee -a $TASKLOG
+find /var/log -name '*.log' -type f \
+    >  /tmp/lab02a/log-clean.txt \
     2> /dev/null
+wc -l /tmp/lab02a/log-clean.txt                        | tee -a $TASKLOG
 
-echo "── run #3: clean answer (stderr discarded) ──"
-wc -l "${SANDBOX}/conf-clean.txt"
+# ── Part D: run as ${USER} — stderr finally becomes interesting ───────
+# As root, /var/log subdirs are all readable. As ${USER}, audit/ and sssd/
+# are mode 0700 owned by other system accounts → Permission denied on stderr.
+# This is the realistic stderr-capture scenario. Both target files are placed
+# under ${USER_HOME} so ${USER} can write to them without sudo.
+echo "═══ Run 4: split capture AS ${USER} ═══"         | tee -a $TASKLOG
+sudo -u "${USER}" bash -c \
+    'find /var/log -name "*.log" -type f \
+        >  '"${USER_HOME}"'/log-files-asuser.txt \
+        2> '"${USER_HOME}"'/log-errors-asuser.txt'
 
-# 5. Tier-B weave — chown all captures to lab user, prove they can read them
-chown "${USER}:${GROUP}" "${SANDBOX}"/conf-*.txt
-sudo -u "${USER}" wc -l "${SANDBOX}"/conf-*.txt
-stat -c '%n owner=%U:%G mode=%a' "${SANDBOX}"/conf-*.txt
+# Verify the user-run produced REAL stderr content (not zero lines like root would)
+U_OUT=$(wc -l < "${USER_HOME}/log-files-asuser.txt")
+U_ERR=$(wc -l < "${USER_HOME}/log-errors-asuser.txt")
+echo "as-${USER} stdout lines: ${U_OUT}"               | tee -a $TASKLOG
+echo "as-${USER} stderr lines: ${U_ERR}"               | tee -a $TASKLOG
+test "${U_ERR}" -gt 0 \
+    && echo "✅ stderr captured real Permission denied lines (Tier B weave worked)" \
+    || echo "❌ stderr empty — sudo -u step did not actually drop privileges" \
+    | tee -a $TASKLOG
+
+# Ownership proof — both files belong to ${USER}:${GROUP}, not root
+stat -c '%U:%G %a %n' "${USER_HOME}/log-files-asuser.txt"  | tee -a $TASKLOG
+stat -c '%U:%G %a %n' "${USER_HOME}/log-errors-asuser.txt" | tee -a $TASKLOG
 
 echo "exit was: $?"
 ```
 
-### f) Human-readable breakdown
+### Human-readable breakdown
 
-1. Run `find` with **no** redirection so you see how stderr and stdout mix on screen — and notice you've effectively lost the errors after `head -n 3` cuts them.
-2. Run `find` again, this time splitting stdout to `conf-files.txt` and stderr to `conf-errors.txt`. Both files now hold separate, complete content.
-3. Show the first 3 lines of each so the difference is undeniable: clean paths on stdout, `Permission denied` on stderr.
-4. Run the RHCSA pattern: keep stdout in a file, throw stderr at `/dev/null`. This is the muscle memory you want.
-5. Hand the files to the lab user via `chown` and verify the user can read them (Tier-B sandbox stack work).
+1. Run `find` with no redirect — stderr (Permission denied) and stdout (file paths) print interleaved on the terminal. `head -n 5` cuts off both, so you lose context.
+2. Run with `> stdout-file 2> stderr-file` — they are completely independent files. Count each.
+3. Show first 3 lines of each so the difference is undeniable: clean paths on stdout, `Permission denied` on stderr.
+4. RHCSA pattern: `> answer-file 2>/dev/null` — keep the clean answer, throw the noise away.
+5. **Part D — Tier B sudo-u weave:** running `find /var/log` as the non-privileged `${USER}` is what makes stderr *non-empty*. As root, you'd see zero `Permission denied`. The check `test "${U_ERR}" -gt 0` is the literal proof that the privilege drop happened — if it failed, you'd see zero stderr lines and the `❌` branch would fire.
 
-### g) Reading it left to right
+### Reading it left to right
 
-- `sudo -u "${USER}" find ...` — `find` runs as the lab user, so subdirectories of `/etc` that are mode `0700` and owned by root will emit `find: '/etc/PRIVATE': Permission denied` to FD 2.
-- `> "${SANDBOX}/conf-files.txt"` — FD 1 redirect (same as Lab 01a). Truncate-write.
-- `2> "${SANDBOX}/conf-errors.txt"` — FD 2 redirect. Identical syntax to `>` but prefixed with the FD number. Truncate-write.
-- Order of `>` and `2>` does NOT matter when targeting **different files** (they're independent dup2 calls). It matters CRITICALLY when one of them uses `&` to alias the other — Task 2 covers that.
-- `wc -l < FILE` — re-using the Lab 01a `<` pattern to count lines without a filename in the output.
-- `2> /dev/null` — FD 2 opens `/dev/null` for write; every error byte is silently accepted and discarded.
+- `find /var/log -name '*.log' -type f > /tmp/lab02a/log-files.txt 2> /tmp/lab02a/log-errors.txt` — the shell opens both target files (O_TRUNC) before `find` starts, then wires FD 1 to `log-files.txt` and FD 2 to `log-errors.txt`. They are independent `dup2(2)` calls; order of `>` and `2>` does NOT matter when they target different files.
+- `2> /dev/null` — opens the kernel's bit-bucket for write on FD 2. Every error byte is silently accepted and discarded.
+- Order of `>` and `2>` ONLY matters when one of them uses `&` to alias the other — Task 2 covers that.
 
-### h) The story
+### The story
 
-In 1971, the first version of Unix had only stdin and stdout. Errors went to stdout, mixed with data. Then somebody piped `cc` (the C compiler) into another tool and discovered that the next tool was choking on `cc: warning: unused variable` lines that looked exactly like real code output.
+In 1971, Unix had only stdin and stdout. Errors went to stdout, mixed with data. Then somebody piped the C compiler into another tool and discovered the next tool was choking on `cc: warning:` lines mixed into real output. So in Version 5 Unix (1974), Dennis Ritchie split stderr off into a separate file descriptor. The rule from that day forward:
 
-So in **Version 5 Unix (1974)**, Dennis Ritchie and Ken Thompson split stderr off into a separate file descriptor. The rule from that day forward:
+- **FD 1 (stdout):** the program's actual answer — what you would pipe to the next command.
+- **FD 2 (stderr):** diagnostics — warnings, errors, `Permission denied`. Not the answer.
 
-- **stdout (FD 1):** the program's actual answer — what you would pipe into the next command.
-- **stderr (FD 2):** diagnostics — warnings, errors, progress bars, "could not open" messages. **Not** the program's answer.
+`find /var/log -name '*.log'` obeys this rule: file paths go to FD 1, `Permission denied` messages go to FD 2. RHCSA tests all four combinations: capture both, capture only stdout, capture only stderr, discard stderr.
 
-Every well-behaved command since 1974 obeys this rule. `find /etc -name '*.conf'` writes file paths to FD 1 and writes `find: '/etc/secret': Permission denied` to FD 2. You can keep the paths and drop the errors, keep the errors and drop the paths, drop both, or save both to different files. RHCSA tests every one of these patterns.
+### Expected output
 
-### i) Expected output (shape only — your exact counts will differ)
-
-```
-── run #1: no redirect (errors and data tangled) ──
-find: '/etc/grub2.cfg': Permission denied
-/etc/dnf/dnf.conf
-/etc/yum.conf
-── (errors were lost above the head -n3 cut)
-── run #2: split capture ──
-stdout lines (real results): 142
-stderr lines (denied paths): 18
-── first 3 stdout lines (clean .conf paths) ──
-/etc/dnf/dnf.conf
-/etc/yum.conf
-/etc/dnf/plugins/copr.conf
-── first 3 stderr lines (the noise that ruined run #1) ──
-find: '/etc/grub2.cfg': Permission denied
-find: '/etc/sudoers': Permission denied
-find: '/etc/audit': Permission denied
-── run #3: clean answer (stderr discarded) ──
-142 /tmp/labsandbox_02/conf-clean.txt
-142 /tmp/labsandbox_02/conf-clean.txt
-142 /tmp/labsandbox_02/conf-files.txt
-142 /tmp/labsandbox_02/conf-files.txt
-  0 /tmp/labsandbox_02/conf-errors.txt    ← stderr only file when read by user
-/tmp/labsandbox_02/conf-clean.txt owner=labuser_02_stderr:labgrp_02_stderr mode=644
-/tmp/labsandbox_02/conf-errors.txt owner=labuser_02_stderr:labgrp_02_stderr mode=644
-/tmp/labsandbox_02/conf-files.txt  owner=labuser_02_stderr:labgrp_02_stderr mode=644
+```text
+═══ Run 1: no redirect (streams tangled) ═══
+find: '/var/log/audit': Permission denied
+/var/log/messages
+/var/log/secure
+/var/log/cron
+(errors tangled with results above)
+═══ Run 2: split capture ═══
+stdout lines (real results): 24
+stderr lines (denied paths): 3
+── first 3 stdout lines (log file paths) ──
+/var/log/messages
+/var/log/secure
+/var/log/cron
+── first 3 stderr lines (the noise) ──
+find: '/var/log/audit': Permission denied
+find: '/var/log/private': Permission denied
+find: '/var/log/sssd': Permission denied
+═══ Run 3: clean answer (stderr discarded) ──
+24 /tmp/lab02a/log-clean.txt
+═══ Run 4: split capture AS labuser_02_stderr ═══
+as-labuser_02_stderr stdout lines: 21
+as-labuser_02_stderr stderr lines: 3
+✅ stderr captured real Permission denied lines (Tier B weave worked)
+labuser_02_stderr:labgrp_02_stderr 644 /tmp/lab02a/home_labuser_02_stderr/log-files-asuser.txt
+labuser_02_stderr:labgrp_02_stderr 644 /tmp/lab02a/home_labuser_02_stderr/log-errors-asuser.txt
 exit was: 0
 ```
 
-### j) Switches table
+### Switches
 
-| Token | Meaning |
+| Token                      | Meaning                                                            |
+|----------------------------|--------------------------------------------------------------------|
+| `2>`                       | Redirect FD 2 (stderr) — truncate-write                           |
+| `2>>`                      | Redirect FD 2 — append-write                                      |
+| `2> /dev/null`             | Discard stderr                                                     |
+| `> f1 2> f2`               | Split streams to two different files                               |
+| `find DIR -name P -type f` | Walk DIR, match name pattern P, only regular files                 |
+| `wc -l < FILE`             | Line count without filename in output                              |
+| `sudo -u USER bash -c '...'`| Run a redirect (or pipeline) as USER so file ownership lands there |
+| `stat -c '%U:%G %a %n' F`  | Print owner:group, mode, name in one line — Tier B ownership audit |
+
+### Concept Card
+
+| Concept | What it does |
 |---|---|
-| `2>` | Open file for truncate-write of FD 2 (stderr) |
-| `2>>` | Open file for append-write of FD 2 |
-| `2> /dev/null` | Discard stderr |
-| `> file 2> file2` | Split streams to two different files |
-| `sudo -u USER CMD` | Run CMD as USER without a login shell |
-| `find DIR -name PATTERN -type f` | Walk DIR, match name PATTERN, only regular files |
-| `wc -l < FILE` | Line-count via stdin (output has no filename) |
-| `head -n N` | First N lines |
-| `stat -c '%n %U:%G %a'` | Custom-format owner/group/mode |
+| FD 1 vs FD 2 | Two independent kernel-managed file descriptors; redirecting one doesn't touch the other |
+| `2>` | Send stderr to a file (truncate) |
+| `2>>` | Append stderr to a file |
+| `2> /dev/null` | Discard stderr — the RHCSA `find` reflex |
+| Split capture | `> out 2> err` writes to two files in one command |
+| Tier B `sudo -u` weave | Running `find /var/log` as a non-privileged user is the only way to consistently generate real `Permission denied` lines on stderr |
+| **🪤 Trap Risk T02-B** | `find / > /root/answer.txt` does NOT silence `Permission denied`. It only redirects FD 1; FD 2 keeps going to the screen. **Fix:** add `2>/dev/null` when you want only the clean answer. |
 
-### k) 🧠 Concept Card
-
-| ✅ | Concept | What it does |
-|---|---|---|
-|   | FD 1 vs FD 2 | Two independent kernel-managed file descriptors; redirecting one does NOT touch the other |
-|   | `2>` | Send stderr to a file (truncate) |
-|   | `2>>` | Append stderr to a file |
-|   | `2> /dev/null` | Discard stderr — the RHCSA `find` reflex |
-|   | Split capture | `> out 2> err` writes to two different files in one command |
-|   | Tier-B weave | `sudo -u "${USER}" find ...` exercises the lab user, group, and captured files together |
-| 🪤 | **Trap Risk T02-A** | `find / > /root/answer.txt` does NOT silence `Permission denied`. It captures only FD 1; FD 2 keeps hitting the screen. **Fix:** add `2>/dev/null` for the clean-answer-file pattern. |
-
-### l) 🔁 Persistence Check
+### PERSISTENCE CHECK
 
 | What was configured | Verification command | Why it matters |
 |---|---|---|
-| Stdout captured | `wc -l "${SANDBOX}/conf-files.txt"` | Confirms FD 1 redirect worked |
-| Stderr captured | `wc -l "${SANDBOX}/conf-errors.txt"` | Confirms FD 2 redirect worked — count should be > 0 if user really lacks perms |
-| Stderr silenced | `wc -l "${SANDBOX}/conf-clean.txt"` matches stdout count | Confirms `2>/dev/null` didn't accidentally also drop stdout |
-| Lab user owns files | `stat -c '%U:%G' "${SANDBOX}"/conf-*.txt` | Confirms `chown` applied |
+| stdout captured | `wc -l /tmp/lab02a/log-files.txt` > 0 | FD 1 redirect worked |
+| stderr captured | `wc -l /tmp/lab02a/log-errors.txt` > 0 | FD 2 redirect worked and logged real errors |
+| stderr silenced cleanly | `wc -l /tmp/lab02a/log-clean.txt` == stdout count | `2>/dev/null` didn't accidentally drop stdout |
+| Task log exists | `wc -l /tmp/lab02a/task1.txt` | Transcript ready for journal |
+| `${USER}` Tier B weave produced stderr | `wc -l "${USER_HOME}/log-errors-asuser.txt"` > 0 | Confirms sudo -u actually dropped privileges (root would produce 0 stderr lines) |
+| User-owned outputs | `stat -c '%U:%G' "${USER_HOME}/log-files-asuser.txt"` returns `labuser_02_stderr:labgrp_02_stderr` | Files written via sudo -u land on the lab user, not root |
 
-### m) 🧹 Cleanup between tasks
+### Journal write
 
 ```bash
-set +e
-podman ps -aq --filter "name=^lab_02_stderr$" 2>/dev/null \
-    | xargs -r podman rm -f >/dev/null 2>&1
-awk -v s="${SANDBOX}" '$2 ~ s {print $2}' /proc/mounts \
-    | tac | xargs -r -n1 umount -l 2>/dev/null
-rm -f "${SANDBOX}/conf-files.txt" "${SANDBOX}/conf-errors.txt" "${SANDBOX}/conf-clean.txt"
-set -e
-echo "Task-1 cleanup at $(date -Is); exit was: $?"
+LAB=lab-02a
+TASK=task1
+JDIR="/root/rhcsa_journal/${LAB}/${TASK}"
+mkdir -p "$JDIR"
+cp /tmp/lab02a/task1.txt                        "$JDIR/evidence.txt"
+cp /tmp/lab02a/log-files.txt                    "$JDIR/log-files.txt"
+cp /tmp/lab02a/log-errors.txt                   "$JDIR/log-errors.txt"
+cp "${USER_HOME}/log-files-asuser.txt"          "$JDIR/log-files-asuser.txt"
+cp "${USER_HOME}/log-errors-asuser.txt"         "$JDIR/log-errors-asuser.txt"
+
+cat > "$JDIR/done.txt" <<EOF
+LAB:    ${LAB}
+TASK:   ${TASK}
+DATE:   $(date -Is)
+USER:   $(whoami)@$(hostname)
+LAB_USER: ${USER}
+LAB_GROUP: ${GROUP}
+STATUS: COMPLETE
+EOF
+
+cat > "$JDIR/notes.txt" <<EOF
+TOPIC:    2> captures FD 2; 2>/dev/null discards FD 2; > only redirects FD 1; sudo -u USER lets non-privileged find generate real Permission denied
+COMMANDS: 2>, 2>>, 2>/dev/null, find, wc -l, sudo -u ${USER} bash -c, stat -c '%U:%G %a %n'
+TRAPS:    T02-B rehearsed (plain > doesn't silence stderr)
+TIER B:   log-files-asuser.txt and log-errors-asuser.txt owned by ${USER}:${GROUP}; stderr was non-empty (proof privilege drop worked)
+MISSED:   (fill in if any ⚠️ flags)
+NEXT:     task2 — 2>> append, order trap 2>&1, exit-code preservation, sudo -u accumulation
+EOF
+
+ls -la "$JDIR"
+echo "exit was: $?"
 ```
 
-> **STOP — paste output before Task 2.**
+### Cleanup (per-task — leaves Tier B sandbox intact)
 
-### n) Troubleshoot
+```bash
+rm -f /tmp/lab02a/log-files.txt /tmp/lab02a/log-errors.txt \
+      /tmp/lab02a/log-clean.txt /tmp/lab02a/warmup.txt
+rm -f "${USER_HOME}/log-files-asuser.txt" "${USER_HOME}/log-errors-asuser.txt"
+
+getent passwd "${USER}"  >/dev/null && echo "✅ ${USER} still present"
+getent group  "${GROUP}" >/dev/null && echo "✅ ${GROUP} still present"
+test -d       "${SANDBOX}"          && echo "✅ ${SANDBOX} still present"
+
+ls /tmp/lab02a
+echo "exit was: $?"
+```
+
+### Troubleshoot
 
 | Symptom | Fix |
 |---|---|
-| `stderr lines: 0` (no `Permission denied`) | Your distro / `/etc` perms let the lab user read everything — pick a harder dir (`find /var/log/...`) or run as a more restricted user |
-| `stdout lines: 0` and `stderr lines: 0` | The `sudo -u` didn't actually run — check `getent passwd "${USER}"` and the user's shell (`/bin/bash`, not `/sbin/nologin`) |
-| Both files have everything mixed | You wrote `2>&1` instead of `2> file2` — re-read Task 1 step 2 |
-| `bash: ${SANDBOX}/conf-files.txt: cannot overwrite existing file` | noclobber leaked in from Lab 01a — `set +o noclobber` |
+| `stderr lines: 0` (no Permission denied) | Running as root — all dirs are readable. Switch to a regular user or pick a more restricted source dir |
+| `stdout lines: 0` and `stderr lines: 0` | `find` failed silently — check that `/var/log` exists and `find` is installed |
+| Both files contain the same mixed content | You used `2>&1` (merged) instead of `2> file2` (separate) |
+| `cannot overwrite existing file` | noclobber leaked from Lab 01a — `set +o noclobber` |
+
+> **STOP — paste the "split capture" line counts before Task 2.**
 
 ---
 
-## Task 2 — Contrast: `2>>` append, order-sensitive `2>&1`, exit-code preservation
+## Task 2 — `2>>` append, order trap (`2>&1`), exit-code preservation
 
-### a) Directory context
+**Practice directory this task:** `/var/log` (same source) — we run `find` multiple times and accumulate the error log.
 
-**Practice directory this task:** `/sbin` lookup + `/etc` source (same as Task 1).
-
-### b) 🔁 Warm-Up — commands woven into Task 2
+### Warm-Up
 
 ```bash
-ls -la "${SANDBOX}"                                 2>&1 | tee "${SANDBOX}/warmup2.txt"
-sudo -u "${USER}" ls -d "${USER_HOME}"
-getent group "${GROUP}"
-stat -c '%n %U:%G %a' "${SANDBOX}/THIS_DIRECTORY.txt"
-grep -c 'conf' /etc/services 2>/dev/null            # warm up grep -c
+ls -la /tmp/lab02a                                     2>&1 | tee /tmp/lab02a/warmup2.txt
+wc -l /tmp/lab02a/* 2>/dev/null | tail -n 3
+find /var/log -maxdepth 1 -name '*.log' | wc -l
+set -o pipefail
 echo "Warm-up done by $(whoami) at $(date -Is)"
 echo "exit was: $?"
 ```
 
-### c) Purpose
+> Carry from Task 1: `2>/dev/null` combined with `wc -l` is already in your hands — the rest of this task adds `&` to the FD number.
 
-Show the three follow-on stderr patterns that turn a beginner into a senior:
+### Purpose
 
-1. **`2>>` append** — collect errors across multiple invocations into one growing log.
-2. **`2>&1` order trap** — `cmd 2>&1 > file` and `cmd > file 2>&1` produce **different** results. Memorize which one merges.
-3. **Exit code preservation** — `2>/dev/null` does NOT mask `$?`; the redirect operator returns whatever the command itself returned.
+Three skills:
+1. **`2>>` append** — collect errors across multiple invocations into one growing log (the service-that-keeps-failing pattern).
+2. **Order trap (T02-A)** — `cmd > file 2>&1` and `cmd 2>&1 > file` look identical but behave differently. Prove it by comparing line counts in the captured files.
+3. **Exit-code preservation** — `2>/dev/null` does NOT mask `$?`. A failing command still exits non-zero.
 
-The contrast with Task 1: Task 1 was *"capture or silence."* Task 2 is *"merge correctly and never lose the exit code."*
+### WEAVE TRACE
 
-### d) 🧵 WEAVE TRACE — warm-up commands re-used in this task body
+| Warm-up / setup command      | Role inside Task 2                                              |
+|------------------------------|-----------------------------------------------------------------|
+| `ls -la /tmp/lab02a`         | Proves Task 1 cleanup ran — no leftover `log-*.txt` files      |
+| `wc -l /tmp/lab02a/*`        | Confirms only warmup.txt is present before the main block runs |
+| `find /var/log -maxdepth 1 -name '*.log'` | Baseline: roughly how many log files exist       |
+| `set -o pipefail`            | Ensures `find` failures in pipe chains surface as non-zero exit |
+| `${USER}` (Tier B)           | Part D accumulates errors *across two `find` runs* as `${USER}` using `2>>` — proves append-mode persistence under a non-root identity |
 
-| Warm-up command | Role inside Task 2 |
-|---|---|
-| `ls -la "${SANDBOX}"` | Proves Task 1 cleanup ran (`conf-*.txt` should be gone) |
-| `sudo -u "${USER}" ls -d "${USER_HOME}"` | Lab user still functional and can `ls` their own home |
-| `getent group "${GROUP}"` | Group survives between tasks |
-| `stat ... THIS_DIRECTORY.txt` | The one file that should still exist in `${SANDBOX}` after Task 1 cleanup |
-| `grep -c 'conf' /etc/services` | Exercises `-c` count flag we use below in the exit-code section |
-
-### e) Main command block
+### Main command block
 
 ```bash
-cd "${SANDBOX}"
+TASKLOG=/tmp/lab02a/task2.txt
 
-# 1. `2>>` append — run find twice with different patterns, both error logs land in ONE file
-sudo -u "${USER}" find /etc -name '*.conf' -type f >> "${SANDBOX}/all-results.txt"  2>> "${SANDBOX}/all-errors.txt"
-sudo -u "${USER}" find /etc -name '*.cfg'  -type f >> "${SANDBOX}/all-results.txt"  2>> "${SANDBOX}/all-errors.txt"
-chown "${USER}:${GROUP}" "${SANDBOX}/all-results.txt" "${SANDBOX}/all-errors.txt"
+# ── Part A: 2>> append across two find runs ───────────────────────────
+echo "═══ Part A: 2>> append ═══"                      2>&1 | tee $TASKLOG
+find /var/log -name '*.log'  -type f >> /tmp/lab02a/all-results.txt 2>> /tmp/lab02a/all-errors.txt
+find /var/log -name '*.conf' -type f >> /tmp/lab02a/all-results.txt 2>> /tmp/lab02a/all-errors.txt
 
-R_LINES=$(wc -l < "${SANDBOX}/all-results.txt")
-E_LINES=$(wc -l < "${SANDBOX}/all-errors.txt")
-echo "── merged across 2 find runs ──"
-echo "results lines: ${R_LINES}"
-echo "errors  lines: ${E_LINES}"
+R_LINES=$(wc -l < /tmp/lab02a/all-results.txt)
+E_LINES=$(wc -l < /tmp/lab02a/all-errors.txt)
+echo "combined results: ${R_LINES}  combined errors: ${E_LINES}" | tee -a $TASKLOG
 
-# 2. Order trap — these two look identical but behave differently
-echo "── order trap (T02-B) ──"
+# ── Part B: order trap — T02-A ────────────────────────────────────────
+echo "═══ Part B: order trap ═══"                      | tee -a $TASKLOG
 
-# Form A: `cmd > file 2>&1`
-#   step 1: FD 1 → file
-#   step 2: FD 2 → wherever FD 1 NOW goes (the file)
-#   → BOTH end up in the file. The classic merge.
-sudo -u "${USER}" find /etc -name '*.conf' -type f > "${SANDBOX}/formA.txt" 2>&1
-A_LINES=$(wc -l < "${SANDBOX}/formA.txt")
+# Form A — CORRECT: redirect FD 1 first, THEN merge FD 2 into it
+#   1. FD 1 → file  2. FD 2 → wherever FD 1 now goes (= file)  → BOTH in file
+find /var/log -name '*.log' -type f > /tmp/lab02a/formA.txt 2>&1
+A_LINES=$(wc -l < /tmp/lab02a/formA.txt)
+A_ERR=$(grep -c 'Permission denied' /tmp/lab02a/formA.txt 2>/dev/null || echo 0)
 
-# Form B: `cmd 2>&1 > file`
-#   step 1: FD 2 → wherever FD 1 NOW goes (still the terminal!)
-#   step 2: FD 1 → file
-#   → stderr STILL on screen, stdout in file. Easy mistake.
-sudo -u "${USER}" find /etc -name '*.conf' -type f 2>&1 > "${SANDBOX}/formB.txt"
-B_LINES=$(wc -l < "${SANDBOX}/formB.txt")
+# Form B — WRONG: merge FD 2 first (into terminal), THEN redirect FD 1 to file
+#   1. FD 2 → terminal (still!)  2. FD 1 → file  → only stdout in file
+find /var/log -name '*.log' -type f 2>&1 > /tmp/lab02a/formB.txt
+B_LINES=$(wc -l < /tmp/lab02a/formB.txt)
+B_ERR=$(grep -c 'Permission denied' /tmp/lab02a/formB.txt 2>/dev/null || echo 0)
 
-echo "Form A (correct merge)  lines in file: ${A_LINES}   (should equal stdout+stderr)"
-echo "Form B (wrong order)    lines in file: ${B_LINES}   (only stdout — errors went to screen)"
+echo "Form A (> file 2>&1)  lines: ${A_LINES}  'Permission denied' in file: ${A_ERR}" | tee -a $TASKLOG
+echo "Form B (2>&1 > file)  lines: ${B_LINES}  'Permission denied' in file: ${B_ERR}" | tee -a $TASKLOG
+echo "(Form A should have errors IN file; Form B should have errors on YOUR SCREEN)" | tee -a $TASKLOG
 
-# 3. Exit code preservation — 2>/dev/null does NOT touch $?
-echo "── exit code preservation (T02-C) ──"
-sudo -u "${USER}" find /no/such/path 2>/dev/null
-echo "exit after silenced failing find: $?"   # should be 1, NOT 0
+# ── Part C: exit-code preservation ────────────────────────────────────
+echo "═══ Part C: 2>/dev/null does NOT hide exit code ═══" | tee -a $TASKLOG
+find /no/such/path 2>/dev/null
+echo "silenced failing find exit code: $?"               | tee -a $TASKLOG   # expect 1
 
-sudo -u "${USER}" find /etc -name '*.conf' -type f >/dev/null 2>/dev/null
-echo "exit after silenced succeeding find: $?" # should be 0
+find /var/log -maxdepth 0 2>/dev/null
+echo "silenced succeeding find exit code: $?"            | tee -a $TASKLOG   # expect 0
 
-# Common idiom for "I want to know if it found anything"
-if sudo -u "${USER}" grep -q 'root' /etc/passwd 2>/dev/null; then
-    echo "✅ grep -q found 'root' in /etc/passwd"
-else
-    echo "❌ grep -q did not find — but the redirect did NOT cause the no-match"
-fi
+# ── Part D: 2>> accumulation AS ${USER} (Tier B weave) ────────────────
+# Two passes of find /var/log run as ${USER}. Each pass appends its stderr to
+# the same error log. After both runs, the file should contain a non-zero
+# accumulated count AND its ownership stays on ${USER}:${GROUP}.
+echo "═══ Part D: 2>> accumulation AS ${USER} ═══"      | tee -a $TASKLOG
 
-# 4. `1>&2` — deliberate stderr write from a script
-echo "this message is an ERROR by design" 1>&2
+sudo -u "${USER}" bash -c '
+    find /var/log -name "*.log"  -type f \
+        >> '"${USER_HOME}"'/cum-results.txt \
+        2>> '"${USER_HOME}"'/cum-errors.txt
+    find /var/log -name "*.conf" -type f \
+        >> '"${USER_HOME}"'/cum-results.txt \
+        2>> '"${USER_HOME}"'/cum-errors.txt
+'
+
+CUM_OUT=$(wc -l < "${USER_HOME}/cum-results.txt")
+CUM_ERR=$(wc -l < "${USER_HOME}/cum-errors.txt")
+echo "accumulated as-${USER}: results=${CUM_OUT}  errors=${CUM_ERR}" | tee -a $TASKLOG
+test "${CUM_ERR}" -gt 0 \
+    && echo "✅ 2>> accumulated real Permission denied lines as ${USER}" \
+    || echo "❌ 2>> accumulated zero stderr — sudo -u step did not run" \
+    | tee -a $TASKLOG
+
+# Ownership check — both files belong to ${USER}, not root
+stat -c '%U:%G %a %n' "${USER_HOME}/cum-results.txt"   | tee -a $TASKLOG
+stat -c '%U:%G %a %n' "${USER_HOME}/cum-errors.txt"    | tee -a $TASKLOG
 
 echo "exit was: $?"
 ```
 
-### f) Human-readable breakdown
+### Human-readable breakdown
 
-1. `2>>` appends stderr across two `find` runs into one cumulative error log — the same data pattern as a service that's been failing intermittently.
-2. Run the same command two ways: `> file 2>&1` (correct merge) vs `2>&1 > file` (wrong order). Count lines in each captured file — Form A has **everything**, Form B has only stdout.
-3. Prove `2>/dev/null` does NOT affect `$?`. A failing command still exits non-zero even with its stderr silenced — this is the foundation of every `if cmd 2>/dev/null; then ...` check.
-4. Use `1>&2` to deliberately write to stderr from your own script — useful for error messages in helper scripts.
+1. `2>>` runs `find` twice — each run appends its stderr errors to `all-errors.txt`. The file grows. This is how you build a cumulative error log from a service that's been misbehaving intermittently.
+2. Form A (`> file 2>&1`): the shell processes redirections left to right. First `> file` makes FD 1 point to the file. Then `2>&1` makes FD 2 point to wherever FD 1 currently goes — which is the file. Both streams end up in the file.
+3. Form B (`2>&1 > file`): the shell processes left to right. First `2>&1` makes FD 2 point to wherever FD 1 currently goes — which is **still the terminal**. Then `> file` makes FD 1 point to the file. Stderr stays on the terminal.
+4. `2>/dev/null` hides the error text. `$?` still reflects the command's actual exit code.
 
-### g) Reading it left to right (the order trap in detail)
-
-The shell processes redirections **left to right**. Each redirection is one `dup2(2)` syscall.
-
-**Form A — `cmd > file 2>&1`:**
+### Reading it left to right (the order trap mechanism)
 
 ```
-Initial state:  FD 1 → terminal,  FD 2 → terminal
+find ... > /tmp/lab02a/formA.txt 2>&1
+         │                       │
+         │                       └─ step 2: FD 2 → wherever FD 1 now goes (= file) ✅
+         └─ step 1: FD 1 → file
 
-Step 1 (> file): open(file); dup2(opened_fd, 1);    // FD 1 → file
-Step 2 (2>&1) :  dup2(1, 2);                        // FD 2 → file (because FD 1 IS file now)
-
-Final state:    FD 1 → file,  FD 2 → file       ← BOTH go to file ✅
+find ... 2>&1 > /tmp/lab02a/formB.txt
+         │    │
+         │    └─ step 2: FD 1 → file
+         └─ step 1: FD 2 → wherever FD 1 now goes (= terminal!) ❌
 ```
 
-**Form B — `cmd 2>&1 > file`:**
+**Rule:** if you want both streams in one file, put `2>&1` **after** `>`. Or use bash shorthand `&>` (Lab 04).
 
-```
-Initial state:  FD 1 → terminal,  FD 2 → terminal
+### The story
 
-Step 1 (2>&1):   dup2(1, 2);                        // FD 2 → terminal (FD 1 is still terminal!)
-Step 2 (> file): open(file); dup2(opened_fd, 1);    // FD 1 → file
+The order trap (T02-A) is the most "fooled a senior engineer in production" stderr bug in Unix history. It looks symmetric — both forms have a `>` and a `2>&1`, so it feels like order can't matter. It does. The reason: `2>&1` copies *the current target of FD 1 at the moment it's parsed*, not "whatever FD 1 will eventually be." Once you've drawn the dup2 picture above once, you'll never write Form B again.
 
-Final state:    FD 1 → file,  FD 2 → terminal   ← stderr stays on screen ❌
-```
+Exit-code preservation (implicitly T02-C) is the other quiet killer. People silence noisy commands with `2>/dev/null` and assume they "succeeded." The silencing hid the complaint; the exit code still tells the truth. Always check `$?` after a redirect-silenced command.
 
-> **The rule:** if you want both streams in one file, put the `2>&1` **after** the `>`. Or use the bash shorthand `&>` (Lab 04).
+### Expected output
 
-### h) The story
-
-The order trap (T02-B) is the most "tricked an entire senior engineer in production" stderr bug in Unix history. It looks symmetric — both forms have a `>` and a `2>&1`, so it feels like order can't matter. It does. The reason is that `2>&1` copies *the current target of FD 1 at the moment the redirect is parsed*, not "whatever FD 1 will eventually be." Once you've seen the dup2 picture above, you'll never write Form B again.
-
-Exit-code preservation (T02-C) is the other quiet killer. People silence noisy commands with `2>/dev/null` and assume the command "succeeded." It didn't — only its complaining was hidden. Always check `$?` immediately, and never trust a silenced command without it.
-
-### i) Expected output (shape only)
-
-```
-── merged across 2 find runs ──
-results lines: 284
-errors  lines: 36
-── order trap (T02-B) ──
-Form A (correct merge)  lines in file: 160   (should equal stdout+stderr)
-Form B (wrong order)    lines in file: 142   (only stdout — errors went to screen)
-find: '/etc/grub2.cfg': Permission denied      ← this line appeared on YOUR SCREEN during Form B
-── exit code preservation (T02-C) ──
-exit after silenced failing find: 1
-exit after silenced succeeding find: 0
-✅ grep -q found 'root' in /etc/passwd
-this message is an ERROR by design
+```text
+═══ Part A: 2>> append ═══
+combined results: 48  combined errors: 6
+═══ Part B: order trap ═══
+find: '/var/log/audit': Permission denied      ← THIS APPEARED ON YOUR SCREEN (Form B)
+Form A (> file 2>&1)  lines: 27  'Permission denied' in file: 3
+Form B (2>&1 > file)  lines: 24  'Permission denied' in file: 0
+(Form A should have errors IN file; Form B should have errors on YOUR SCREEN)
+═══ Part C: 2>/dev/null does NOT hide exit code ═══
+silenced failing find exit code: 1
+silenced succeeding find exit code: 0
+═══ Part D: 2>> accumulation AS labuser_02_stderr ═══
+accumulated as-labuser_02_stderr: results=46  errors=6
+✅ 2>> accumulated real Permission denied lines as labuser_02_stderr
+labuser_02_stderr:labgrp_02_stderr 644 /tmp/lab02a/home_labuser_02_stderr/cum-results.txt
+labuser_02_stderr:labgrp_02_stderr 644 /tmp/lab02a/home_labuser_02_stderr/cum-errors.txt
 exit was: 0
 ```
 
-### j) Switches table
+### Switches
 
-| Token | Meaning |
+| Token         | Meaning                                                                |
+|---------------|------------------------------------------------------------------------|
+| `2>>`         | Append-write to FD 2 target file                                       |
+| `2>&1`        | Make FD 2 point wherever FD 1 **currently** points (order-sensitive)  |
+| `> f 2>&1`    | Correct merge — both streams to `f`                                    |
+| `2>&1 > f`    | Wrong order — FD 2 → terminal, FD 1 → `f`                             |
+| `grep -c P f` | Count lines matching pattern P in file f                               |
+
+### Concept Card
+
+| Concept | What it does |
 |---|---|
-| `2>>` | Append-write to FD 2 target file |
-| `2>&1` | Make FD 2 point wherever FD 1 currently points |
-| `1>&2` | Make FD 1 point wherever FD 2 currently points (script idiom for "print to stderr") |
-| `> file 2>&1` | Correct order — both streams to file |
-| `2>&1 > file` | Wrong order — only stdout to file, stderr stays on screen |
-| `grep -q` | Quiet mode — exit 0 if any match, 1 if none |
-| `grep -c` | Count matching lines |
-| `find /path` | Walk filesystem; if path doesn't exist, exit 1 with stderr message |
+| `2>>` append | Accumulate errors across runs into one growing file |
+| dup2 mental model | Each redirect is one `dup2` syscall against the **current** state of the FDs at that moment |
+| `> file 2>&1` | Correct merge — FD 1 to file first, THEN FD 2 → FD 1 |
+| `&>` shorthand | Bash combined-redirect equivalent to `> file 2>&1` (Lab 04) |
+| Exit-code preservation | `2>/dev/null` hides text, NOT `$?` |
+| **🪤 Trap Risk T02-A** | `cmd 2>&1 > file` puts stderr on screen, NOT in the file. **Fix:** always `> file 2>&1` — redirect FD 1 FIRST, then merge FD 2. |
 
-### k) 🧠 Concept Card
-
-| ✅ | Concept | What it does |
-|---|---|---|
-|   | `2>>` append | Accumulate errors across runs into one growing file |
-|   | dup2 mental model | Each redirect is one `dup2` syscall against the *current* state of the FDs |
-|   | `2>&1` after `>` | Both streams merged into the file |
-|   | `&>` shorthand | Bash combined-redirect (Lab 04) — equivalent to `> file 2>&1` |
-|   | `1>&2` | Script idiom for "this echo is an error message" |
-|   | Exit-code preservation | `2>/dev/null` hides stderr text, NOT `$?` |
-|   | `grep -q` | The exit-code-only matcher; pairs perfectly with silenced stderr |
-| 🪤 | **Trap Risk T02-B** | `cmd 2>&1 > file` leaves stderr on screen. **Fix:** always `> file 2>&1` (redirect FD 1 FIRST, then merge FD 2 into it). |
-| 🪤 | **Trap Risk T02-C** | After `cmd 2>/dev/null` always check `$?` — silenced does not mean succeeded. **Fix:** `cmd 2>/dev/null; echo "exit was: $?"`. |
-
-### l) 🔁 Persistence Check
+### PERSISTENCE CHECK
 
 | What was configured | Verification command | Why it matters |
 |---|---|---|
-| Cumulative error log | `wc -l "${SANDBOX}/all-errors.txt"` (should be sum of two runs' errors) | Proves `2>>` didn't truncate between runs |
-| Form A merge worked | `grep -c 'Permission denied' "${SANDBOX}/formA.txt"` (should be > 0) | Errors made it INTO the file |
-| Form B did NOT merge | `grep -c 'Permission denied' "${SANDBOX}/formB.txt"` (should be 0) | Confirms the order trap really happened |
-| Exit code is honest | `find /no/such/path 2>/dev/null; echo $?` returns 1 | `2>/dev/null` doesn't mask `$?` |
+| `2>>` accumulated errors | `wc -l /tmp/lab02a/all-errors.txt` > 0 | Two runs' errors are combined, not truncated |
+| Form A merged correctly | `grep -c 'Permission denied' /tmp/lab02a/formA.txt` > 0 | Errors made it INTO the file |
+| Form B did NOT merge | `grep -c 'Permission denied' /tmp/lab02a/formB.txt` returns 0 | Confirms the order trap happened |
+| Exit code honest | `find /no/such/path 2>/dev/null; echo $?` returns 1 | `2>/dev/null` doesn't mask `$?` |
+| Tier B `2>>` accumulation | `wc -l "${USER_HOME}/cum-errors.txt"` > 0 (two find runs combined) | Append mode works under sudo -u just like under root |
+| Cumulative files owned by `${USER}` | `stat -c '%U:%G' "${USER_HOME}/cum-results.txt"` returns `labuser_02_stderr:labgrp_02_stderr` | Ownership lands where `sudo -u` says — not root |
 
-### m) 🧹 Cleanup — bulletproof teardown with audit (Section 6)
+### Journal write
+
+```bash
+LAB=lab-02a
+TASK=task2
+JDIR="/root/rhcsa_journal/${LAB}/${TASK}"
+mkdir -p "$JDIR"
+cp /tmp/lab02a/task2.txt                "$JDIR/evidence.txt"
+cp /tmp/lab02a/formA.txt                "$JDIR/formA.txt"
+cp /tmp/lab02a/formB.txt                "$JDIR/formB.txt"
+cp "${USER_HOME}/cum-results.txt"       "$JDIR/cum-results-asuser.txt"
+cp "${USER_HOME}/cum-errors.txt"        "$JDIR/cum-errors-asuser.txt"
+
+cat > "$JDIR/done.txt" <<EOF
+LAB:    ${LAB}
+TASK:   ${TASK}
+DATE:   $(date -Is)
+USER:   $(whoami)@$(hostname)
+LAB_USER: ${USER}
+LAB_GROUP: ${GROUP}
+STATUS: COMPLETE
+EOF
+
+cat > "$JDIR/notes.txt" <<EOF
+TOPIC:    2>> append; order trap (2>&1 position); exit-code preservation; sudo -u 2>> accumulation
+COMMANDS: 2>>, 2>&1, > file 2>&1 (correct) vs 2>&1 > file (wrong order), sudo -u ${USER} bash -c, stat -c '%U:%G %a %n'
+TRAPS:    T02-A rehearsed (Form A had errors in file; Form B had them on screen)
+TIER B:   cum-results-asuser.txt and cum-errors-asuser.txt owned by ${USER}:${GROUP}; stderr non-empty after two find passes
+MISSED:   (fill in if any ⚠️ flags)
+NEXT:     lab-02c — verify capstone: audit + persistence (destroy-restore drill, T41)
+NOTE:     lab-02b is intentionally absent — Section 18 boundary lab (no honest Ansible module for 2>, 2>/dev/null)
+EOF
+
+ls -la "$JDIR"
+echo "exit was: $?"
+```
+
+### Cleanup (per-task — leaves Tier B sandbox intact)
+
+```bash
+rm -f /tmp/lab02a/all-results.txt /tmp/lab02a/all-errors.txt \
+      /tmp/lab02a/formA.txt /tmp/lab02a/formB.txt \
+      /tmp/lab02a/warmup2.txt /tmp/lab02a/task2.txt
+rm -f "${USER_HOME}/cum-results.txt" "${USER_HOME}/cum-errors.txt"
+
+getent passwd "${USER}"  >/dev/null && echo "✅ ${USER} still present"
+getent group  "${GROUP}" >/dev/null && echo "✅ ${GROUP} still present"
+test -d       "${SANDBOX}"          && echo "✅ ${SANDBOX} still present"
+
+ls /tmp/lab02a
+echo "exit was: $?"
+```
+
+### Troubleshoot
+
+| Symptom | Fix |
+|---|---|
+| Form A and Form B look the same on disk | Running as root — all dirs are readable, so no Permission denied appears anywhere |
+| Form B shows `Permission denied` IN the file | You typed `> file 2>&1` by accident — that's Form A (correct merge) |
+| `exit code: 0` for failing find | Your shell collapsed the statement — make sure `find /no/such/path` is a standalone command |
+| Accumulated errors count is too low | The two `find` runs hit the same restricted dirs — that's expected; the count should be double |
+
+> **STOP — paste the Form A / Form B line counts, the "silenced failing find exit code" line, and the Part D `✅ 2>> accumulated real Permission denied lines` line before running Lab Closeout.**
+
+---
+
+## Lab Closeout — Bulletproof Teardown (Section 6)
 
 ```bash
 set +e
 
-# 1) Container layer — none in this lab
-podman ps -aq --filter "name=^lab_${LAB_NUM}_${LAB_SLUG}$" 2>/dev/null \
-    | xargs -r podman rm -f >/dev/null 2>&1
-
-# 2) Mount layer — none in this lab
+# 1) Mount layer (no-op for this lab)
 awk -v s="${SANDBOX}" '$2 ~ s {print $2}' /proc/mounts \
     | tac | xargs -r -n1 umount -l 2>/dev/null
 
-# 3) LVM — none
-# 4) Loopback — none
-
-# 5) User then group
+# 2) User / group teardown — USER first because it owns files in ${USER_HOME}
 if getent passwd "${USER}" >/dev/null 2>&1; then
-    userdel -r "${USER}" 2>/dev/null || userdel "${USER}" 2>/dev/null
+    userdel -r "${USER}" 2>/dev/null
 fi
 if getent group "${GROUP}" >/dev/null 2>&1; then
-    groupdel "${GROUP}" 2>/dev/null
+    groupdel "${GROUP}"  2>/dev/null
 fi
 
-# 6) Sandbox dir
+# 3) Sandbox dir
 rm -rf "${SANDBOX}"
 
-# 7) Audit — every row MUST print ✅
-echo "── cleanup audit ──"
-getent passwd "${USER}"  >/dev/null 2>&1 && echo "❌ user remains"    || echo "✅ user gone"
-getent group  "${GROUP}" >/dev/null 2>&1 && echo "❌ group remains"   || echo "✅ group gone"
-test -d "${SANDBOX}"                       && echo "❌ sandbox remains" || echo "✅ sandbox gone"
+# 4) Audit
+echo "── Lab 02a cleanup audit ──"
+getent passwd "${USER}"  >/dev/null && echo "❌ user remains"    || echo "✅ user gone"
+getent group  "${GROUP}" >/dev/null && echo "❌ group remains"   || echo "✅ group gone"
+test -d "${SANDBOX}"                && echo "❌ sandbox remains" || echo "✅ sandbox gone"
+test -d "${USER_HOME}"              && echo "❌ home remains"    || echo "✅ home gone"
 
 set -e
-echo "Lab cleanup complete by $(whoami) at $(date -Is)"
+echo "Cleanup complete by $(whoami) at $(date -Is)"
 echo "exit was: $?"
 ```
 
-> **STOP — paste the audit block output. Every line must read ✅ before this lab is complete (T44).**
+> **STOP — paste the four `✅` audit lines before moving to Lab 02c.**
 
-### n) Troubleshoot
+---
 
-| Symptom | Fix |
+## Lab 02a Checklist (2 tasks + closeout)
+
+- [ ] Lab-Wide Setup — Tier B sandbox built; `id ${USER}`, both `getent` lines visible
+- [ ] Task 1 — split capture (`> f1 2> f2`); RHCSA clean-answer (`2>/dev/null`); proved FD 1 ≠ FD 2; **Part D** `sudo -u ${USER}` produced non-zero stderr
+- [ ] Task 2 — `2>>` accumulation; order trap (Form A has errors in file; Form B does not); exit code honest; **Part D** `${USER}` accumulated errors via `2>>`
+- [ ] Lab Closeout — four `✅` audit lines; journal in `/root/rhcsa_journal/lab-02a/` survives
+
+---
+
+## Related Labs
+
+| Lab | Connection |
 |---|---|
-| Form A and Form B both look the same on disk | You're running as root — `sudo -u "${USER}"` is missing or the user has full read perms |
-| Form B shows `Permission denied` IN the file (not on screen) | You typed `> file 2>&1` by accident — re-read Task 2 step 2 |
-| `exit after silenced failing find: 0` | Your shell collapsed the pipeline; check that `find /no/such/path` is the LAST command in its statement |
-| Audit `❌ user remains` | A stale process still owns the user — `pkill -u "${USER}"`, then `userdel -r "${USER}"` |
-| Audit `❌ sandbox remains` | Something holds an open FD inside `${SANDBOX}` — `lsof +D "${SANDBOX}"` to find it |
+| ⛔ **Lab 02b is intentionally absent** | Section 18 boundary lab — `2>` / `2>/dev/null` have no honest Ansible module. `ansible.builtin.shell` + `register: result.stderr` *captures* stderr but does not *redirect* it the way `2>` does. |
+| **Lab 02c** — Verifying Stderr | Audit: file has content AND no `Permission denied` lines leaked into stdout file; destroy-restore drill against journal evidence |
+| Lab 01a — Stdout Redirection | FD 1 — the stream Lab 02a extends with FD 2 |
+| Lab 01c — Stdout Verify | The previous topic's verify capstone — same Tier B + destroy-restore pattern |
+| Lab 04a — Combined Redirection | `&>` / `2>&1` deep dive with all edge cases |
 
 ---
 
-## 🪤 Trap Rehearsal — summary
+## Author
 
-| Trap | Description | Rehearsed where |
-|---|---|---|
-| **T02-A** | `>` captures FD 1 only — errors still hit the screen | Task 1 Concept Card |
-| **T02-B** | `cmd 2>&1 > file` puts errors on screen, NOT in the file (order matters) | Task 2 Concept Card + dup2 explainer |
-| **T02-C** | `2>/dev/null` hides the message, NOT the exit code — always check `$?` | Task 2 Concept Card + step 3 |
-| **T44** | Cleanup left an orphan user/group/sandbox | Task 2 audit block |
-
-If any trap fired (you typed `>` thinking it would silence errors, or audit showed ❌), log it per Section 12:
-
-```
-⚠️ TRAP HIT: [T02-A | T02-B | T02-C | T44] [what happened]
-Repeat this trap in the next 2 labs.
-```
-
----
-
-## ➡️ What's next
-
-- **Lab 02b — Ansible:** declarative version using `register: result` plus `result.stdout` / `result.stderr` — same two-stream model in YAML.
-- **Lab 02c — Verify:** audit script that fails if a captured "answer file" contains any `Permission denied` line (proves the `2>/dev/null` discipline held).
-- **Lab 03 — Pipes (`|`, `tee`):** what happens when you connect FD 1 of one command to FD 0 of another, and the `tee` "wye fitting" that lets you save AND pass.
-- **Lab 04 — Combined (`&>`, `2>&1`):** the deep dive on stream merging, including the order trap's bash shorthand workaround.
+**Kelvin R. Tobias**
+[kelvinintech.com](https://kelvinintech.com) · [GitHub](https://github.com/kelvintechnical) · [LinkedIn](https://www.linkedin.com/in/kelvin-r-tobias-211949219)
