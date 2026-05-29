@@ -204,9 +204,9 @@ Labs organized by official RHCSA EX200 exam objectives.
 | 13 | Command Aliases Trilogy: [13a RHCSA](lab-13a-creating-command-aliases-rhcsa/) · [13b Ansible](lab-13b-creating-command-aliases-ansible/) · [13c Verify](lab-13c-creating-command-aliases-verify/) | `alias`, `unalias`, `type -a`, `.bashrc`, `/etc/profile.d` + **Ansible** `ansible.builtin.blockinfile` — 2-task trilogy for temporary aliases, persistent shell snippets, idempotence, and fresh-shell verification. Traps T13-A/B/C/D/E. |
 | 14 | File Searching with find Trilogy: [14a RHCSA](lab-14a-searching-with-find-rhcsa/) · [14b Ansible](lab-14b-searching-with-find-ansible/) · [14c Verify](lab-14c-searching-with-find-verify/) | `find`, `-name`/`-type`/`-size`/`-mtime`/`-user`, `-print0`, `-exec {} +` vs `\;`, multi-predicate `/etc` capstone + **Ansible** `ansible.builtin.find` — 2-task trilogy for live filesystem traversal, batched actions, declared baseline + drift detection. Traps T14-A/B. |
 | 15 | Instant File Searching with locate Trilogy: [15a RHCSA](lab-15a-searching-with-locate-rhcsa/) · [15b Ansible](lab-15b-searching-with-locate-ansible/) · [15c Verify](lab-15c-searching-with-locate-verify/) | `locate`, `updatedb`, `locate -i/-c/-l/-r/-e/-S`, `/etc/updatedb.conf` `PRUNEPATHS` + **Ansible** `dnf` + `lineinfile` + `command: updatedb` — 2-task trilogy for cache-backed search, staleness drill, prune capstone on `/srv/scratch`. Traps T15-A/B. |
-| 16 | [Search for a String and Save Output](https://github.com/kelvintechnical/search-string-save-output) | `grep`, `tee`, `>` — Search for strings inside config files and experiment with regular expressions |
-| 17 | [Find and Save Config Files](https://github.com/kelvintechnical/find-save-config-files) | `find -type f -name -user`, `2>/dev/null` — Search the filesystem for specific files by name |
-| 18 | [Locate Command Documentation](https://github.com/kelvintechnical/locate-command-docs) | `find /usr/share/doc`, `rpm -qf`, `rpm -qd` — Find documentation when you only know a keyword or purpose |
+| 16 | Search for a String and Save Output Trilogy: [16a RHCSA](lab-16a-grep-search-save-output-rhcsa/) · [16b Ansible](lab-16b-grep-search-save-output-ansible/) · [16c Verify](lab-16c-grep-search-save-output-verify/) | `grep`, `tee`, `>` — Search for strings inside config files and experiment with regular expressions |
+| 17 | Find and Save Config Files Trilogy: [17a RHCSA](lab-17a-find-save-config-files-rhcsa/) · [17b Ansible](lab-17b-find-save-config-files-ansible/) · [17c Verify](lab-17c-find-save-config-files-verify/) | `find -type f -name -user`, `2>/dev/null` — Search the filesystem for specific files by name |
+| 18 | Locate Command Documentation Trilogy: [18a RHCSA](lab-18a-locate-command-docs-rhcsa/) · [18b Ansible](lab-18b-locate-command-docs-ansible/) · [18c Verify](lab-18c-locate-command-docs-verify/) | `find /usr/share/doc`, `rpm -qf`, `rpm -qd` — Find documentation when you only know a keyword or purpose |
 
 ---
 
@@ -216,15 +216,15 @@ Labs organized by official RHCSA EX200 exam objectives.
 
 | # | Lab | Key Commands |
 |---|-----|-------------|
-| 19 | [Concatenating Files with cat](https://github.com/kelvintechnical/concactenating-files-with-cat) | `cat` — Use `cat` to read the contents of short text files directly in the terminal |
-| 20 | [Scrolling Through Large Files](https://github.com/kelvintechnical/less-more-scrolling) | `less`, `more` — Scroll through large system logs and search using `/` and `?` |
-| 21 | [Monitoring Live Log Files](https://github.com/kelvintechnical/tail-f-live-logs) | `tail -f` — Actively monitor a log file and watch new lines appended in real-time |
-| 22 | [Filtering Text with grep and Regex](https://github.com/kelvintechnical/grep-regex) | `grep` — Search for strings inside config files and experiment with regular expressions |
-| 23 | [Comparing File Differences with diff](https://github.com/kelvintechnical/diff-comparing-files) | `diff` — Modify a config file and use `diff` to compare it against a backup to identify exact line changes |
-| 24 | [Stream Editing with sed](https://github.com/kelvintechnical/sed-stream-editor) | `sed` — Use `sed` to automatically find and replace text strings within a file without opening an editor |
-| 25 | [Extracting Columns with awk](https://github.com/kelvintechnical/awk-columns) | `awk` — Use `awk` to specify a delimiter and print only a specific field to the screen |
-| 26 | [Command Mode and Insert Mode in vi](https://github.com/kelvintechnical/vi-editor) | `vi`, `:wq` — Open a config file in vi, switch to insert mode, make a change, and save with `:wq` |
-| 27 | [Safely Editing System Databases](https://github.com/kelvintechnical/vipw-vigr-safe-editing) | `vipw`, `vigr` — Practice editing password and group files safely using `vipw` and `vigr` |
+| 19 | Concatenating Files with cat Trilogy: [19a RHCSA](lab-19a-cat-concatenate-files-rhcsa/) · [19b Ansible](lab-19b-cat-concatenate-files-ansible/) · [19c Verify](lab-19c-cat-concatenate-files-verify/) | `cat` — Use `cat` to read the contents of short text files directly in the terminal |
+| 20 | Scrolling Through Large Files Trilogy: [20a RHCSA](lab-20a-less-more-scrolling-rhcsa/) · [20b Ansible](lab-20b-less-more-scrolling-ansible/) · [20c Verify](lab-20c-less-more-scrolling-verify/) | `less`, `more` — Scroll through large system logs and search using `/` and `?` |
+| 21 | Monitoring Live Log Files Trilogy: [21a RHCSA](lab-21a-tail-f-live-logs-rhcsa/) · [21b Ansible](lab-21b-tail-f-live-logs-ansible/) · [21c Verify](lab-21c-tail-f-live-logs-verify/) | `tail -f` — Actively monitor a log file and watch new lines appended in real-time |
+| 22 | Filtering Text with grep and Regex Trilogy: [22a RHCSA](lab-22a-grep-regex-rhcsa/) · [22b Ansible](lab-22b-grep-regex-ansible/) · [22c Verify](lab-22c-grep-regex-verify/) | `grep` — Search for strings inside config files and experiment with regular expressions |
+| 23 | Comparing File Differences with diff Trilogy: [23a RHCSA](lab-23a-diff-comparing-files-rhcsa/) · [23b Ansible](lab-23b-diff-comparing-files-ansible/) · [23c Verify](lab-23c-diff-comparing-files-verify/) | `diff` — Modify a config file and use `diff` to compare it against a backup to identify exact line changes |
+| 24 | Stream Editing with sed Trilogy: [24a RHCSA](lab-24a-sed-stream-editor-rhcsa/) · [24b Ansible](lab-24b-sed-stream-editor-ansible/) · [24c Verify](lab-24c-sed-stream-editor-verify/) | `sed` — Use `sed` to automatically find and replace text strings within a file without opening an editor |
+| 25 | Extracting Columns with awk Trilogy: [25a RHCSA](lab-25a-awk-columns-rhcsa/) · [25b Ansible](lab-25b-awk-columns-ansible/) · [25c Verify](lab-25c-awk-columns-verify/) | `awk` — Use `awk` to specify a delimiter and print only a specific field to the screen |
+| 26 | Command Mode and Insert Mode in vi Trilogy: [26a RHCSA](lab-26a-vi-editor-rhcsa/) · [26b Ansible](lab-26b-vi-editor-ansible/) · [26c Verify](lab-26c-vi-editor-verify/) | `vi`, `:wq` — Open a config file in vi, switch to insert mode, make a change, and save with `:wq` |
+| 27 | Safely Editing System Databases Trilogy: [27a RHCSA](lab-27a-vipw-vigr-safe-editing-rhcsa/) · [27b Ansible](lab-27b-vipw-vigr-safe-editing-ansible/) · [27c Verify](lab-27c-vipw-vigr-safe-editing-verify/) | `vipw`, `vigr` — Practice editing password and group files safely using `vipw` and `vigr` |
 
 ---
 
@@ -234,9 +234,9 @@ Labs organized by official RHCSA EX200 exam objectives.
 
 | # | Lab | Key Commands |
 |---|-----|-------------|
-| 28 | [Exploring Manual Pages](https://github.com/kelvintechnical/man-pages-exploration) | `man` — Look up manual pages with `man` and practice scrolling through descriptions and syntax examples |
-| 29 | [Searching Manuals by Keyword](https://github.com/kelvintechnical/whatis-apropos-keyword-search) | `whatis`, `apropos` — Find documentation when you only know a keyword or purpose |
-| 30 | [Navigating info Pages](https://github.com/kelvintechnical/info-pages-navigation) | `info` — Use `info` to read detailed manual pages, navigating with `n`, `p`, and `u` keys |
+| 28 | Exploring Manual Pages Trilogy: [28a RHCSA](lab-28a-man-pages-rhcsa/) · [28b Ansible](lab-28b-man-pages-ansible/) · [28c Verify](lab-28c-man-pages-verify/) | `man` — Look up manual pages with `man` and practice scrolling through descriptions and syntax examples |
+| 29 | Searching Manuals by Keyword Trilogy: [29a RHCSA](lab-29a-apropos-whatis-rhcsa/) · [29b Ansible](lab-29b-apropos-whatis-ansible/) · [29c Verify](lab-29c-apropos-whatis-verify/) | `whatis`, `apropos` — Find documentation when you only know a keyword or purpose |
+| 30 | Navigating info Pages Trilogy: [30a RHCSA](lab-30a-info-pages-rhcsa/) · [30b Ansible](lab-30b-info-pages-ansible/) · [30c Verify](lab-30c-info-pages-verify/) | `info` — Use `info` to read detailed manual pages, navigating with `n`, `p`, and `u` keys |
 
 ---
 

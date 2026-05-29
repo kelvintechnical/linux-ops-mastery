@@ -134,19 +134,19 @@ Foundation → advanced. Each step locks in prerequisites for the next. Mirrors 
 | 13 | not completed | 13 | Creating Command Aliases | `alias` — map custom shortcuts, override defaults |
 | 14 | not completed | 14 | File Searching with find | `find` — search by name from any directory |
 | 15 | not completed | 15 | Instant File Searching with locate | `locate`, `updatedb` — fast indexed lookups |
-| 16 | not completed | 16 | Search for a String and Save Output | `grep`, `tee`, `>` — string search + save results |
-| 17 | not completed | 17 | Find and Save Config Files | `find -type f -name -user`, `2>/dev/null` — quiet predicate search |
-| 18 | not completed | 18 | Locate Command Documentation | `find /usr/share/doc`, `rpm -qf`, `rpm -qd` — package-owned docs |
+| 16 | not completed | 16 | Search for a String and Save Output | [16a RHCSA](lab-16a-grep-search-save-output-rhcsa/) · [16b Ansible](lab-16b-grep-search-save-output-ansible/) · [16c Verify](lab-16c-grep-search-save-output-verify/) — `grep`, `tee`, `>` |
+| 17 | not completed | 17 | Find and Save Config Files | [17a RHCSA](lab-17a-find-save-config-files-rhcsa/) · [17b Ansible](lab-17b-find-save-config-files-ansible/) · [17c Verify](lab-17c-find-save-config-files-verify/) — `find -type f -name -user`, `2>/dev/null` |
+| 18 | not completed | 18 | Locate Command Documentation | [18a RHCSA](lab-18a-locate-command-docs-rhcsa/) · [18b Ansible](lab-18b-locate-command-docs-ansible/) · [18c Verify](lab-18c-locate-command-docs-verify/) — `find /usr/share/doc`, `rpm -qf`, `rpm -qd` |
 | 19 | not completed | in-repo | Find Files by Modification Time and Act on Them | `find / -mtime -30`, `-exec`, `tar --files-from` — mtime predicates |
-| 20 | not completed | 19 | Concatenating Files with cat | `cat` — read short text files inline |
-| 21 | not completed | 20 | Scrolling Through Large Files | `less`, `more`, `/` + `?` search |
-| 22 | not completed | 21 | Monitoring Live Log Files | `tail -f` — watch a log in real time |
-| 23 | not completed | 22 | Filtering Text with grep and Regex | `grep`, regex inside config files |
-| 24 | not completed | 23 | Comparing File Differences with diff | `diff` — exact line-level deltas |
-| 25 | not completed | 24 | Stream Editing with sed | `sed` — non-interactive find + replace |
-| 26 | not completed | 25 | Extracting Columns with awk | `awk` — delimiter-based field extraction |
-| 27 | not completed | 26 | Command Mode and Insert Mode in vi | `vi`, `:wq` — open, insert, save |
-| 28 | not completed | 27 | Safely Editing System Databases | `vipw`, `vigr` — lock-safe edits of passwd/group |
+| 20 | not completed | 19 | Concatenating Files with cat | [19a RHCSA](lab-19a-cat-concatenate-files-rhcsa/) · [19b Ansible](lab-19b-cat-concatenate-files-ansible/) · [19c Verify](lab-19c-cat-concatenate-files-verify/) — `cat` |
+| 21 | not completed | 20 | Scrolling Through Large Files | [20a RHCSA](lab-20a-less-more-scrolling-rhcsa/) · [20b Ansible](lab-20b-less-more-scrolling-ansible/) · [20c Verify](lab-20c-less-more-scrolling-verify/) — `less`, `more`, `/` + `?` search |
+| 22 | not completed | 21 | Monitoring Live Log Files | [21a RHCSA](lab-21a-tail-f-live-logs-rhcsa/) · [21b Ansible](lab-21b-tail-f-live-logs-ansible/) · [21c Verify](lab-21c-tail-f-live-logs-verify/) — `tail -f` |
+| 23 | not completed | 22 | Filtering Text with grep and Regex | [22a RHCSA](lab-22a-grep-regex-rhcsa/) · [22b Ansible](lab-22b-grep-regex-ansible/) · [22c Verify](lab-22c-grep-regex-verify/) — `grep`, regex inside config files |
+| 24 | not completed | 23 | Comparing File Differences with diff | [23a RHCSA](lab-23a-diff-comparing-files-rhcsa/) · [23b Ansible](lab-23b-diff-comparing-files-ansible/) · [23c Verify](lab-23c-diff-comparing-files-verify/) — `diff` |
+| 25 | not completed | 24 | Stream Editing with sed | [24a RHCSA](lab-24a-sed-stream-editor-rhcsa/) · [24b Ansible](lab-24b-sed-stream-editor-ansible/) · [24c Verify](lab-24c-sed-stream-editor-verify/) — `sed` |
+| 26 | not completed | 25 | Extracting Columns with awk | [25a RHCSA](lab-25a-awk-columns-rhcsa/) · [25b Ansible](lab-25b-awk-columns-ansible/) · [25c Verify](lab-25c-awk-columns-verify/) — `awk` |
+| 27 | not completed | 26 | Command Mode and Insert Mode in vi | [26a RHCSA](lab-26a-vi-editor-rhcsa/) · [26b Ansible](lab-26b-vi-editor-ansible/) · [26c Verify](lab-26c-vi-editor-verify/) — `vi`, `:wq` |
+| 28 | not completed | 27 | Safely Editing System Databases | [27a RHCSA](lab-27a-vipw-vigr-safe-editing-rhcsa/) · [27b Ansible](lab-27b-vipw-vigr-safe-editing-ansible/) · [27c Verify](lab-27c-vipw-vigr-safe-editing-verify/) — `vipw`, `vigr` |
 | 29 | not completed | FILES-F01 | Find Files by Size Range and Copy Preserving All Attributes | `find /etc -size +5M -size -10M -exec cp --preserve=all` |
 | 30 | not completed | FILES-F02 | Find Files Owned by a User Within a Size Range | `find / -xdev -user linda -size +3M -size -50M 2>/dev/null` |
 | 31 | not completed | FILES-F03 | Find Configuration Files by Name and Owner | `find /etc -name '*.conf' -user root > /root/config_files` |
@@ -162,9 +162,9 @@ Foundation → advanced. Each step locks in prerequisites for the next. Mirrors 
 
 | # | Status | ID / # | Full Lab Name | Key Commands / Focus |
 |---|---|---|---|---|
-| 1 | not completed | 28 | Exploring Manual Pages | `man` — scroll, search, navigate manual pages |
-| 2 | not completed | 29 | Searching Manuals by Keyword | `whatis`, `apropos` — keyword-based docs lookup |
-| 3 | not completed | 30 | Navigating info Pages | `info` — `n`, `p`, `u` navigation |
+| 1 | not completed | 28 | Exploring Manual Pages | [28a RHCSA](lab-28a-man-pages-rhcsa/) · [28b Ansible](lab-28b-man-pages-ansible/) · [28c Verify](lab-28c-man-pages-verify/) — `man` |
+| 2 | not completed | 29 | Searching Manuals by Keyword | [29a RHCSA](lab-29a-apropos-whatis-rhcsa/) · [29b Ansible](lab-29b-apropos-whatis-ansible/) · [29c Verify](lab-29c-apropos-whatis-verify/) — `whatis`, `apropos` |
+| 3 | not completed | 30 | Navigating info Pages | [30a RHCSA](lab-30a-info-pages-rhcsa/) · [30b Ansible](lab-30b-info-pages-ansible/) · [30c Verify](lab-30c-info-pages-verify/) — `info` |
 | 4 | not completed | DOC-F01 | Locate Command Documentation Under `/usr/share/doc` | `find /usr/share/doc -iname '*passwd*'`, `rpm -qf` owner |
 | 5 | not completed | 31 | Configure a Static IP Address | `nmcli con mod`, `ip addr`, `ip route` — static IPv4 + gateway + DNS |
 | 6 | not completed | 32 | Check Network Connectivity | `ping`, `traceroute` — test + map network path |
