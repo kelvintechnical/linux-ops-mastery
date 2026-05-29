@@ -1,182 +1,249 @@
-# Lab 10c: Verifying Move/Rename Behavior — atomicity, cross-fs, hard links
+# Lab 10c: Verifying Moves and Renames (Capstone) — Audit + Persistence
 
-- **Series:** linux-ops-mastery — File Operations & Shell Fundamentals
-- **Trilogy:** `10a` (RHCSA) → `10b` (Ansible) → **`10c` (Verify — you are here)**
-- **Career arcs covered:** RHCSA EX200 verification reflex, RHCE auditor seat, SRE change validation
-- **Prerequisite:** Lab 10a and 10b completed
+- **Series:** linux-ops-mastery — Essential Tools & File Operations
+- **Trilogy:** [`10a`](../lab-10a-moving-renaming-files-rhcsa/) → [`10b`](../lab-10b-moving-renaming-files-ansible/) → **`10c`**
+- **Prerequisite:** Labs 10a + 10b completed
 - **Time Estimate:** 20–30 minutes
-- **Tasks:** 2
-- **Practice Directory (rotation #10):** `/var`
-- **Sandbox:** `/tmp/mv-verify-lab`
-- **Traps rehearsed this lab:** **T10-A** (assuming all `mv` are atomic) · **T10-B** (not auditing overwrite fallout) · **T10-C** (trusting automation output without state checks)
-
-> **This lab's practice directory is: `/var`** — each task references `/var` while verification runs in `/tmp/mv-verify-lab`.
+- **Tasks:** 2 (Task 1 = audit T10-A through T10-E + completeness · Task 2 = destroy-restore drill — wipe `/tmp/lab10b/`, re-apply playbooks, verify atomic + idempotent)
+- **Sandbox (Tier B):** `/tmp/lab10c` with `USER=labuser_10_verify`, `GROUP=labgrp_10_verify`
+- **Traps rehearsed:** **T10-A/B/C/D/E** (audit) · **T41/T42**
 
 ---
 
-## LAB HEADER BLOCK — run this FIRST
+## LAB HEADER BLOCK
 
 ```bash
-echo "🖥️  ENV:   ${ENV:-DECLARE_ME}"
-echo "📦  OS:    $(cat /etc/redhat-release 2>/dev/null || grep PRETTY_NAME /etc/os-release)"
-echo "🕒  TIME:  $(date -Is)"
-echo "👤  USER:  $(whoami)@$(hostname)"
-echo "⚠️  TRAP REMINDERS THIS LAB: T10-A T10-B T10-C"
-echo "📁  PRACTICE DIR: /var"
-ls -ld /var /var/log
-test -f /root/rhcsa_journal/lab-10b/task2/rerun.txt && echo "✅ lab-10b evidence present"
+echo "🔐 SE: $(getenforce 2>/dev/null || echo n/a)"
+ls -la /root/rhcsa_journal/lab-10a/ /root/rhcsa_journal/lab-10b/
 ```
 
 ---
 
-## Objective
-
-Prove, using direct inspection commands, that:
-
-1. Same-fs rename preserves inode and hard-link relationship.
-2. Cross-fs move changes inode and breaks hard-link relationship.
-3. Ansible boundary outcomes from `10b` match real filesystem state.
-
----
-
-## Lab-Wide Setup — run BEFORE Task 1
+## Lab-Wide Setup
 
 ```bash
 sudo -i
-mkdir -p /tmp/mv-verify-lab/{samefs,crossfs}
-mkdir -p /root/rhcsa_journal/lab-10c
-echo "payload" > /tmp/mv-verify-lab/samefs/original.txt
-ln /tmp/mv-verify-lab/samefs/original.txt /tmp/mv-verify-lab/samefs/original.hard
-ls -li /tmp/mv-verify-lab/samefs
+
+export LAB_NUM=10
+export LAB_SLUG=verify
+export SANDBOX=/tmp/lab10c
+export GROUP=labgrp_${LAB_NUM}_${LAB_SLUG}
+export USER=labuser_${LAB_NUM}_${LAB_SLUG}
+export USER_HOME=${SANDBOX}/home_${USER}
+
+mkdir -p "${SANDBOX}" "${USER_HOME}"
+mkdir -p /root/rhcsa_journal/lab-10c/task1 /root/rhcsa_journal/lab-10c/task2
+
+getent group  "${GROUP}" >/dev/null || groupadd "${GROUP}"
+getent passwd "${USER}"  >/dev/null || useradd -d "${USER_HOME}" -M -s /bin/bash -g "${GROUP}" "${USER}"
+chown -R "${USER}:${GROUP}" "${SANDBOX}"
+echo "Sandbox built by $(whoami) at $(date -Is)"
+echo "exit was: $?"
 ```
 
 ---
 
-## Task 1 — Verify same-fs rename and hard-link survival
-
-**Practice directory this task:** `/var` and `/tmp/mv-verify-lab`
-
-### Warm-Up
-
-```bash
-ls -lt /var/log 2>/dev/null | head -n 3
-stat -c '%n inode=%i links=%h fs=%m' /tmp/mv-verify-lab/samefs/original.txt
-stat -c '%n inode=%i links=%h fs=%m' /tmp/mv-verify-lab/samefs/original.hard
-```
-
-### Purpose
-
-Rename one hard-linked path on the same filesystem and confirm both names still point to one inode.
+## Task 1 — Audit 10a/10b artifacts
 
 ### Main command block
 
 ```bash
-mkdir -p /tmp/mv-verify-lab/task1
-mv /tmp/mv-verify-lab/samefs/original.txt /tmp/mv-verify-lab/samefs/renamed.txt
+TASKLOG=/tmp/lab10c/task1.txt
 
-stat -c '%n inode=%i links=%h fs=%m' /tmp/mv-verify-lab/samefs/renamed.txt \
-  /tmp/mv-verify-lab/samefs/original.hard \
-  | tee /tmp/mv-verify-lab/task1/stat.txt
+echo "═══ Part A: completeness ═══"                      2>&1 | tee $TASKLOG
+EXPECTED=(
+    /root/rhcsa_journal/lab-10a/task1/evidence.txt
+    /root/rhcsa_journal/lab-10a/task1/asuser.txt
+    /root/rhcsa_journal/lab-10a/task2/evidence.txt
+    /root/rhcsa_journal/lab-10a/task2/swap-asuser.txt
+    /root/rhcsa_journal/lab-10b/task1/task1.yml
+    /root/rhcsa_journal/lab-10b/task2/task2.yml
+    /root/rhcsa_journal/lab-10b/task2/backup-list.txt
+)
+M=0
+for f in "${EXPECTED[@]}"; do
+    test -s "$f" && echo "✅ $f" || { echo "❌ $f"; M=$((M+1)); }
+done                                                    | tee -a $TASKLOG
 
-find /tmp/mv-verify-lab/samefs -maxdepth 1 -inum "$(stat -c '%i' /tmp/mv-verify-lab/samefs/renamed.txt)" \
-  | tee -a /tmp/mv-verify-lab/task1/stat.txt
+echo "═══ Part B: T10-A — cross-FS cp+rm captured ═══"    | tee -a $TASKLOG
+grep 'T10-A — cross-FS mv changed inode' /root/rhcsa_journal/lab-10a/task2/evidence.txt \
+    && echo "✅ T10-A captured" \
+    || echo "❌ T10-A missing" \
+    | tee -a $TASKLOG
 
-ls -li /tmp/mv-verify-lab/samefs | tee -a /tmp/mv-verify-lab/task1/stat.txt
+echo "═══ Part C: T10-C — mv -t order captured ═══"       | tee -a $TASKLOG
+grep -E 'mv -t .* A.txt B.txt' /root/rhcsa_journal/lab-10a/task1/evidence.txt \
+    && echo "✅ T10-C captured" \
+    || echo "❌ T10-C missing" \
+    | tee -a $TASKLOG
+
+echo "═══ Part D: T10-D — creates: idempotence captured ═══" | tee -a $TASKLOG
+grep 'T10-D fix' /root/rhcsa_journal/lab-10b/task1/evidence.txt \
+    && echo "✅ T10-D captured" \
+    || echo "❌ T10-D missing" \
+    | tee -a $TASKLOG
+
+echo "═══ Part E: T10-E — atomic replace backup captured ═══" | tee -a $TASKLOG
+test -s /root/rhcsa_journal/lab-10b/task2/backup-list.txt \
+    && cat /root/rhcsa_journal/lab-10b/task2/backup-list.txt \
+    && echo "✅ T10-E captured" \
+    || echo "❌ T10-E missing" \
+    | tee -a $TASKLOG
+
+echo "exit was: $?"
 ```
-
-### Concept Card
-
-| Concept | One-line |
-|---|---|
-| Same-fs rename | Name changes, inode does not |
-| Hard-link survival | Links still valid because inode is unchanged |
-| 🪤 T10-A | Atomic assumption only valid on same filesystem |
 
 ### Journal write
 
 ```bash
-JDIR=/root/rhcsa_journal/lab-10c/task1
+LAB=lab-10c
+TASK=task1
+JDIR="/root/rhcsa_journal/${LAB}/${TASK}"
 mkdir -p "$JDIR"
-cp /tmp/mv-verify-lab/task1/stat.txt "$JDIR/evidence.txt"
+cp /tmp/lab10c/task1.txt "$JDIR/evidence.txt"
+
+cat > "$JDIR/done.txt" <<EOF
+LAB:    ${LAB}
+TASK:   ${TASK}
+DATE:   $(date -Is)
+USER:   $(whoami)@$(hostname)
+LAB_USER: ${USER}
+LAB_GROUP: ${GROUP}
+STATUS: COMPLETE
+EOF
+
+cat > "$JDIR/notes.txt" <<EOF
+TOPIC:    Audit T10-A/C/D/E + completeness
+NEXT:     task2 — destroy-restore (T41)
+EOF
+
+ls -la "$JDIR"
+echo "exit was: $?"
 ```
+
+### 🧹 Cleanup
+
+```bash
+rm -f /tmp/lab10c/task1.txt
+echo "exit was: $?"
+```
+
+> **STOP — paste five `✅` lines before Task 2.**
 
 ---
 
-## Task 2 — Verify cross-fs move behavior + Ansible outputs
-
-**Practice directory this task:** `/var` and `/tmp/mv-verify-lab`
-
-### Warm-Up
-
-```bash
-ls -ld /var /var/log
-echo "cross-fs-payload" > /tmp/mv-verify-lab/crossfs/cross.txt
-stat -c '%n inode=%i fs=%m' /tmp/mv-verify-lab/crossfs/cross.txt
-```
-
-### Purpose
-
-Check whether move crossed filesystems, evaluate inode result, and audit Lab 10b outcome files.
+## Task 2 — Destroy-restore drill (T41)
 
 ### Main command block
 
 ```bash
-mkdir -p /tmp/mv-verify-lab/task2
-src=/tmp/mv-verify-lab/crossfs/cross.txt
-dst=/var/tmp/lab10-cross.txt
+TASKLOG=/tmp/lab10c/task2.txt
+PB1=/root/rhcsa_journal/lab-10b/playbooks/task1.yml
+PB2=/root/rhcsa_journal/lab-10b/playbooks/task2.yml
 
-src_fs=$(df --output=source "$src" | tail -1)
-src_inode=$(stat -c '%i' "$src")
-mv "$src" "$dst"
-dst_fs=$(df --output=source "$dst" | tail -1)
-dst_inode=$(stat -c '%i' "$dst")
+echo "═══ Part A: snapshot ═══"                          2>&1 | tee $TASKLOG
+ls -l /tmp/lab10b/dest/ 2>/dev/null                      | tee -a $TASKLOG
 
-{
-  echo "src_fs=$src_fs dst_fs=$dst_fs"
-  echo "src_inode=$src_inode dst_inode=$dst_inode"
-  if [ "$src_fs" = "$dst_fs" ]; then
-    echo "SAME_FS_RESULT"
-  else
-    echo "CROSS_FS_RESULT"
-  fi
-  echo "=== lab10b audit ==="
-  grep -E "PLAY RECAP|changed=" /root/rhcsa_journal/lab-10b/task1/rerun.txt || true
-  grep -E "PLAY RECAP|changed=" /root/rhcsa_journal/lab-10b/task2/rerun.txt || true
-  test -f /tmp/mv-ansible-lab/dst/app.log && echo "mv-target-present"
-  test -f /tmp/mv-ansible-lab/dst/service.conf && echo "config-present"
-  ls /tmp/mv-ansible-lab/dst/service.conf*~ 2>/dev/null && echo "backup-present"
-} | tee /tmp/mv-verify-lab/task2/audit.txt
+echo "═══ Part B: destroy ═══"                            | tee -a $TASKLOG
+rm -rf /tmp/lab10b
+test ! -d /tmp/lab10b && echo "✅ destroyed" || echo "❌ destroy failed" | tee -a $TASKLOG
+
+echo "═══ Part C: restore — re-stage source files + apply both playbooks ═══" | tee -a $TASKLOG
+mkdir -p /tmp/lab10b/dest
+echo "report content" > /tmp/lab10b/report.txt
+echo "v1 config" > /tmp/lab10b/dest/config.cfg
+
+ansible-playbook "${PB1}"                                 2>&1 | tee -a $TASKLOG
+ansible-playbook "${PB2}"                                 2>&1 | tee -a $TASKLOG
+
+echo "═══ Part D: verify ═══"                             | tee -a $TASKLOG
+ls -l /tmp/lab10b/ /tmp/lab10b/dest/                     | tee -a $TASKLOG
+test -f /tmp/lab10b/dest/report.txt \
+    && echo "✅ T10-D restore — Boundary mv idempotently moved report.txt" \
+    || echo "❌ report.txt not in dest" \
+    | tee -a $TASKLOG
+
+cat /tmp/lab10b/dest/config.cfg                          | tee -a $TASKLOG
+ls /tmp/lab10b/dest/config.cfg.* 2>/dev/null             | tee -a $TASKLOG
+test -f /tmp/lab10b/dest/config.cfg.* \
+    && echo "✅ T10-E restore — atomic config replace with backup again" \
+    || echo "(no backup — config was identical, no replace needed)" \
+    | tee -a $TASKLOG
+
+echo "═══ Part E: T42 reasoning ═══"                     | tee -a $TASKLOG
+cat <<'EOF' | tee -a $TASKLOG
+SURVIVES A REBOOT:
+  /root/rhcsa_journal/lab-10b/playbooks/  (task1.yml, task2.yml)
+DOES NOT SURVIVE A REBOOT:
+  /tmp/lab10b/  (sandbox)
+REBUILD:
+  recreate report.txt + config.cfg in /tmp/lab10b/, then re-apply both playbooks
+EOF
+
+echo "exit was: $?"
 ```
-
-### Concept Card
-
-| Concept | One-line |
-|---|---|
-| Cross-fs `mv` | Falls back to copy + remove; not one-step atomic rename |
-| Inode change signal | Different inode strongly indicates new file created on destination fs |
-| Verification discipline | Confirm with `stat`, `df`, `test`, and prior logs |
-| 🪤 T10-C | Never trust recap alone; inspect state |
 
 ### Journal write
 
 ```bash
-JDIR=/root/rhcsa_journal/lab-10c/task2
+LAB=lab-10c
+TASK=task2
+JDIR="/root/rhcsa_journal/${LAB}/${TASK}"
 mkdir -p "$JDIR"
-cp /tmp/mv-verify-lab/task2/audit.txt "$JDIR/evidence.txt"
+cp /tmp/lab10c/task2.txt "$JDIR/evidence.txt"
+
+cat > "$JDIR/done.txt" <<EOF
+LAB:    ${LAB}
+TASK:   ${TASK}
+DATE:   $(date -Is)
+USER:   $(whoami)@$(hostname)
+LAB_USER: ${USER}
+LAB_GROUP: ${GROUP}
+STATUS: COMPLETE
+EOF
+
+cat > "$JDIR/notes.txt" <<EOF
+TOPIC:    Destroy /tmp/lab10b/, re-stage sources, re-apply 10b playbooks
+TRAPS:    T41/T42 rehearsed
+NEXT:     Continue curriculum (Lab 11+ already exists)
+EOF
+
+ls -la "$JDIR"
+echo "exit was: $?"
+```
+
+### 🧹 Cleanup
+
+```bash
+rm -f /tmp/lab10c/task2.txt
+echo "exit was: $?"
+```
+
+> **STOP — paste Part D `✅` lines before Closeout.**
+
+---
+
+## Lab Closeout
+
+```bash
+set +e
+if getent passwd "${USER}" >/dev/null 2>&1; then userdel -r "${USER}" 2>/dev/null; fi
+if getent group "${GROUP}" >/dev/null 2>&1; then groupdel "${GROUP}" 2>/dev/null; fi
+rm -rf "${SANDBOX}" /tmp/lab10b
+
+echo "── Lab 10c cleanup audit ──"
+getent passwd "${USER}"  >/dev/null && echo "❌ user remains"    || echo "✅ user gone"
+getent group  "${GROUP}" >/dev/null && echo "❌ group remains"   || echo "✅ group gone"
+test -d "${SANDBOX}"                && echo "❌ sandbox remains" || echo "✅ sandbox gone"
+test -d /tmp/lab10b                 && echo "❌ lab10b remains"  || echo "✅ lab10b gone"
+set -e
+echo "Cleanup complete by $(whoami) at $(date -Is)"
+echo "exit was: $?"
 ```
 
 ---
 
-## Checklist
+## Author
 
-- [ ] Task 1 proved same-fs inode preservation and hard-link survival
-- [ ] Task 2 classified same-fs vs cross-fs and audited Lab 10b artifacts
-
----
-
-## Related Labs
-
-| Lab | Connection |
-|---|---|
-| `10a` | Manual `mv` behavior and option drills |
-| `10b` | Boundary-safe automation patterns verified here |
+**Kelvin R. Tobias**
+[kelvinintech.com](https://kelvinintech.com) · [GitHub](https://github.com/kelvintechnical) · [LinkedIn](https://www.linkedin.com/in/kelvin-r-tobias-211949219)

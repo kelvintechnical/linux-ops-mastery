@@ -111,6 +111,8 @@ The RHCSA curriculum has three buckets:
 
 Foundation → advanced. Each step locks in prerequisites for the next. Mirrors the [Suggested Learning Path](README.md#-suggested-learning-path) in the main README and folds the `*-F##` future labs into the matching module. Every lab listed below — built, in-progress, or planned — appears in the exact order you should work through it.
 
+> **Exam-prep order?** Jump to **[Complete Labs by RHCSA v10 Objective (EX200)](#-complete-labs-by-rhcsa-v10-objective-ex200)** below — every RHCSA lab grouped under official objectives **1 → 10** in the order Red Hat publishes them for EX200.
+>
 > **About this order:** within each module, labs are sequenced foundation → advanced. Across modules, prerequisites flow forward — you can't fully grok LVM (Step 6) until you have `find`/`grep` from Step 1, and you can't do SELinux (Step 4) until you've configured standard permissions in Step 3. **Skip at your own risk.**
 
 #### Step 1: Shells & Text Fluency
@@ -513,6 +515,453 @@ Foundation → advanced. Each step locks in prerequisites for the next. Mirrors 
 | 37 | not completed | CON-F12 | Install Flatpak Applications (Firefox + VLC + GIMP) | `flatpak install -y flathub org.mozilla.firefox` etc. |
 | 38 | not completed | CON-F13 | User-Scoped vs System-Wide Flatpak Installation | `--user` vs `--system` install comparison |
 | 39 | not completed | CON-F14 | Remove Flatpak Apps, Prune Runtimes, Remove Remote | `flatpak uninstall`, `--unused`, `remote-delete` |
+
+---
+
+### 📋 Complete Labs by RHCSA v10 Objective (EX200)
+
+> **Exam-prep order.** Every RHCSA lab — README companion repos, in-repo labs under [`labs/`](labs/), and `*-F##` future labs — grouped under the **official Red Hat RHCSA v10 (EX200) objective** it satisfies. Work through objectives **1 → 10** in order; within each objective, labs run foundation → advanced. Items tagged `.RHEL8` / `.RHEL9` are version-scoped variants on the same exam blueprint.
+>
+> Cross-reference: [Official RHCSA v10 Objectives Index](./rhcsa-v10-exam-objectives.md#official-rhcsa-v10-objectives-index) · [Suggested Learning Path (prerequisite flow)](README.md#-suggested-learning-path)
+
+#### Objective 1: Understand and use essential tools
+
+| # | Status | ID / # | Full Lab Name | Objective |
+|---|---|---|---|---|
+| 1 | not completed | 01 | Standard Output Redirection | **1.b** I/O redirection |
+| 2 | not completed | 02 | Standard Error Redirection | **1.b** I/O redirection |
+| 3 | not completed | 03 | Pipe Text Streams | **1.b** I/O redirection |
+| 4 | not completed | 04 | Capture Both Output and Error | **1.b** I/O redirection |
+| 5 | not completed | 05 | Directory Navigation | **1.a** Shell prompt and correct syntax |
+| 6 | not completed | 06 | Listing Files and SELinux Contexts | **1.a** Shell prompt and correct syntax |
+| 7 | not completed | 07 | Creating Empty Files and Timestamps | **1.h** Create, delete, copy, and move files and directories |
+| 8 | not completed | 08 | Copying Files and Directories | **1.h** Create, delete, copy, and move files and directories |
+| 9 | not completed | 09 | Hard and Soft Links | **1.i** Create hard and soft links |
+| 10 | not completed | 10 | Moving and Renaming Files | **1.h** Create, delete, copy, and move files and directories |
+| 11 | not completed | 11 | Safe Deletion of Files and Directories | **1.h** Create, delete, copy, and move files and directories |
+| 12 | not completed | 12 | Creating Nested Directories | **1.h** Create, delete, copy, and move files and directories |
+| 13 | not completed | 13 | Creating Command Aliases | **1.a** Shell prompt and correct syntax |
+| 14 | not completed | 14 | File Searching with find | **1.a** Shell prompt and correct syntax |
+| 15 | not completed | 15 | Instant File Searching with locate | **1.a** Shell prompt and correct syntax |
+| 16 | not completed | 16 | Search for a String and Save Output | **1.c** Use grep and regular expressions |
+| 17 | not completed | 17 | Find and Save Config Files | **1.c** Use grep and regular expressions |
+| 18 | not completed | 18 | Locate Command Documentation | **1.k** Locate, read, and use system documentation |
+| 19 | not completed | in-repo | Find Files by Modification Time and Act on Them | **1.a** Shell prompt and correct syntax |
+| 20 | not completed | 19 | Concatenating Files with cat | **1.a** Shell prompt and correct syntax |
+| 21 | not completed | 20 | Scrolling Through Large Files | **1.a** Shell prompt and correct syntax |
+| 22 | not completed | 21 | Monitoring Live Log Files | **1.a** Shell prompt and correct syntax |
+| 23 | not completed | 22 | Filtering Text with grep and Regex | **1.c** Use grep and regular expressions |
+| 24 | not completed | 23 | Comparing File Differences with diff | **1.a** Shell prompt and correct syntax |
+| 25 | not completed | 24 | Stream Editing with sed | **1.a** Shell prompt and correct syntax |
+| 26 | not completed | 25 | Extracting Columns with awk | **1.a** Shell prompt and correct syntax |
+| 27 | not completed | 26 | Command Mode and Insert Mode in vi | **1.g** Create and edit text files |
+| 28 | not completed | 27 | Safely Editing System Databases | **1.g** Create and edit text files |
+| 29 | not completed | 28 | Exploring Manual Pages | **1.k** Locate, read, and use system documentation |
+| 30 | not completed | 29 | Searching Manuals by Keyword | **1.k** Locate, read, and use system documentation |
+| 31 | not completed | 30 | Navigating info Pages | **1.k** Locate, read, and use system documentation |
+| 32 | not completed | DOC-F01 | Locate Command Documentation Under `/usr/share/doc` | **1.k** Locate, read, and use system documentation |
+| 33 | not completed | 39 | Configure SSH and Key-Based Auth | **1.d** Access remote systems using SSH |
+| 34 | not completed | 172 | Proper Use of su vs su - | **1.e** Log in and switch users in multiuser targets |
+| 35 | not completed | 193 | Standard File Compression with gzip | **1.f** Archive, compress, unpack, and uncompress files |
+| 36 | not completed | 194 | High-Ratio Compression with bzip2 | **1.f** Archive, compress, unpack, and uncompress files |
+| 37 | not completed | 195 | Create Standard Archives with tar | **1.f** Archive, compress, unpack, and uncompress files |
+| 38 | not completed | 196 | Create Compressed Archives | **1.f** Archive, compress, unpack, and uncompress files |
+| 39 | not completed | 197 | Extract Archives | **1.f** Archive, compress, unpack, and uncompress files |
+| 40 | not completed | 198 | Preserve Security Contexts in Archives | **1.f** Archive, compress, unpack, and uncompress files |
+| 41 | not completed | 40 | Standard File Permissions | **1.j** List, set, and change standard ugo/rwx permissions |
+| 42 | not completed | 41 | Changing Ownership | **1.j** List, set, and change standard ugo/rwx permissions |
+| 43 | not completed | 42 | SUID Executables | **1.j** List, set, and change standard ugo/rwx permissions |
+| 44 | not completed | 43 | Configure SGID and Sticky Bit | **1.j** List, set, and change standard ugo/rwx permissions |
+| 45 | not completed | 44 | Immutable File Attribute | **1.j** List, set, and change standard ugo/rwx permissions |
+| 46 | not completed | 45 | Append-Only File Attribute | **1.j** List, set, and change standard ugo/rwx permissions |
+| 47 | not completed | 46 | Identifying File Attributes | **1.j** List, set, and change standard ugo/rwx permissions |
+| 48 | not completed | 180 | Alter Global Default umask | **1.j** List, set, and change standard ugo/rwx permissions |
+| 49 | not completed | PERM-F04 | Per-User Default umask via `~/.bashrc` | **1.j** List, set, and change standard ugo/rwx permissions |
+| 50 | not completed | FILES-F01 | Find Files by Size Range and Copy Preserving All Attributes | **1.a** Shell prompt and correct syntax |
+| 51 | not completed | FILES-F02 | Find Files Owned by a User Within a Size Range | **1.a** Shell prompt and correct syntax |
+| 52 | not completed | FILES-F03 | Find Configuration Files by Name and Owner | **1.a** Shell prompt and correct syntax |
+| 53 | not completed | FILES-F04 | Find Files Modified More Than 30 Days Ago and Copy with Hierarchy | **1.a** Shell prompt and correct syntax |
+| 54 | not completed | FILES-F05 | Find Directories with the SUID Bit Set + Copy with Attributes | **1.a** Shell prompt and correct syntax |
+| 55 | not completed | FILES-F06 | Find Directories by Size Range and Save Long Listing | **1.a** Shell prompt and correct syntax |
+| 56 | not completed | FILES-F07 | Hard and Symbolic Link Lifecycle Demonstration | **1.i** Create hard and soft links |
+| 57 | not completed | TEXT-F01 | Extract Lines Containing a String Preserving Order | **1.c** Use grep and regular expressions |
+| 58 | not completed | TEXT-F02 | Find Exact Word Matches with `grep -w` | **1.c** Use grep and regular expressions |
+| 59 | not completed | TEXT-F03 | Search Apache Configuration for Listen Directives | **1.c** Use grep and regular expressions |
+| 60 | not completed | ARCH-F01 | Create an xz-Compressed Tar Archive | **1.f** Archive, compress, unpack, and uncompress files |
+| 61 | not completed | ARCH-F02 | Create an Uncompressed Standard Tar Archive | **1.f** Archive, compress, unpack, and uncompress files |
+| 62 | not completed | ARCH-F03 | Restore a Tar Archive into a Specific Destination Directory | **1.f** Archive, compress, unpack, and uncompress files |
+
+#### Objective 2: Create simple shell scripts
+
+| # | Status | ID / # | Full Lab Name | Objective |
+|---|---|---|---|---|
+| 1 | not completed | 226 | Argument-Based Conditional Script | **2.a** Conditionally execute code |
+| 2 | not completed | 227 | Use for Loops for Iteration | **2.b** Use looping constructs |
+| 3 | not completed | in-repo | Bidirectional Bash Script with Argument Logic | **2.a** Conditionally execute code |
+| 4 | not completed | SCRIPT-F02 | Bash Script: Find Files Matching a Pattern and Print stat | **2.b** Use looping constructs |
+| 5 | not completed | SCRIPT-F03 | Bash Script: Create a User Whose Name Comes from a Variable | **2.c** Process script inputs |
+| 6 | not completed | SCRIPT-F04 | Countdown Timer Script with Argument or Interactive Prompt | **2.a** Conditionally execute code |
+| 7 | not completed | SCRIPT-F05 | Sum of an Unknown Number of Integer Arguments | **2.c** Process script inputs |
+| 8 | not completed | SCRIPT-F06 | Find Users by Login Shell and Save the List | **2.d** Processing output of shell commands within a script |
+| 9 | not completed | SCRIPT-F07 | Extract Login Shells of the Last 5 Users in `/etc/passwd` | **2.d** Processing output of shell commands within a script |
+| 10 | not completed | SCRIPT-F08 | Per-User Login Script via `.bash_profile` | **2.d** Processing output of shell commands within a script |
+| 11 | not completed | SCRIPT-F09 | Three-Way Argument-Based Script with Multi-Arg Rejection | **2.a** Conditionally execute code |
+| 12 | not completed | ENV-F01 | System-Wide Environment Variable via `/etc/profile.d` | **2.d** Processing output of shell commands within a script |
+
+#### Objective 3: Operate running systems
+
+| # | Status | ID / # | Full Lab Name | Objective |
+|---|---|---|---|---|
+| 1 | not completed | 85 | Modify GRUB Timeout | **3.c** Interrupt the boot process to gain access |
+| 2 | not completed | 86 | Enable Verbose Kernel Messages | **3.c** Interrupt the boot process to gain access |
+| 3 | not completed | 87 | Generate New GRUB Config | **3.c** Interrupt the boot process to gain access |
+| 4 | not completed | 88 | Reset Root Password via Boot | **3.c** Interrupt the boot process to gain access |
+| 5 | not completed | 89 | Chroot into Rescue Filesystem | **3.c** Interrupt the boot process to gain access |
+| 6 | not completed | BOOT-F01 | Enable Verbose Boot by Removing `quiet` and `rhgb` | **3.c** Interrupt the boot process to gain access |
+| 7 | not completed | USER-F08 | Reset Root Password from GRUB Boot Menu (`rd.break` Path) | **3.c** Interrupt the boot process to gain access |
+| 8 | not completed | 90 | Check Default Boot Target | **3.b** Boot systems into different targets manually |
+| 9 | not completed | 91 | Change Default Boot Target | **3.b** Boot systems into different targets manually |
+| 10 | not completed | 92 | System Reboots and Shutdowns | **3.a** Boot, reboot, and shut down a system normally |
+| 11 | not completed | SYSD-F01 | Set the Default Boot Target to `multi-user.target` | **3.b** Boot systems into different targets manually |
+| 12 | not completed | 93 | List All System Units | **3.i** Start, stop, and check the status of network services |
+| 13 | not completed | 94 | Check Service Status | **3.i** Start, stop, and check the status of network services |
+| 14 | not completed | 95 | Start and Stop Services | **3.i** Start, stop, and check the status of network services |
+| 15 | not completed | 96 | Enable Services at Boot | **3.i** Start, stop, and check the status of network services |
+| 16 | not completed | 97 | Disable Services at Boot | **3.i** Start, stop, and check the status of network services |
+| 17 | not completed | 98 | Mask System Services | **3.i** Start, stop, and check the status of network services |
+| 18 | not completed | 99 | Create and Manage systemd Unit Files | **3.i** Start, stop, and check the status of network services |
+| 19 | not completed | 184 | Audit All Running Processes | **3.d** Identify CPU/memory intensive processes, renice, kill |
+| 20 | not completed | 185 | Identify Process Details | **3.d** Identify CPU/memory intensive processes, renice, kill |
+| 21 | not completed | 186 | View SELinux Process Contexts | **3.d** Identify CPU/memory intensive processes, renice, kill |
+| 22 | not completed | 187 | Real-Time Process Monitoring | **3.d** Identify CPU/memory intensive processes, renice, kill |
+| 23 | not completed | 188 | Adjust Process Priority | **3.d** Identify CPU/memory intensive processes, renice, kill |
+| 24 | not completed | 189 | Start Processes with Custom Priority | **3.e** Adjust process scheduling |
+| 25 | not completed | 190 | Terminate Processes Gracefully | **3.d** Identify CPU/memory intensive processes, renice, kill |
+| 26 | not completed | 191 | Force Kill Unresponsive Processes | **3.d** Identify CPU/memory intensive processes, renice, kill |
+| 27 | not completed | 192 | Kill Processes by Name | **3.d** Identify CPU/memory intensive processes, renice, kill |
+| 28 | not completed | PROC-F01 | Start a Background Process with a Specific nice Value | **3.e** Adjust process scheduling |
+| 29 | not completed | PROC-F02 | Renice a Running Process to a Higher Priority | **3.d** Identify CPU/memory intensive processes, renice, kill |
+| 30 | not completed | PROC-F03 | Lowest-Priority Background Task on User Login | **3.e** Adjust process scheduling |
+| 31 | not completed | PROC-F04 | Clean Termination of a Background Process | **3.d** Identify CPU/memory intensive processes, renice, kill |
+| 32 | not completed | 225 | Enable Recommended Tuning Profile | **3.f** Manage tuning profiles |
+| 33 | not completed | PERF-F01 | Apply the `virtual-guest` Tuning Profile | **3.f** Manage tuning profiles |
+| 34 | not completed | PERF-F02 | Apply a Power-Saving / Virtualization-Balanced Profile | **3.f** Manage tuning profiles |
+| 35 | not completed | 100 | Analyze Boot Performance | **3.g** Locate and interpret system log files and journals |
+| 36 | not completed | 101 | Query Logs with journalctl | **3.g** Locate and interpret system log files and journals |
+| 37 | not completed | 102 | Configure Persistent Journal Logs | **3.h** Preserve system journals |
+| 38 | not completed | 103 | Understand Log Routing | **3.g** Locate and interpret system log files and journals |
+| 39 | not completed | 104 | Monitor Authentication Logs | **3.g** Locate and interpret system log files and journals |
+| 40 | not completed | 105 | Filter systemd Journals by Priority | **3.g** Locate and interpret system log files and journals |
+| 41 | not completed | 106 | Service-Specific Journal Logs | **3.g** Locate and interpret system log files and journals |
+| 42 | not completed | 212 | SSH and SCP File Transfer | **3.j** Securely transfer files between systems |
+| 43 | not completed | SSH-F06 | Secure File Transfer with `scp` Preserving Attributes | **3.j** Securely transfer files between systems |
+
+#### Objective 4: Configure local storage
+
+| # | Status | ID / # | Full Lab Name | Objective |
+|---|---|---|---|---|
+| 1 | not completed | 110 | Inspect Filesystems | **4.a** List, create, delete partitions on MBR and GPT disks |
+| 2 | not completed | 111 | Display Partition Tables | **4.a** List, create, delete partitions on MBR and GPT disks |
+| 3 | not completed | 112 | Create MBR Partition with fdisk | **4.a** List, create, delete partitions on MBR and GPT disks |
+| 4 | not completed | 113 | Change Partition Types in fdisk | **4.a** List, create, delete partitions on MBR and GPT disks |
+| 5 | not completed | 114 | Create GPT Partition with gdisk | **4.a** List, create, delete partitions on MBR and GPT disks |
+| 6 | not completed | 115 | Command-Line Partitioning with parted | **4.a** List, create, delete partitions on MBR and GPT disks |
+| 7 | not completed | 116 | Format Partition with XFS | **4.f** Add new partitions, logical volumes, and swap non-destructively |
+| 8 | not completed | 117 | Format Partition with Ext4 | **4.f** Add new partitions, logical volumes, and swap non-destructively |
+| 9 | not completed | 118 | Check Filesystem Consistency | **4.f** Add new partitions, logical volumes, and swap non-destructively |
+| 10 | not completed | 119 | Inspect Filesystem Features | **4.f** Add new partitions, logical volumes, and swap non-destructively |
+| 11 | not completed | 120 | Create and Activate Swap Space | **4.f** Add new partitions, logical volumes, and swap non-destructively |
+| 12 | not completed | STOR-F03 | Create an MBR Partition with ext4 Mounted by LABEL | **4.a** List, create, delete partitions on MBR and GPT disks |
+| 13 | not completed | STOR-F04 | Create a Companion LVM-Type Partition on the Same Disk | **4.a** List, create, delete partitions on MBR and GPT disks |
+| 14 | not completed | in-repo | Create a Swap Partition by UUID | **4.f** Add new partitions, logical volumes, and swap non-destructively |
+| 15 | not completed | in-repo | Create an Ext4 Partition Mounted by LABEL | **4.a** List, create, delete partitions on MBR and GPT disks |
+| 16 | not completed | in-repo | Initialize Physical Volumes | **4.b** Create and remove physical volumes |
+| 17 | not completed | in-repo | Display Physical Volumes | **4.b** Create and remove physical volumes |
+| 18 | not completed | in-repo | Create Volume Group | **4.c** Assign physical volumes to volume groups |
+| 19 | not completed | in-repo | Display Volume Groups | **4.c** Assign physical volumes to volume groups |
+| 20 | not completed | in-repo | Create Logical Volume | **4.d** Create and delete logical volumes |
+| 21 | not completed | in-repo | Display Logical Volumes | **4.d** Create and delete logical volumes |
+| 22 | not completed | in-repo | Extend Volume Group | **4.c** Assign physical volumes to volume groups |
+| 23 | not completed | in-repo | Extend Logical Volume | **4.d** Create and delete logical volumes |
+| 24 | not completed | in-repo | Resize Filesystem After Extend | **4.f** Add new partitions, logical volumes, and swap non-destructively |
+| 25 | not completed | in-repo | Remove LVM Components | **4.b** Create and remove physical volumes |
+| 26 | not completed | in-repo (LAB) | Create LV `lvol1` (ext4, 280 MB) | **4.d** Create and delete logical volumes |
+| 27 | not completed | in-repo | Create LV with XFS Filesystem | **4.d** Create and delete logical volumes |
+| 28 | not completed | in-repo | Online Extend an LV and Its Filesystem Without Unmounting | **4.f** Add new partitions, logical volumes, and swap non-destructively |
+| 29 | not completed | LVM-F02 | Create an LVM VDO Volume with Thin Provisioning | **4.f** Add new partitions, logical volumes, and swap non-destructively |
+| 30 | not completed | LVM-F03 | LV by Extent Count in a VG with Custom PE Size (ext4 variant) | **4.d** Create and delete logical volumes |
+| 31 | not completed | LVM-F04 | LV Sized as a Percentage of the VG with XFS + UUID Mount | **4.d** Create and delete logical volumes |
+| 32 | not completed | LVM-F05 | LV Sized as a Percentage of Free Space with XFS | **4.d** Create and delete logical volumes |
+| 33 | not completed | LVM-F06 | LV with Extent Count + Reserved Free Extents Constraint | **4.d** Create and delete logical volumes |
+| 34 | not completed | LVM-F07 | Online Resize LV to a New Total Extent Count + Grow ext4 | **4.f** Add new partitions, logical volumes, and swap non-destructively |
+| 35 | not completed | LVM-F08 | Add Extents to an Existing LV + Grow XFS Online | **4.f** Add new partitions, logical volumes, and swap non-destructively |
+| 36 | not completed | LVM-F09 | Create Swap from Remaining VG Free Space | **4.f** Add new partitions, logical volumes, and swap non-destructively |
+| 37 | not completed | 131 | Mount Filesystem Manually | **4.e** Configure systems to mount file systems at boot by UUID or label |
+| 38 | not completed | 132 | Retrieve Filesystem UUIDs | **4.e** Configure systems to mount file systems at boot by UUID or label |
+| 39 | not completed | 133 | Configure Persistent Mounts fstab | **4.e** Configure systems to mount file systems at boot by UUID or label |
+
+#### Objective 5: Create and configure file systems
+
+| # | Status | ID / # | Full Lab Name | Objective |
+|---|---|---|---|---|
+| 1 | not completed | 116 | Format Partition with XFS | **5.a** Create, mount, unmount, and use vfat, ext4, and xfs file systems |
+| 2 | not completed | 117 | Format Partition with Ext4 | **5.a** Create, mount, unmount, and use vfat, ext4, and xfs file systems |
+| 3 | not completed | in-repo | Create an Ext4 Partition Mounted by LABEL | **5.a** Create, mount, unmount, and use vfat, ext4, and xfs file systems |
+| 4 | not completed | in-repo | Create LV with XFS Filesystem | **5.a** Create, mount, unmount, and use vfat, ext4, and xfs file systems |
+| 5 | not completed | 131 | Mount Filesystem Manually | **5.a** Create, mount, unmount, and use vfat, ext4, and xfs file systems |
+| 6 | not completed | 133 | Configure Persistent Mounts fstab | **5.a** Create, mount, unmount, and use vfat, ext4, and xfs file systems |
+| 7 | not completed | 135 | Remount with New Options | **5.a** Create, mount, unmount, and use vfat, ext4, and xfs file systems |
+| 8 | not completed | 134 | Mount Network CIFS Shares | **5.b** Mount and unmount network file systems using NFS |
+| 9 | not completed | NFS-F01 | NFS Server + AutoFS Direct Map | **5.b** Mount and unmount network file systems using NFS |
+| 10 | not completed | NFS-F02 | NFS Home-Directory Export with AutoFS Indirect Map on Login | **5.b** Mount and unmount network file systems using NFS |
+| 11 | not completed | NFS-F03 | NFS Static Export with Persistent `/etc/fstab` Mount | **5.b** Mount and unmount network file systems using NFS |
+| 12 | not completed | NFS-F04 | Configure a Node as an NFS Server (companion lab) | **5.b** Mount and unmount network file systems using NFS |
+| 13 | not completed | 136 | Manage Autofs Service | **5.c.RHEL9** Configure Autofs |
+| 14 | not completed | NFS-F05 | AutoFS Indirect Map for Remote Home Dirs with 60s Timeout | **5.c.RHEL9** Configure Autofs |
+| 15 | not completed | NFS-F06 | AutoFS Direct Map for `/mnt/shared` with 5-Minute Timeout | **5.c.RHEL9** Configure Autofs |
+| 16 | not completed | in-repo | Online Extend an LV and Its Filesystem Without Unmounting | **5.d** Extend existing logical volumes |
+| 17 | not completed | LVM-F07 | Online Resize LV to a New Total Extent Count + Grow ext4 | **5.d** Extend existing logical volumes |
+| 18 | not completed | LVM-F08 | Add Extents to an Existing LV + Grow XFS Online | **5.d** Extend existing logical volumes |
+| 19 | not completed | 43 | Configure SGID and Sticky Bit | **5.e** Create and configure set-GID directories for collaboration |
+| 20 | not completed | 182 | Control Group Ownership SGID | **5.e** Create and configure set-GID directories for collaboration |
+| 21 | not completed | 183 | Set Up Group-Managed Directory | **5.e** Create and configure set-GID directories for collaboration |
+| 22 | not completed | PERM-F01 | Collaborative SGID Directory with Multi-User Write Test | **5.e** Create and configure set-GID directories for collaboration |
+| 23 | not completed | PERM-F05 | Collaborative Group Directory with SGID + Sticky Bit | **5.e** Create and configure set-GID directories for collaboration |
+| 24 | not completed | LVM-F02 | Create an LVM VDO Volume with Thin Provisioning | **5.e.RHEL8** Configure disk compression |
+| 25 | not completed | PERM-F02 | File Copy with Combined Ownership + Permissions + ACL + Future-User Safety | **5.g** Diagnose and correct file permission problems |
+| 26 | not completed | PERM-F03 | ACL with Mixed Read/Write/Read-Only Per User | **5.g** Diagnose and correct file permission problems |
+| 27 | not completed | PERM-F06 | Restricted Directory Where Owner Has chmod But No rwx | **5.g** Diagnose and correct file permission problems |
+
+#### Objective 6: Deploy, configure, and maintain systems
+
+| # | Status | ID / # | Full Lab Name | Objective |
+|---|---|---|---|---|
+| 1 | not completed | 199 | Review System-Wide cron Jobs | **6.a** Schedule tasks using at and cron |
+| 2 | not completed | 200 | Schedule Tasks with cron | **6.a** Schedule tasks using at and cron |
+| 3 | not completed | 201 | Remove User cron Jobs | **6.a** Schedule tasks using at and cron |
+| 4 | not completed | 202 | Schedule One-Time Task with at | **6.a** Schedule tasks using at and cron |
+| 5 | not completed | 203 | Limit Access to cron | **6.a** Schedule tasks using at and cron |
+| 6 | not completed | 204 | Limit Access to at | **6.a** Schedule tasks using at and cron |
+| 7 | not completed | 205 | Review the Anacron System | **6.a** Schedule tasks using at and cron |
+| 8 | not completed | 206 | Create a Specific cron Job | **6.a** Schedule tasks using at and cron |
+| 9 | not completed | 207 | Schedule Software Audit with at | **6.a** Schedule tasks using at and cron |
+| 10 | not completed | in-repo (LAB) | Scheduling Jobs (systemd timer, Mon–Fri 2 AM) | **6.a** Schedule tasks using at and cron |
+| 11 | not completed | in-repo | User-Level Cron Job with `find -exec` | **6.a** Schedule tasks using at and cron |
+| 12 | not completed | CRON-F02 | User Cron Job at 12:45 AM Daily | **6.a** Schedule tasks using at and cron |
+| 13 | not completed | CRON-F03 | Recurring User Cron Job Every 2 Minutes | **6.a** Schedule tasks using at and cron |
+| 14 | not completed | CRON-F04 | Weekday-Only Cron Job at 5:45 AM | **6.a** Schedule tasks using at and cron |
+| 15 | not completed | CRON-F05 | Midnight-Weekend Root Cron Job to Clean Empty Files in `/tmp` | **6.a** Schedule tasks using at and cron |
+| 16 | not completed | CRON-F06 | One-Time `at` Job for a Specific Wall-Clock Time | **6.a** Schedule tasks using at and cron |
+| 17 | not completed | CRON-F07 | One-Time `at` Job One Hour from Now Writing to journald | **6.a** Schedule tasks using at and cron |
+| 18 | not completed | 93 | List All System Units | **6.b** Start/stop services and configure services to start automatically at boot |
+| 19 | not completed | 94 | Check Service Status | **6.b** Start/stop services and configure services to start automatically at boot |
+| 20 | not completed | 95 | Start and Stop Services | **6.b** Start/stop services and configure services to start automatically at boot |
+| 21 | not completed | 96 | Enable Services at Boot | **6.b** Start/stop services and configure services to start automatically at boot |
+| 22 | not completed | 97 | Disable Services at Boot | **6.b** Start/stop services and configure services to start automatically at boot |
+| 23 | not completed | 98 | Mask System Services | **6.b** Start/stop services and configure services to start automatically at boot |
+| 24 | not completed | 99 | Create and Manage systemd Unit Files | **6.b** Start/stop services and configure services to start automatically at boot |
+| 25 | not completed | 90 | Check Default Boot Target | **6.c** Configure systems to boot into a specific target automatically |
+| 26 | not completed | 91 | Change Default Boot Target | **6.c** Configure systems to boot into a specific target automatically |
+| 27 | not completed | SYSD-F01 | Set the Default Boot Target to `multi-user.target` | **6.c** Configure systems to boot into a specific target automatically |
+| 28 | not completed | 107 | Configure Timezone and Time Synchronization | **6.d** Configure time service clients |
+| 29 | not completed | 108 | Check NTP Sync Status | **6.d** Configure time service clients |
+| 30 | not completed | 109 | Configure NTP Time Source | **6.d** Configure time service clients |
+| 31 | not completed | TIME-F01 | Set System Timezone via `timedatectl` | **6.d** Configure time service clients |
+| 32 | not completed | TIME-F02 | Configure Chrony with a Specific NTP Server | **6.d** Configure time service clients |
+| 33 | not completed | 137 | Install Local RPM Package | **6.e** Install and update software packages |
+| 34 | not completed | 138 | Upgrade RPM Package | **6.e** Install and update software packages |
+| 35 | not completed | 139 | Install New Kernel Safely | **6.e** Install and update software packages |
+| 36 | not completed | 140 | Uninstall Package rpm -e | **6.e** Install and update software packages |
+| 37 | not completed | 141 | Query All Installed Packages | **6.e** Install and update software packages |
+| 38 | not completed | 142 | Query Specific Package Info | **6.e** Install and update software packages |
+| 39 | not completed | 143 | List Files Within Package | **6.e** Install and update software packages |
+| 40 | not completed | 144 | Identify File Owner | **6.e** Install and update software packages |
+| 41 | not completed | 145 | Query Uninstalled RPMs | **6.e** Install and update software packages |
+| 42 | not completed | 146 | Verify Package Integrity | **6.e** Install and update software packages |
+| 43 | not completed | 147 | System-Wide Verification | **6.e** Install and update software packages |
+| 44 | not completed | 148 | Import GPG Key | **6.e** Install and update software packages |
+| 45 | not completed | 149 | Check Package Signatures | **6.e** Install and update software packages |
+| 46 | not completed | 150 | Configure Repository Access | **6.e** Install and update software packages |
+| 47 | not completed | 151 | Install Packages with dnf | **6.e** Install and update software packages |
+| 48 | not completed | 152 | Remove Packages with dnf | **6.e** Install and update software packages |
+| 49 | not completed | 153 | Update System dnf update | **6.e** Install and update software packages |
+| 50 | not completed | 154 | Search for Software | **6.e** Install and update software packages |
+| 51 | not completed | 155 | Find File Providers | **6.e** Install and update software packages |
+| 52 | not completed | 156 | List dnf Packages | **6.e** Install and update software packages |
+| 53 | not completed | 157 | Display Enabled Repositories | **6.e** Install and update software packages |
+| 54 | not completed | 158 | View Package Group Info | **6.e** Install and update software packages |
+| 55 | not completed | 159 | Install Package Groups | **6.e** Install and update software packages |
+| 56 | not completed | 160 | Create Custom YUM Repository | **6.e** Install and update software packages |
+| 57 | not completed | 161 | Managing Flatpak | **6.e** Install and update software packages |
+| 58 | not completed | in-repo | Install Development Tools Package Group with Output Capture | **6.e** Install and update software packages |
+| 59 | not completed | PKG-F02 | Configure Local Repository from Installation ISO Media | **6.e** Install and update software packages |
+| 60 | not completed | PKG-F03 | Configure Two HTTP-Hosted Repositories from a Network Source | **6.e** Install and update software packages |
+| 61 | not completed | 85 | Modify GRUB Timeout | **6.g** Modify the system bootloader |
+| 62 | not completed | 86 | Enable Verbose Kernel Messages | **6.g** Modify the system bootloader |
+| 63 | not completed | 87 | Generate New GRUB Config | **6.g** Modify the system bootloader |
+| 64 | not completed | BOOT-F01 | Enable Verbose Boot by Removing `quiet` and `rhgb` | **6.g** Modify the system bootloader |
+
+#### Objective 7: Manage basic networking
+
+| # | Status | ID / # | Full Lab Name | Objective |
+|---|---|---|---|---|
+| 1 | not completed | 31 | Configure a Static IP Address | **7.a** Configure IPv4 and IPv6 addresses |
+| 2 | not completed | 32 | Check Network Connectivity | **7.a** Configure IPv4 and IPv6 addresses |
+| 3 | not completed | 33 | Display IP and Routing Info | **7.a** Configure IPv4 and IPv6 addresses |
+| 4 | not completed | 34 | Inspecting Listening Sockets | **7.a** Configure IPv4 and IPv6 addresses |
+| 5 | not completed | 35 | Text-Based Network Config nmtui | **7.a** Configure IPv4 and IPv6 addresses |
+| 6 | not completed | 36 | Command-Line Network Config nmcli | **7.a** Configure IPv4 and IPv6 addresses |
+| 7 | not completed | NET-F01 | Manual Hostname Configuration by Editing `/etc/hostname` | **7.b** Configure hostname resolution |
+| 8 | not completed | NET-F02 | Manual Network Configuration by Editing Connection Files | **7.a** Configure IPv4 and IPv6 addresses |
+| 9 | not completed | NET-F03 | Configure Static IPv4 with Specific Host Address | **7.a** Configure IPv4 and IPv6 addresses |
+| 10 | not completed | NET-F04 | Configure Static IPv6 Address with DNS Search Domain | **7.a** Configure IPv4 and IPv6 addresses |
+| 11 | not completed | NET-F05 | Dual-Stack IPv4 + IPv6 with Local Host Resolution | **7.a** Configure IPv4 and IPv6 addresses |
+| 12 | not completed | 37 | Configuring Local Host Resolution | **7.b** Configure hostname resolution |
+| 13 | not completed | 38 | Configuring DNS Servers | **7.b** Configure hostname resolution |
+| 14 | not completed | SSH-F05 | Configure Local `/etc/hosts` Name Resolution | **7.b** Configure hostname resolution |
+| 15 | not completed | 96 | Enable Services at Boot | **7.c** Configure network services to start automatically at boot |
+| 16 | not completed | 55 | Inspecting iptables | **7.d** Restrict network access using firewall-cmd / firewall |
+| 17 | not completed | 56 | Exploring firewalld Zones | **7.d** Restrict network access using firewall-cmd / firewall |
+| 18 | not completed | 57 | Changing Default Firewall Zone | **7.d** Restrict network access using firewall-cmd / firewall |
+| 19 | not completed | 58 | Adding Services to Zones | **7.d** Restrict network access using firewall-cmd / firewall |
+| 20 | not completed | 59 | Opening Custom Ports | **7.d** Restrict network access using firewall-cmd / firewall |
+| 21 | not completed | 60 | Inspect Active Firewall Zones | **7.d** Restrict network access using firewall-cmd / firewall |
+| 22 | not completed | 61 | Reassign Interfaces to Zones | **7.d** Restrict network access using firewall-cmd / firewall |
+| 23 | not completed | 62 | Allow Services Through Firewall | **7.d** Restrict network access using firewall-cmd / firewall |
+| 24 | not completed | 63 | Configure IP Masquerading NAT | **7.d** Restrict network access using firewall-cmd / firewall |
+| 25 | not completed | 64 | Configure IP Forwarding | **7.d** Restrict network access using firewall-cmd / firewall |
+| 26 | not completed | 65 | Configure Rich Rules | **7.d** Restrict network access using firewall-cmd / firewall |
+| 27 | not completed | 66 | Setup Port Forwarding DNAT | **7.d** Restrict network access using firewall-cmd / firewall |
+| 28 | not completed | 67 | Configure ICMP Filters | **7.d** Restrict network access using firewall-cmd / firewall |
+| 29 | not completed | FW-F01 | Open Multiple Services at Once for Web Hosting | **7.d** Restrict network access using firewall-cmd / firewall |
+| 30 | not completed | FW-F02 | Open a Non-Standard SSH Port + Move SSH There | **7.d** Restrict network access using firewall-cmd / firewall |
+| 31 | not completed | 219 | Comprehensive firewalld Setup | **7.d** Restrict network access using firewall-cmd / firewall |
+
+#### Objective 8: Manage users and groups
+
+| # | Status | ID / # | Full Lab Name | Objective |
+|---|---|---|---|---|
+| 1 | not completed | 162 | Inspect Password Database | **8.a** Create, delete, and modify local user accounts |
+| 2 | not completed | 163 | Analyze Shadow File | **8.a** Create, delete, and modify local user accounts |
+| 3 | not completed | 165 | User & Group Management / Permissions | **8.a** Create, delete, and modify local user accounts |
+| 4 | not completed | 166 | Modify Existing Account | **8.a** Create, delete, and modify local user accounts |
+| 5 | not completed | 169 | Safely Delete Users | **8.a** Create, delete, and modify local user accounts |
+| 6 | not completed | 170 | Disable User Login Without Removing the Account | **8.a** Create, delete, and modify local user accounts |
+| 7 | not completed | 171 | Validate User and Group Creation | **8.a** Create, delete, and modify local user accounts |
+| 8 | not completed | 178 | Populate Directory Templates | **8.a** Create, delete, and modify local user accounts |
+| 9 | not completed | 179 | Manage Shell Environments | **8.a** Create, delete, and modify local user accounts |
+| 10 | not completed | 181 | Distribute Documentation via Skel | **8.a** Create, delete, and modify local user accounts |
+| 11 | not completed | in-repo | Lock User Account and Capture Regex Evidence | **8.a** Create, delete, and modify local user accounts |
+| 12 | not completed | USER-F01 | Group with Fixed GID + User with Primary/Secondary Groups | **8.a** Create, delete, and modify local user accounts |
+| 13 | not completed | USER-F02 | User Without Interactive Shell (`nologin`) That Still Authenticates | **8.a** Create, delete, and modify local user accounts |
+| 14 | not completed | USER-F03 | User With Explicit (Hand-Built) Home Directory | **8.a** Create, delete, and modify local user accounts |
+| 15 | not completed | USER-F06 | Welcome.txt Auto-Created for Every New User via `/etc/skel` | **8.a** Create, delete, and modify local user accounts |
+| 16 | not completed | 164 | Modify Default Password Aging | **8.b** Change passwords and adjust password aging |
+| 17 | not completed | 168 | Force Password Changes | **8.b** Change passwords and adjust password aging |
+| 18 | not completed | USER-F04 | Force Password Change at Next Login | **8.b** Change passwords and adjust password aging |
+| 19 | not completed | USER-F05 | Set Hard Account Expiry Date | **8.b** Change passwords and adjust password aging |
+| 20 | not completed | USER-F07 | Configure System-Wide Password Aging Policy | **8.b** Change passwords and adjust password aging |
+| 21 | not completed | 167 | Advanced Group Management | **8.c** Create, delete, and modify local groups and group memberships |
+| 22 | not completed | 182 | Control Group Ownership SGID | **8.c** Create, delete, and modify local groups and group memberships |
+| 23 | not completed | 183 | Set Up Group-Managed Directory | **8.c** Create, delete, and modify local groups and group memberships |
+| 24 | not completed | 172 | Proper Use of su vs su - | **8.d** Configure superuser access |
+| 25 | not completed | 173 | Limit Access to su PAM | **8.d** Configure superuser access |
+| 26 | not completed | 174 | Configure Custom Administrators | **8.d** Configure superuser access |
+| 27 | not completed | 175 | Granular sudo Privileges | **8.d** Configure superuser access |
+| 28 | not completed | 176 | Limit root Logins | **8.d** Configure superuser access |
+| 29 | not completed | 177 | Restrict Root to Single Console | **8.d** Configure superuser access |
+| 30 | not completed | SUDO-F01 | Full Sudo for a User + NOPASSWD for an Entire Group | **8.d** Configure superuser access |
+| 31 | not completed | SUDO-F02 | Granular Sudo: Allow `passwd` Except Root Password Changes | **8.d** Configure superuser access |
+| 32 | not completed | SUDO-F03 | Privileged User with Account Expiry | **8.d** Configure superuser access |
+
+#### Objective 9: Manage security
+
+| # | Status | ID / # | Full Lab Name | Objective |
+|---|---|---|---|---|
+| 1 | not completed | 55 | Inspecting iptables | **9.a** Configure firewall settings |
+| 2 | not completed | 56 | Exploring firewalld Zones | **9.a** Configure firewall settings |
+| 3 | not completed | 57 | Changing Default Firewall Zone | **9.a** Configure firewall settings |
+| 4 | not completed | 58 | Adding Services to Zones | **9.a** Configure firewall settings |
+| 5 | not completed | 59 | Opening Custom Ports | **9.a** Configure firewall settings |
+| 6 | not completed | 60 | Inspect Active Firewall Zones | **9.a** Configure firewall settings |
+| 7 | not completed | 61 | Reassign Interfaces to Zones | **9.a** Configure firewall settings |
+| 8 | not completed | 62 | Allow Services Through Firewall | **9.a** Configure firewall settings |
+| 9 | not completed | 63 | Configure IP Masquerading NAT | **9.a** Configure firewall settings |
+| 10 | not completed | 64 | Configure IP Forwarding | **9.a** Configure firewall settings |
+| 11 | not completed | 65 | Configure Rich Rules | **9.a** Configure firewall settings |
+| 12 | not completed | 66 | Setup Port Forwarding DNAT | **9.a** Configure firewall settings |
+| 13 | not completed | 67 | Configure ICMP Filters | **9.a** Configure firewall settings |
+| 14 | not completed | FW-F01 | Open Multiple Services at Once for Web Hosting | **9.a** Configure firewall settings |
+| 15 | not completed | FW-F02 | Open a Non-Standard SSH Port + Move SSH There | **9.a** Configure firewall settings |
+| 16 | not completed | 219 | Comprehensive firewalld Setup | **9.a** Configure firewall settings |
+| 17 | not completed | 47 | Check ACL Support | **9.b.RHEL8** Create and use file access control lists |
+| 18 | not completed | 48 | Viewing ACLs | **9.b.RHEL8** Create and use file access control lists |
+| 19 | not completed | 49 | Modifying ACLs | **9.b.RHEL8** Create and use file access control lists |
+| 20 | not completed | 50 | Denying Access via ACLs | **9.b.RHEL8** Create and use file access control lists |
+| 21 | not completed | 51 | Default Directory ACLs | **9.b.RHEL8** Create and use file access control lists |
+| 22 | not completed | 52 | ACL Masks | **9.b.RHEL8** Create and use file access control lists |
+| 23 | not completed | 53 | Removing ACLs | **9.b.RHEL8** Create and use file access control lists |
+| 24 | not completed | PERM-F04 | Per-User Default umask via `~/.bashrc` | **9.b.RHEL9** Manage default file permissions |
+| 25 | not completed | 180 | Alter Global Default umask | **9.b.RHEL9** Manage default file permissions |
+| 26 | not completed | 39 | Configure SSH and Key-Based Auth | **9.c** Configure key-based authentication for SSH |
+| 27 | not completed | SSH-F01 | Configure SSH to Listen on a Custom Port | **9.c** Configure key-based authentication for SSH |
+| 28 | not completed | SSH-F02 | Permit Root SSH Login with Authentication-Failure Lockout | **9.c** Configure key-based authentication for SSH |
+| 29 | not completed | SSH-F03 | Passwordless SSH from Root to Remote Root | **9.c** Configure key-based authentication for SSH |
+| 30 | not completed | SSH-F04 | Key-Based SSH from a User to a Remote Root on a Custom Port | **9.c** Configure key-based authentication for SSH |
+| 31 | not completed | 208 | Generate a GPG Key Pair | **9.c** Configure key-based authentication for SSH |
+| 32 | not completed | 209 | Encrypt a File with GPG | **9.c** Configure key-based authentication for SSH |
+| 33 | not completed | 210 | Decrypt a GPG File | **9.c** Configure key-based authentication for SSH |
+| 34 | not completed | 211 | Share and Verify Public Keys | **9.c** Configure key-based authentication for SSH |
+| 35 | not completed | 78 | Managing SELinux Modes | **9.d** Set enforcing and permissive modes for SELinux |
+| 36 | not completed | SEL-F03 | Set SELinux to Permissive Mode Persistently | **9.d** Set enforcing and permissive modes for SELinux |
+| 37 | not completed | 79 | Viewing SELinux Contexts | **9.e** List and identify SELinux file and process context |
+| 38 | not completed | 186 | View SELinux Process Contexts | **9.e** List and identify SELinux file and process context |
+| 39 | not completed | 83 | SELinux User Mapping | **9.e** List and identify SELinux file and process context |
+| 40 | not completed | 80 | Temporary Context Changes | **9.e** List and identify SELinux file and process context |
+| 41 | not completed | 81 | Persistent Context Restoration | **9.f** Restore default file contexts |
+| 42 | not completed | in-repo | Apply Recursive SELinux Contexts to a New Directory | **9.f** Restore default file contexts |
+| 43 | not completed | SEL-F04 | Apply Recursive SELinux Context from a Reference Directory | **9.f** Restore default file contexts |
+| 44 | not completed | SEL-F02 | Add a Custom HTTP Port to the SELinux Policy Database | **9.ex.RHEL9** Manage SELinux Ports |
+| 45 | not completed | 82 | Toggling SELinux Booleans | **9.g** Use boolean settings to modify system SELinux settings |
+| 46 | not completed | SEL-F06 | Toggle the `httpd_can_network_connect` Boolean Persistently | **9.g** Use boolean settings to modify system SELinux settings |
+| 47 | not completed | 84 | Troubleshooting SELinux | **9.h** Diagnose and address routine SELinux policy violations |
+| 48 | not completed | 220 | PAM and SELinux with FTP | **9.h** Diagnose and address routine SELinux policy violations |
+| 49 | not completed | 72 | Explore PAM Config Files | **9.h** Diagnose and address routine SELinux policy violations |
+| 50 | not completed | 73 | Read PAM Module Documentation | **9.h** Diagnose and address routine SELinux policy violations |
+| 51 | not completed | 74 | Implement Password Complexity | **9.h** Diagnose and address routine SELinux policy violations |
+| 52 | not completed | 75 | Configure PAM to Limit root Access | **9.h** Diagnose and address routine SELinux policy violations |
+| 53 | not completed | 76 | Use PAM to Limit User Access | **9.h** Diagnose and address routine SELinux policy violations |
+| 54 | not completed | 77 | Restrict Service Access by User List | **9.h** Diagnose and address routine SELinux policy violations |
+| 55 | not completed | 217 | Monitor Security Updates | **9.h** Diagnose and address routine SELinux policy violations |
+| 56 | not completed | 68 | Verify TCP Wrappers Support | **9.a** Configure firewall settings |
+| 57 | not completed | 69 | Restrict Access via hosts.deny | **9.a** Configure firewall settings |
+| 58 | not completed | 70 | Allow Specific Access via hosts.allow | **9.a** Configure firewall settings |
+| 59 | not completed | 71 | Configure TCP Wrappers for FTP | **9.a** Configure firewall settings |
+| 60 | not completed | 216 | Service Isolation Bastion Host | **9.a** Configure firewall settings |
+| 61 | not completed | 218 | Build a Bastion Server | **9.a** Configure firewall settings |
+
+#### Objective 10: Manage containers
+
+| # | Status | ID / # | Full Lab Name | Objective |
+|---|---|---|---|---|
+| 1 | not completed | CON-F05 | Authenticated Pull from `registry.redhat.io` | **10.a** Find and retrieve container images from a remote registry |
+| 2 | not completed | CON-F06 | Build a UBI Image from a Single-Line Containerfile | **10.b** Inspect container images · **10.cx.RHEL9** Build from Containerfile |
+| 3 | not completed | CON-F02 | Build a Custom Container Image with a Containerfile | **10.b** Inspect container images · **10.cx.RHEL9** Build from Containerfile |
+| 4 | not completed | LAB | Launch Named Root Container with Port Mapping | **10.c** podman/skopeo · **10.d** Run, start, stop, list |
+| 5 | not completed | in-repo | Rootless Container with Bind Mount and systemd Auto-Start | **10.d** Run, start, stop, list · **10.f** systemd auto-start · **10.g** persistent storage |
+| 6 | not completed | CON-F03 | Rootless Container with Port Mapping + systemd Auto-Start | **10.d** Run, start, stop, list · **10.f** systemd auto-start |
+| 7 | not completed | CON-F04 | Rootless Container with Bind Mount + Env Vars + Port Mapping | **10.d** Run, start, stop, list · **10.f** systemd auto-start · **10.g** persistent storage |
+| 8 | not completed | CON-F07 | Rootless HTTP Container with Bind-Mounted DocumentRoot | **10.e** Run a service inside a container · **10.g** persistent storage |
+| 9 | not completed | CON-F08 | Rootless Database Container with Env Vars + Persistent Data | **10.e** Run a service inside a container · **10.g** persistent storage |
+| 10 | not completed | CON-F09 | Rootless Nginx with Custom Config + DocumentRoot Mounts | **10.e** Run a service inside a container · **10.g** persistent storage |
+| 11 | not completed | CON-F10 | Multi-Mount Rootless Container with Two Bind Mounts + Port | **10.g** Attach persistent storage to a container |
+| 12 | not completed | 161 | Managing Flatpak | **10.c** Perform container management using podman and skopeo |
+| 13 | not completed | CON-F11 | Add Both Flathub and RHEL Flatpak Remotes | **10.c** Perform container management using podman and skopeo |
+| 14 | not completed | CON-F12 | Install Flatpak Applications (Firefox + VLC + GIMP) | **10.c** Perform container management using podman and skopeo |
+| 15 | not completed | CON-F13 | User-Scoped vs System-Wide Flatpak Installation | **10.c** Perform container management using podman and skopeo |
+| 16 | not completed | CON-F14 | Remove Flatpak Apps, Prune Runtimes, Remove Remote | **10.c** Perform container management using podman and skopeo |
+
+> **Labs outside the RHCSA exam blueprint.** The following labs in this repo are **not** on the official RHCSA v10 objectives and are optional enrichment only: **213** Network Troubleshooting · **214** Command-Line Web and FTP Testing · **215** Command-Line Email Testing · **221–224** Apache web services · **WEB-F01–WEB-F05** Apache future labs · **54** NFSv4 ACLs · **5.f.RHEL8** layered storage (no dedicated lab yet).
 
 ---
 
@@ -1950,6 +2399,7 @@ The main [README](README.md) is organized by RHCSA EX200 exam objective with glo
 2. **Full paths to every lab** — companion-repo URLs are written out in plain text, in-repo `labs/<slug>/` paths are linked, and "coming soon" placeholders point back to the specific README section by lab number so you can always find the source.
 3. **Future-lab prefixes** — `LVM-F##`, `NET-F##`, `ANS-CH1-F##`, etc. are stable identifiers that survive renumbering when labs get built and slotted into the main README's global sequence.
 4. **The non-RHCSA tracks** — the README is RHCSA-first; this roadmap surfaces the parallel RHCE / CKA / CKAD / Ansible curricula so the whole multi-cert arc is visible in one place.
+5. **Exam-objective study order** — the [Complete Labs by RHCSA v10 Objective (EX200)](#-complete-labs-by-rhcsa-v10-objective-ex200) section lists every RHCSA lab under official objectives **1 → 10**, sub-ordered **a → h** within each objective, for straight EX200 exam prep.
 
 When a lab is re-authored under the ADHD-method format in [`labs/<slug>/`](labs/), its row in this roadmap will be updated from `not completed` to the new completion status, and a new row will be added to the main [README](README.md) with the next free global number (e.g. `228`, `229`...).
 
