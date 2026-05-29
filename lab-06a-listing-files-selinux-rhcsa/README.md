@@ -8,7 +8,7 @@
 - **Tasks:** 2 (ADHD spec — Task 1 canonical, Task 2 contrast)
 - **Practice Directory (rotation #06):** `/etc`
 - **Sandbox:** `/tmp/listing-lab/` + `/srv/www-lab-06/`
-- **Traps rehearsed this lab:** **T01** (Forgetting `-Z` means you missed the SELinux column — invisible bug) · **T02** (`restorecon` without `-Rv` silently does nothing or only fixes one file) · **T03** (`chcon` is temporary — survives current boot but lost on relabel; only `semanage fcontext`/`sefcontext` is permanent)
+- **Traps rehearsed this lab:** **T01** (using `chcon` when a permanent fix is needed — survives until `restorecon -R /` runs) · **T02** (forgetting the `'PATH(/.*)?'` regex when adding fcontext for a directory tree) · **T03** (forgetting `restorecon` after `semanage fcontext -a`)
 
 > **This lab's practice directory is: `/etc`** — every task references it in at least two commands. `/srv/www-lab-06/` is the sandbox where we deliberately mislabel and fix.
 
@@ -320,8 +320,7 @@ echo "exit was: $?"
 | `ls -lZ` has no context column | SELinux is disabled — check `getenforce`; re-enable via `/etc/selinux/config` and reboot |
 | `getenforce` prints `Permissive` | `sudo setenforce 1` (temporary) or edit `/etc/selinux/config` and reboot |
 | `ls -lZ /etc/shadow` shows `Permission denied` | Run with `sudo` — shadow is mode `000` |
-| Context column shows `?` | SELinux policy not loaded — run `sestatus` and check for errors |
-| `grep -c 'passwd_file_t'` returns 0 | Re-run the capture block with `ls -lZ` (not plain `ls -l`) |
+| Context column shows `?` | SELinux policy not loaded — run `sestatus` |
 
 > **STOP — paste the output of `cat $JDIR/done.txt` and the final `grep -c 'shadow_t' $JDIR/evidence.txt` before starting Task 2.**
 
@@ -438,15 +437,10 @@ The `chcon` contrast demonstrates T03: a junior admin runs `chcon`, the page wor
 $ ls -lZ /srv/www-lab-06/index.html
 -rw-r--r--. 1 root root unconfined_u:object_r:var_t:s0 15 May 27 14:05 /srv/www-lab-06/index.html
 
-$ sudo semanage fcontext -l | grep '/srv/www-lab-06'
-/srv/www-lab-06(/.*)?                                   all files          system_u:object_r:httpd_sys_content_t:s0
-
 $ sudo restorecon -nv /srv/www-lab-06/
-Would relabel /srv/www-lab-06 from unconfined_u:object_r:var_t:s0 to unconfined_u:object_r:httpd_sys_content_t:s0
 Would relabel /srv/www-lab-06/index.html from unconfined_u:object_r:var_t:s0 to unconfined_u:object_r:httpd_sys_content_t:s0
 
 $ sudo restorecon -Rv /srv/www-lab-06/
-Relabeled /srv/www-lab-06 from unconfined_u:object_r:var_t:s0 to unconfined_u:object_r:httpd_sys_content_t:s0
 Relabeled /srv/www-lab-06/index.html from unconfined_u:object_r:var_t:s0 to unconfined_u:object_r:httpd_sys_content_t:s0
 
 $ ls -lZ /srv/www-lab-06/
@@ -455,13 +449,6 @@ total 4
 
 $ matchpathcon /srv/www-lab-06/index.html
 /srv/www-lab-06/index.html  system_u:object_r:httpd_sys_content_t:s0
-
-$ ls -lZ /srv/www-lab-06/chcon-test.html
--rw-r--r--. 1 root root unconfined_u:object_r:httpd_sys_content_t:s0 11 May 27 14:10 /srv/www-lab-06/chcon-test.html
-Now run restorecon — chcon label will be overwritten (T03):
-$ sudo restorecon -v /srv/www-lab-06/chcon-test.html
-$ ls -lZ /srv/www-lab-06/chcon-test.html
--rw-r--r--. 1 root root unconfined_u:object_r:httpd_sys_content_t:s0 11 May 27 14:10 /srv/www-lab-06/chcon-test.html
 exit was: 0
 ```
 
@@ -478,7 +465,6 @@ exit was: 0
 | `restorecon -Rv PATH` | Apply policy recursively, verbose |
 | `chcon -t TYPE PATH` | Set type on a file — TEMPORARY |
 | `matchpathcon PATH` | "What context SHOULD this path have?" |
-| `grep '/srv/www-lab-06' file_contexts.local` | Confirm rule is on disk |
 
 ### 🧠 Concept Card
 
@@ -551,11 +537,8 @@ echo "exit was: $?"
 | Symptom | Fix |
 |---|---|
 | `semanage: command not found` | `sudo dnf install -y policycoreutils-python-utils` |
-| `restorecon` says no changes | Either the rule isn't stored, or files already match — check with `semanage fcontext -l` |
-| `matchpathcon` still shows `var_t` after rule stored | Re-run `semanage fcontext -a` with the regex **quoted** |
-| Dry-run shows changes but apply does nothing | Missing `-R` — only the leaf was touched; use `restorecon -Rv` |
-| `chcon` label survives `restorecon` | No fcontext rule governs that path — `chcon` is the only label source (T03) |
-| Cleanup `semanage fcontext -d` errors "rule not found" | Already removed; fine |
+| `restorecon` says no changes | Rule isn't stored or files already match — check `semanage fcontext -l` |
+| `chcon` label survives `restorecon` | No fcontext rule governs that path — T03 in action |
 
 > **STOP — paste the output of `cat $JDIR/notes.txt` and the final `sudo semanage fcontext -l -C | grep -c '/srv/www-lab-06'` (should be 0 after cleanup) before moving on to Lab 06b.**
 

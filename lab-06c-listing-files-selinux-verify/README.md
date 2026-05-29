@@ -2,7 +2,7 @@
 
 - **Series:** linux-ops-mastery — File Operations & Shell Fundamentals
 - **Trilogy:** `06a` (RHCSA) → `06b` (Ansible) → **`06c` (Verify — you are here)**
-- **Career arcs covered:** RHCSA EX200 (SELinux context verification on every file task), RHCE EX294 (auditor seat — prove a play's SELinux policy actually landed), SRE (post-change context audit habit), All exams (the "what would you check next" interview reflex)
+- **Career arcs covered:** RHCSA EX200, RHCE EX294 (auditor seat), SRE (post-change context audit), All exams (verification reflex)
 - **Prerequisite:** Lab 06a and Lab 06b completed — this lab verifies their combined effect
 - **Time Estimate:** 25–35 minutes
 - **Tasks:** 2 (Task 1 = audit, Task 2 = relabel-survival proof)
@@ -38,7 +38,7 @@ test -f /root/rhcsa_journal/lab-06b/task2/done.txt && echo "  ✅ lab-06b task2 
 
 ## 🎯 Objective
 
-Take off the operator's hat and put on the **auditor's hat**. Lab 06a labeled files by hand with `chcon` and `restorecon`. Lab 06b applied the same policy via Ansible and reported `changed=0` on re-run. Neither of those proves the SELinux contexts are actually correct **right now** — or that they will survive a relabel. Lab 06c is the inspection step that **proves** the contexts match policy, using only RHCSA-grade inspection commands — no playbook output, no trust in the previous labs.
+Take off the operator's hat and put on the **auditor's hat**. Lab 06a labeled files by hand; Lab 06b applied policy via Ansible. Neither proves contexts are correct **right now** or will survive relabel. Lab 06c **proves** contexts match policy using RHCSA-grade inspection only — no playbook output, no trust in prior labs.
 
 ---
 
@@ -52,7 +52,7 @@ Take off the operator's hat and put on the **auditor's hat**. Lab 06a labeled fi
 | `ls -Z` shows expected type | Policy (`semanage fcontext`) may not match — only live label changed |
 | Ansible reported `changed=0` | A process relabeled the file between runs |
 
-The grader's reflex — and the senior engineer's reflex — is to **inspect the system directly** after any SELinux change, using the same tools the exam would use to grade you. `ls -Z`, `matchpathcon`, `semanage fcontext -l`, `restorecon -n`. No `ansible.*` commands.
+The grader's reflex is to **inspect the system directly** after any SELinux change: `ls -Z`, `matchpathcon`, `semanage fcontext -l`, `restorecon -n`. No `ansible.*` commands.
 
 ---
 
@@ -133,12 +133,10 @@ Walk through each expected-labeled path and prove with three independent RHCSA i
 
 | Warm-up command | Role inside Task 1 |
 |---|---|
-| `getenforce` | Confirms SELinux is active — context checks are meaningless if off |
-| `matchpathcon -V` | Returns the policy-expected context — the "should be" answer |
-| `semanage fcontext -l \| grep` | Shows the persistent policy rule — the "declared" answer |
-| `ls -Z` | Shows the live on-disk context — the "actually is" answer |
-| `2>&1 \| tee` | Captures every check into `task1/audit.txt` — the journal proof |
-| `$(date -Is)` | Stamps the journal `notes.txt` |
+| `matchpathcon -V` | Policy-expected context — the "should be" answer |
+| `semanage fcontext -l \| grep` | Persistent policy rule — the "declared" answer |
+| `ls -Z` | Live on-disk context — the "actually is" answer |
+| `2>&1 \| tee` | Captures checks into `task1/audit.txt` |
 
 ### Main command block
 
@@ -157,19 +155,12 @@ while IFS= read -r line; do
   echo "─── checking: $path (expect type: $expected_type) ───" \
     | tee -a /tmp/listing-lab/selinux-verify/task1/audit.txt
 
-  # Check 1: ls -Z (the live on-disk context)
   actual=$(ls -dZ "$path" 2>/dev/null | awk '{print $1}' | cut -d: -f3)
   echo "  ls -Z type: $actual" | tee -a /tmp/listing-lab/selinux-verify/task1/audit.txt
-
-  # Check 2: matchpathcon (the policy-expected context)
   policy=$(matchpathcon -V "$path" 2>/dev/null | awk '{print $1}' | cut -d: -f3)
   echo "  matchpathcon type: $policy" | tee -a /tmp/listing-lab/selinux-verify/task1/audit.txt
-
-  # Check 3: semanage fcontext (the declared persistent rule)
   semanage fcontext -l 2>/dev/null | grep "www-lab-06" \
     | tee -a /tmp/listing-lab/selinux-verify/task1/audit.txt
-
-  # Verdict
   if [ "$actual" = "$expected_type" ] && [ "$policy" = "$expected_type" ]; then
     echo "  ✅ PASS: live=$actual policy=$policy expected=$expected_type" \
       | tee -a /tmp/listing-lab/selinux-verify/task1/audit.txt
@@ -184,7 +175,7 @@ done < /tmp/listing-lab/selinux-verify/expected-contexts.txt
 echo "═══ Audit summary: $PASS pass, $FAIL fail ═══" \
   | tee -a /tmp/listing-lab/selinux-verify/task1/audit.txt
 
-# Diff against actual state — exhaustive cross-check
+# Diff + decoy (T11-E trap)
 echo "═══ Diff: declared baseline vs actual contexts ═══" \
   | tee -a /tmp/listing-lab/selinux-verify/task1/audit.txt
 {
@@ -200,7 +191,7 @@ diff -u /tmp/listing-lab/selinux-verify/expected-contexts.txt \
         /tmp/listing-lab/selinux-verify/task1/actual-contexts.txt \
   | tee -a /tmp/listing-lab/selinux-verify/task1/audit.txt || true
 
-# Bonus: prove the decoy is WRONG (catches T11-E)
+# Decoy: chcon without policy
 echo "═══ Decoy check — chcon without policy should FAIL ═══" \
   | tee -a /tmp/listing-lab/selinux-verify/task1/audit.txt
 decoy_type=$(ls -Z /tmp/listing-lab/selinux-verify/decoy-wrong-context.html \
@@ -215,18 +206,9 @@ echo "exit was: $?"
 
 ### Human-readable breakdown
 
-1. Read `expected-contexts.txt` line by line — each line is a path and the type the playbook promised to set.
-2. For each path, run **three independent inspection commands**: `ls -Z`, `matchpathcon -V`, `semanage fcontext -l | grep`. If any one disagrees with the others, the system is in an unexpected state and the audit fails.
-3. Maintain `PASS` and `FAIL` counters — `FAIL` should be 0 if Lab 06a/b did their job.
-4. Run a `diff -u` between the declared baseline (what we expected) and the actual live contexts. A correct lab produces an empty diff.
-5. Check the decoy file — it was manually relabeled with `chcon` to `bin_t`, which does not match policy. This proves that trusting `chcon` alone (T11-E) is a trap.
-
-### Reading it left to right
-
-- `ls -dZ PATH` — live context on disk; `cut -d: -f3` extracts the **type** field from `user:role:type:level`.
-- `matchpathcon -V PATH` — policy-expected context; disagrees with `ls -Z` when the live label is wrong.
-- `semanage fcontext -l | grep www-lab-06` — persistent policy rules (survive reboot; `chcon` does not).
-- `diff -u EXPECTED ACTUAL` — empty diff means live contexts match the declared baseline exactly.
+1. For each path in `expected-contexts.txt`, run **three inspection commands**: `ls -Z`, `matchpathcon -V`, `semanage fcontext -l | grep`.
+2. Maintain `PASS`/`FAIL` counters — `FAIL` should be 0 if Lab 06a/b did their job.
+3. Run `diff -u` against actual live contexts; check the decoy proves T11-E (`chcon` without policy).
 
 ### The story
 
@@ -267,22 +249,18 @@ exit was: 0
 
 |   | Concept | What it does |
 |---|---|---|
-|   | Three-tool cross-check | `ls -Z`, `matchpathcon`, `semanage fcontext` — three independent answers to "is this labeled correctly?" |
-|   | Declared baseline | A text file listing the expected end state; drives the audit loop |
-|   | `diff` against actual | Exhaustive cross-check that catches what single-path inspection misses |
-|   | Type extraction via `cut` | SELinux contexts are `user:role:type:level` — the type drives access decisions |
-|   | Decoy file | Proves that `chcon` without policy is a trap — the label looks set but won't survive relabel |
-|   | Audit transcript via `tee` | Every check writes to `audit.txt` so the journal has the proof |
+|   | Three-tool cross-check | `ls -Z`, `matchpathcon`, `semanage fcontext` — three answers to "is this labeled correctly?" |
+|   | Declared baseline + `diff` | Text file drives the audit loop; `diff` catches what single-path inspection misses |
+|   | Decoy file | Proves `chcon` without policy is a trap — won't survive relabel |
 | 🪤 | **Trap Risk T11-E** | Trusting `chcon` without checking policy — always verify with `matchpathcon` and `semanage fcontext`. |
 
 ### 🔁 PERSISTENCE CHECK
 
 | What was configured | Verification command | Why it matters |
 |---|---|---|
-| Audit transcript | `wc -l /root/rhcsa_journal/lab-06c/task1/audit.txt` | Must be > 0 — proves we actually inspected |
-| All contexts match | `matchpathcon -V /srv/www-lab-06/index.html` | Re-run any time; should show no mismatch |
-| Baseline preserved | `ls /root/rhcsa_journal/lab-06c/task1/expected-contexts.txt` | The audit is reproducible only if the baseline survives — store it in `/root/` |
-| Policy rule exists | `semanage fcontext -l \| grep www-lab-06` | The persistent rule must be in the policy database |
+| Audit transcript | `wc -l /root/rhcsa_journal/lab-06c/task1/audit.txt` | Must be > 0 |
+| All contexts match | `matchpathcon -V /srv/www-lab-06/index.html` | Re-run any time; no mismatch |
+| Policy rule exists | `semanage fcontext -l \| grep www-lab-06` | Persistent rule in policy database |
 
 > **Reboot reasoning:** Both `/tmp/listing-lab/` (the audit workspace) and any `chcon`-only changes evaporate at reboot. The **only** things that survive are the journal under `/root/rhcsa_journal/` and the `semanage fcontext` policy rules. If the journal does not contain `audit.txt` and `expected-contexts.txt`, this audit cannot be reproduced — and that means the verification is effectively gone too.
 
@@ -369,12 +347,10 @@ Prove that policy-based contexts (set via `semanage fcontext` + `restorecon`) su
 
 | Warm-up command | Role inside Task 2 |
 |---|---|
-| `restorecon -nRv` | Dry-run relabel — shows what **would** change without changing anything |
-| `stat -c '%m'` | Confirms which paths are on tmpfs (will evaporate) vs root (will survive) |
-| `find /tmp/listing-lab` | Before and after the simulated reboot — verifies `/tmp` was cleared |
-| `semanage fcontext -l \| grep` | Confirms the policy rule survived the relabel test |
-| `2>&1 \| tee` | Captures the relabel-survival transcript into `task2/relabel-proof.txt` |
-| `$(date -Is)` | Stamps both the relabel test and the simulated reboot |
+| `restorecon -nRv` | Dry-run relabel — shows what would change |
+| `stat -c '%m'` | Confirms tmpfs vs root partition |
+| `find /tmp/listing-lab` | Verifies `/tmp` was cleared after simulated reboot |
+| `2>&1 \| tee` | Captures relabel-survival transcript |
 
 ### Main command block
 
@@ -385,16 +361,12 @@ echo "═══ Pre-relabel state ═══" \
   2>&1 | tee /tmp/listing-lab/selinux-verify/task2/relabel-proof.txt
 ls -Z /srv/www-lab-06/index.html \
   | tee -a /tmp/listing-lab/selinux-verify/task2/relabel-proof.txt
-ls -Z /tmp/listing-lab/selinux-verify/decoy-wrong-context.html \
-  | tee -a /tmp/listing-lab/selinux-verify/task2/relabel-proof.txt
 
-# ── Step 1: chcon on a parallel test file (will be wiped by restorecon) ──
-echo "═══ chcon test — manual override on parallel file ═══" \
+# ── Step 1: chcon on parallel test file (wiped by restorecon) ──
+echo "═══ chcon test — manual override ═══" \
   | tee -a /tmp/listing-lab/selinux-verify/task2/relabel-proof.txt
 cp /srv/www-lab-06/index.html /srv/www-lab-06/chcon-test.html
 chcon -t bin_t /srv/www-lab-06/chcon-test.html
-echo "  before restorecon:" \
-  | tee -a /tmp/listing-lab/selinux-verify/task2/relabel-proof.txt
 ls -Z /srv/www-lab-06/chcon-test.html \
   | tee -a /tmp/listing-lab/selinux-verify/task2/relabel-proof.txt
 
@@ -403,11 +375,7 @@ echo "═══ restorecon -Rv /srv/www-lab-06/ ═══" \
   | tee -a /tmp/listing-lab/selinux-verify/task2/relabel-proof.txt
 restorecon -Rv /srv/www-lab-06/ \
   2>&1 | tee -a /tmp/listing-lab/selinux-verify/task2/relabel-proof.txt
-echo "  after restorecon:" \
-  | tee -a /tmp/listing-lab/selinux-verify/task2/relabel-proof.txt
-ls -Z /srv/www-lab-06/chcon-test.html \
-  | tee -a /tmp/listing-lab/selinux-verify/task2/relabel-proof.txt
-ls -Z /srv/www-lab-06/index.html \
+ls -Z /srv/www-lab-06/chcon-test.html /srv/www-lab-06/index.html \
   | tee -a /tmp/listing-lab/selinux-verify/task2/relabel-proof.txt
 
 # Verify: chcon-test should now be httpd_sys_content_t (policy restored it)
@@ -500,10 +468,9 @@ echo "exit was: $?"
 
 ### Reading it left to right
 
-- `restorecon -Rv PATH` — recursive relabel applying policy; `-n` dry-run shows changes without applying.
-- `chcon -t TYPE PATH` — temporary override; wiped by `restorecon` unless a matching `semanage fcontext` rule exists.
-- `stat -c '%m'` — mount point per path; `/tmp` on tmpfs evaporates, `/root/` and `/etc/` persist.
-- `< /root/rhcsa_journal/.../expected-contexts.txt` — redirect from journal copy, not `/tmp/` — the structural persistence test.
+- `restorecon -Rv` applies policy labels; `chcon -t` is a temporary override wiped by relabel.
+- `stat -c '%m'` exposes mount points — `/tmp` evaporates, `/root/` and `/etc/` persist.
+- Journal redirect (`< /root/rhcsa_journal/...`) is the structural persistence test.
 
 ### The story
 
@@ -543,23 +510,19 @@ exit was: 0
 
 |   | Concept | What it does |
 |---|---|---|
-|   | `restorecon` vs `chcon` | `restorecon` applies **policy**; `chcon` applies a **manual override** that policy will revert |
-|   | Relabel-survival test | The only proof that a context is policy-backed, not just manually set |
-|   | `/tmp` vs `/root/` vs `/etc/` storage | `/tmp` is ephemeral; `/root/` and `/etc/` survive reboot |
-|   | Journal as cold-storage audit | Every verification artifact must live in `/root/rhcsa_journal/` to survive reboot |
-|   | Reproducible audit | Re-running the audit from journal files only is the test of real persistence |
-|   | Idempotence across reboot | A correctly-written SELinux play still reports `changed=0` after `/tmp` was wiped |
-| 🪤 | **Trap Risk T41** | Skipping the relabel/reboot test on SELinux tasks. The cost is discovering a `chcon`-only change after the next `restorecon` or reboot — too late. |
+|   | `restorecon` vs `chcon` | `restorecon` applies policy; `chcon` is a manual override policy reverts |
+|   | Relabel-survival test | Only proof a context is policy-backed, not just manually set |
+|   | Journal as cold-storage audit | Verification artifacts must live in `/root/rhcsa_journal/` |
+| 🪤 | **Trap Risk T41** | Skipping relabel/reboot test — discover `chcon`-only changes too late. |
 
 ### 🔁 PERSISTENCE CHECK (this lab IS the persistence check)
 
 | What was configured | Verification command | Why it matters |
 |---|---|---|
-| Relabel proof persisted | `wc -l /root/rhcsa_journal/lab-06c/task2/relabel-proof.txt` | The proof artifact of Task 2 itself |
-| Post-reboot audit | `wc -l /root/rhcsa_journal/lab-06c/task2/post-reboot-audit.txt` | Proves the audit reproduced from journal alone |
-| Policy rule survived | `semanage fcontext -l \| grep www-lab-06` | Lives in `/etc/` — survives reboot and relabel |
-| Idempotence holds across reboot | `grep changed= /root/rhcsa_journal/lab-06c/task2/post-reboot-ansible.txt` | `changed=0` is the proof — same as Lab 06b Task 2 but now after `/tmp` was wiped |
-| Trilogy complete | `find /root/rhcsa_journal/lab-06{a,b,c} -name done.txt \| wc -l` | Should be `6` — three sub-labs × two tasks each |
+| Relabel proof persisted | `wc -l /root/rhcsa_journal/lab-06c/task2/relabel-proof.txt` | Task 2 proof artifact |
+| Post-reboot audit | `wc -l /root/rhcsa_journal/lab-06c/task2/post-reboot-audit.txt` | Audit reproduced from journal |
+| Policy rule survived | `semanage fcontext -l \| grep www-lab-06` | Lives in `/etc/` — survives reboot |
+| Trilogy complete | `find /root/rhcsa_journal/lab-06{a,b,c} -name done.txt \| wc -l` | Should be `6` |
 
 ### Journal write — BEFORE cleanup
 
@@ -648,11 +611,9 @@ If any are missing, that sub-lab is incomplete. Do not start Lab 07a until the t
 
 | Lab | Connection |
 |---|---|
-| **Lab 06a** — RHCSA hand-typed SELinux labeling | The imperative form being audited |
-| **Lab 06b** — Listing Files & SELinux via Ansible | The declarative form being audited |
-| Lab 05c — Verifying Directory Navigation (earlier) | The mirror pattern: prove navigation state matches what was promised |
-| Lab 11c — Verifying File Removal (later) | Audit applied to file removal — same three-tool + diff + reboot pattern |
-| Lab 14c — Verifying find results (later) | Audit applied to `find` — prove the search returned everything it should |
+| **Lab 06a** — RHCSA hand-typed SELinux labeling | Imperative form being audited |
+| **Lab 06b** — Listing Files & SELinux via Ansible | Declarative form being audited |
+| Lab 11c — Verifying File Removal | Same three-tool + diff + reboot audit pattern |
 
 ---
 

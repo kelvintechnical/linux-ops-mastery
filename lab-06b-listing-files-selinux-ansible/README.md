@@ -79,7 +79,7 @@ That property — **same end state regardless of starting state** — is what ma
 | `ansible.builtin.debug:` | Print a variable so you can read what `register:` captured |
 | `--check` | Dry run — show what would change without changing anything |
 | `--diff` | Show line-level diffs (combined with `--check` is the standard preview) |
-| `ansible.posix.seboolean` | Optional companion module for boolean toggles (referenced in trilogy; not exercised in Tasks 1–2) |
+| `ansible.posix.seboolean` | Companion module for SELinux booleans (Lab 06 trilogy reference; not exercised in Tasks 1–2) |
 
 ---
 
@@ -206,40 +206,7 @@ semanage fcontext -l | grep www-lab-06
 echo "exit was: $?"
 ```
 
-### The playbook (`task1.yml`)
-
-```yaml
----
-- name: Lab 06b Task 1 — label /srv/www-lab-06 as web content via Ansible
-  hosts: localhost
-  become: true
-  gather_facts: false
-
-  vars:
-    target_dir: /srv/www-lab-06
-    target_type: httpd_sys_content_t
-
-  tasks:
-    - name: Declare fcontext rule (permanent — stored in policy DB)
-      community.general.sefcontext:
-        target: "{{ target_dir }}(/.*)?"
-        setype: "{{ target_type }}"
-        state: present
-      register: rule_result
-
-    - name: Apply policy — restorecon (no Ansible module; command: is RHCE-accepted)
-      ansible.builtin.command:
-        cmd: "restorecon -Rv {{ target_dir }}"
-      register: restore_result
-      changed_when: "'Relabeled' in restore_result.stdout"
-
-    - name: Show what changed
-      ansible.builtin.debug:
-        msg:
-          - "rule changed: {{ rule_result.changed }}"
-          - "restorecon changed: {{ restore_result.changed }}"
-          - "restorecon stdout: {{ restore_result.stdout_lines }}"
-```
+> **The playbook content is in the heredoc above** — that block is the canonical `task1.yml`. Open it directly: `less /root/rhcsa_journal/lab-06b/playbooks/task1.yml`
 
 ### Human-readable breakdown
 
@@ -249,19 +216,7 @@ echo "exit was: $?"
 4. The third task uses `ansible.builtin.debug:` to dump both registered results, so a human (and an RHCE grader) can read exactly what changed.
 5. `--check --diff` previews: shows what would change but does not actually modify policy or labels.
 6. The real run adds the fcontext rule (if missing) and relabels any mislabeled files under `/srv/www-lab-06/`.
-
-### Reading it left to right
-
-- `hosts: localhost` — limits the play to the control node itself.
-- `become: true` — escalates to root for `semanage`/`restorecon` operations.
-- `gather_facts: false` — speeds up the play by skipping the `setup` module; our task does not need facts.
-- `community.general.sefcontext:` — FQCN form. RHCE graders penalize bare module names because collection-loading defaults can change.
-- `target: "{{ target_dir }}(/.*)?"` — Jinja2 template building the path regex; the `(/.*)?` suffix matches the directory and all descendants.
-- `setype: "{{ target_type }}"` — the SELinux type to assign (web content for Apache/httpd).
-- `state: present` — the desired-state declaration; idempotent by design.
-- `register: rule_result` — captures the fcontext task result into playbook scope.
-- `changed_when: "'Relabeled' in restore_result.stdout"` — makes the `restorecon` wrapper idempotent.
-- `ansible.builtin.debug:` — dumps variables as YAML so you can inspect `.changed`, `.stdout_lines`, etc.
+7. Key tokens: `target: "{{ target_dir }}(/.*)?"` (path regex), `setype:` (SELinux type), `changed_when: "'Relabeled' in restore_result.stdout"` (idempotent `restorecon` wrapper).
 
 ### The story
 
@@ -272,38 +227,14 @@ The `--check --diff` preview is the safety habit. Always preview before applying
 ### Expected output
 
 ```text
-ansible [core 2.16.x] ...
-community.general  ...
-localhost | SUCCESS => {
-    "changed": false,
-    "ping": "pong"
-}
+# pre-state
 unconfined_u:object_r:default_t:s0        index.html
-unconfined_u:object_r:var_t:s0            style.css
 
-# --- --check --diff preview ---
-PLAY [Lab 06b Task 1 — label /srv/www-lab-06 as web content via Ansible] ****
-TASK [Declare fcontext rule (permanent — stored in policy DB)] ****************
-changed: [localhost]
-TASK [Apply policy — restorecon (no Ansible module; command: is RHCE-accepted)] *
-changed: [localhost]
-TASK [Show what changed] ******************************************************
-ok: [localhost] => {
-    "msg": [
-        "rule changed: True",
-        "restorecon changed: True",
-        "restorecon stdout: ['Relabeled /srv/www-lab-06/html/index.html from ...']"
-    ]
-}
-PLAY RECAP ********************************************************************
+# apply PLAY RECAP
 localhost                  : ok=3    changed=2    unreachable=0    failed=0
 
-# --- apply (real run) ---
-... same output as above ...
-
-# --- post-state verification ---
+# post-state
 unconfined_u:object_r:httpd_sys_content_t:s0   index.html
-unconfined_u:object_r:httpd_sys_content_t:s0   style.css
 /srv/www-lab-06(/.*)?    all files    system_u:object_r:httpd_sys_content_t:s0
 exit was: 0
 ```
@@ -333,10 +264,7 @@ exit was: 0
 |   | `changed_when:` on `command:` | Makes `restorecon` wrapper idempotent — only changed when relabel happened |
 |   | `--check --diff` preview | Safety habit: always preview before applying |
 |   | `register:` + `debug:` | The grader's audit trail — read the play's own output |
-|   | `become: true` | SELinux policy changes require root |
-| 🪤 | **Trap Risk T06-A** | `couldn't resolve module 'community.general.sefcontext'` — install collection via Lab 00 |
-| 🪤 | **Trap Risk T06-B** | Writing `command: chcon` instead of `sefcontext`. Temporary label — refused on RHCE grading. |
-| 🪤 | **Trap Risk T06-C** | Declaring fcontext but skipping `restorecon`. Rule exists; files stay wrong. |
+| 🪤 | **Trap Risk T06-A/B/C** | Missing collection · `chcon` instead of `sefcontext` · fcontext without `restorecon` |
 
 ### 🔁 PERSISTENCE CHECK
 
@@ -444,8 +372,8 @@ Re-run the **exact same playbook** from Task 1 and prove that it now reports `ch
 ```bash
 mkdir -p /srv/www-lab-06/task2
 
-# 1. Re-run the SAME playbook from Task 1 — no edits
-ansible-playbook /root/rhcsa_journal/lab-06b/playbooks/task1.yml \
+# 1. Re-run task2.yml (copy of task1.yml with idempotence debug) — or re-run task1.yml unchanged
+ansible-playbook /root/rhcsa_journal/lab-06b/playbooks/task2.yml \
   2>&1 | tee /srv/www-lab-06/task2/rerun.txt
 
 # 2. Inspect the PLAY RECAP — changed=0 is the win condition
@@ -456,16 +384,9 @@ ls -lZ /srv/www-lab-06/                              2>&1 | tee /srv/www-lab-06/
 echo "exit was: $?"
 ```
 
-### The playbook (same `task1.yml` — no edits for Task 2)
+### The playbook (`task2.yml` — content identical to `task1.yml` except play name + debug task)
 
-Task 2 reuses `task1.yml` verbatim. The idempotence proof comes from running the **same file** a second time, not from a separate playbook. If you prefer a dedicated rerun file for journal clarity, copy it:
-
-```bash
-cp /root/rhcsa_journal/lab-06b/playbooks/task1.yml \
-   /root/rhcsa_journal/lab-06b/playbooks/task2.yml
-```
-
-Then edit only the play name in `task2.yml`:
+Copy Task 1's playbook and change only the play name and the final debug task to the register+debug idempotence pattern:
 
 ```yaml
 ---
@@ -495,22 +416,19 @@ Then edit only the play name in `task2.yml`:
     - name: "Show idempotence proof — both tasks must have changed=false"
       ansible.builtin.debug:
         msg:
-          - "rule changed={{ rule_result.changed }}"
+          - "sefcontext changed={{ rule_result.changed }}"
           - "restorecon changed={{ restore_result.changed }}"
+          - "restorecon stdout lines: {{ restore_result.stdout_lines | length }}"
 ```
+
+Or re-run `task1.yml` unchanged — the PLAY RECAP `changed=0` line is the proof either way.
 
 ### Human-readable breakdown
 
-1. The playbook is structurally identical to Task 1 — same hosts, same connection, same modules, same vars. The only meaningful difference (if using `task2.yml`) is the play name and the debug message wording.
-2. Running it produces `changed=0` for both tasks because the fcontext rule already exists and no files need relabeling.
-3. The PLAY RECAP at the end reports `changed=0`. That is the canonical idempotence proof RHCE graders look for.
-4. If `changed=1` ever appears on the `restorecon` task, the `changed_when:` guard is missing or wrong. If `changed=1` appears on the `sefcontext` task, the rule was modified between runs — investigate with `semanage fcontext -l`.
-
-### Reading it left to right
-
-- `rule_result.changed` — `false` when the fcontext rule already matches the declaration.
-- `restore_result.changed` — `false` when `restorecon` stdout contains no "Relabeled" lines (thanks to `changed_when:`).
-- Re-running the **same** playbook file is deliberate — idempotence is a property of the play, not a separate "verify" play.
+1. Re-run the same modules and vars from Task 1 — the fcontext rule already exists and no files need relabeling.
+2. The PLAY RECAP reports `changed=0`. That is the canonical idempotence proof RHCE graders look for.
+3. The `register:` + `debug:` dump must show `rule_result.changed: false` and `restore_result.changed: false`.
+4. If `changed=1` appears on `restorecon`, the `changed_when:` guard is missing (T06-C). If you used `command: chcon`, every re-run shows `changed=1` (T06-B).
 
 ### The story
 
@@ -521,25 +439,12 @@ The discipline is: every time you write a task, run it twice. Second run must be
 ### Expected output
 
 ```text
-unconfined_u:object_r:httpd_sys_content_t:s0   index.html
-unconfined_u:object_r:httpd_sys_content_t:s0   style.css
-/srv/www-lab-06(/.*)?    all files    system_u:object_r:httpd_sys_content_t:s0
-
-PLAY [Lab 06b Task 1 — label /srv/www-lab-06 as web content via Ansible] ****
-TASK [Declare fcontext rule (permanent — stored in policy DB)] ****************
-ok: [localhost]
-TASK [Apply policy — restorecon (no Ansible module; command: is RHCE-accepted)] *
-ok: [localhost]
-TASK [Show what changed] ******************************************************
-ok: [localhost] => {
-    "msg": [
-        "rule changed: False",
-        "restorecon changed: False",
-        "restorecon stdout: []"
-    ]
-}
 PLAY RECAP ********************************************************************
 localhost                  : ok=3    changed=0    unreachable=0    failed=0
+
+# debug output must show:
+#   sefcontext changed=False
+#   restorecon changed=False
 exit was: 0
 ```
 

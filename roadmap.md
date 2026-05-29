@@ -538,11 +538,11 @@ Foundation → advanced. Each step locks in prerequisites for the next. Mirrors 
 | not completed | 08 | Copying Files and Directories | [08a RHCSA](lab-08a-copying-files-directories-rhcsa/) · [08b Ansible](lab-08b-copying-files-directories-ansible/) · [08c Verify](lab-08c-copying-files-directories-verify/) |
 | not completed | 09 | Hard and Soft Links | [09a RHCSA](lab-09a-hard-and-soft-links-rhcsa/) · [09b Ansible](lab-09b-hard-and-soft-links-ansible/) · [09c Verify](lab-09c-hard-and-soft-links-verify/) |
 | not completed | 10 | Moving and Renaming Files | [10a RHCSA](lab-10a-moving-renaming-files-rhcsa/) · [10b Ansible](lab-10b-moving-renaming-files-ansible/) · [10c Verify](lab-10c-moving-renaming-files-verify/) |
-| not completed | 11 | Safe Deletion of Files and Directories | <https://github.com/kelvintechnical/safe-deletion> |
-| not completed | 12 | Creating Nested Directories | <https://github.com/kelvintechnical/creating-nested-directories> |
-| not completed | 13 | Creating Command Aliases | <https://github.com/kelvintechnical/creating-command-aliases> |
-| not completed | 14 | File Searching with find | <https://github.com/kelvintechnical/searching-with-find> |
-| not completed | 15 | Instant File Searching with locate | <https://github.com/kelvintechnical/searching-with-locate> |
+| not completed | 11 | Safe Deletion of Files and Directories | [11a RHCSA](lab-11a-removing-files-rhcsa/) · [11b Ansible](lab-11b-removing-files-ansible/) · [11c Verify](lab-11c-removing-files-verify/) |
+| not completed | 12 | Creating Nested Directories | [12a RHCSA](lab-12a-creating-nested-directories-rhcsa/) · [12b Ansible](lab-12b-creating-nested-directories-ansible/) · [12c Verify](lab-12c-creating-nested-directories-verify/) |
+| not completed | 13 | Creating Command Aliases | [13a RHCSA](lab-13a-creating-command-aliases-rhcsa/) · [13b Ansible](lab-13b-creating-command-aliases-ansible/) · [13c Verify](lab-13c-creating-command-aliases-verify/) |
+| not completed | 14 | File Searching with find | [14a RHCSA](lab-14a-searching-with-find-rhcsa/) · [14b Ansible](lab-14b-searching-with-find-ansible/) · [14c Verify](lab-14c-searching-with-find-verify/) |
+| not completed | 15 | Instant File Searching with locate | [15a RHCSA](lab-15a-searching-with-locate-rhcsa/) · [15b Ansible](lab-15b-searching-with-locate-ansible/) · [15c Verify](lab-15c-searching-with-locate-verify/) |
 | not completed | 16 | Search for a String and Save Output | <https://github.com/kelvintechnical/search-string-save-output> |
 | not completed | 17 | Find and Save Config Files | <https://github.com/kelvintechnical/find-save-config-files> |
 | not completed | 18 | Locate Command Documentation | <https://github.com/kelvintechnical/locate-command-docs> |
