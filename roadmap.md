@@ -520,10 +520,10 @@ Foundation → advanced. Each step locks in prerequisites for the next. Mirrors 
 
 | Status | # | Lab | Full Path |
 |---|---|---|---|
-| not completed | 01 | Standard Output Redirection | <https://github.com/kelvintechnical/stdout-redirection> |
-| not completed | 02 | Standard Error Redirection | <https://github.com/kelvintechnical/stderr-redirection> |
-| not completed | 03 | Pipe Text Streams | <https://github.com/kelvintechnical/pipe-text-streams> |
-| not completed | 04 | Capture Both Output and Error | <https://github.com/kelvintechnical/capture-both-output-error> |
+| not completed | 01 | Standard Output Redirection | [01a RHCSA](lab-01a-stdout-redirection-rhcsa/) · [01b Ansible](lab-01b-stdout-redirection-ansible/) · [01c Verify](lab-01c-stdout-redirection-verify/) |
+| not completed | 02 | Standard Error Redirection | [02a RHCSA](lab-02a-stderr-redirection-rhcsa/) · [02b Ansible](lab-02b-stderr-redirection-ansible/) · [02c Verify](lab-02c-stderr-redirection-verify/) |
+| not completed | 03 | Pipe Text Streams | [03a RHCSA](lab-03a-pipe-text-streams-rhcsa/) · [03b Ansible](lab-03b-pipe-text-streams-ansible/) · [03c Verify](lab-03c-pipe-text-streams-verify/) |
+| not completed | 04 | Capture Both Output and Error | [04a RHCSA](lab-04a-capture-both-output-error-rhcsa/) · [04b Ansible](lab-04b-capture-both-output-error-ansible/) · [04c Verify](lab-04c-capture-both-output-error-verify/) |
 
 ---
 

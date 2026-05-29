@@ -179,10 +179,10 @@ Labs organized by official RHCSA EX200 exam objectives.
 
 | # | Lab | Key Commands |
 |---|-----|-------------|
-| 01 | [Standard Output Redirection](https://github.com/kelvintechnical/stdout-redirection) | `>`, `>>`, `cat` — Use `>` to direct output into a new file and `>>` to append output to an existing file |
-| 02 | [Standard Error Redirection](https://github.com/kelvintechnical/stderr-redirection) | `2>`, `2>/dev/null` — Force a command to generate an error and redirect that error stream to a file or discard it |
-| 03 | [Pipe Text Streams](https://github.com/kelvintechnical/pipe-text-streams) | `\|`, `less`, `grep`, `tee`, `wc -l` — Combine multiple commands using `\|` to send stdout of one command into stdin of another |
-| 04 | [Capture Both Output and Error](https://github.com/kelvintechnical/capture-both-output-error/blob/main/README.md) | `&>`, `2>&1` — Send both stdout and stderr to the same file using the `&>` operator |
+| 01 | Stdout Redirection Trilogy: [01a RHCSA](lab-01a-stdout-redirection-rhcsa/) · [01b Ansible](lab-01b-stdout-redirection-ansible/) · [01c Verify](lab-01c-stdout-redirection-verify/) | `>`, `>>`, `cat` — Use `>` to direct output into a new file and `>>` to append output to an existing file |
+| 02 | Stderr Redirection Trilogy: [02a RHCSA](lab-02a-stderr-redirection-rhcsa/) · [02b Ansible](lab-02b-stderr-redirection-ansible/) · [02c Verify](lab-02c-stderr-redirection-verify/) | `2>`, `2>/dev/null` — Force a command to generate an error and redirect that error stream to a file or discard it |
+| 03 | Pipe Text Streams Trilogy: [03a RHCSA](lab-03a-pipe-text-streams-rhcsa/) · [03b Ansible](lab-03b-pipe-text-streams-ansible/) · [03c Verify](lab-03c-pipe-text-streams-verify/) | `\|`, `less`, `grep`, `tee`, `wc -l` — Combine multiple commands using `\|` to send stdout of one command into stdin of another |
+| 04 | Capture Both Output and Error Trilogy: [04a RHCSA](lab-04a-capture-both-output-error-rhcsa/) · [04b Ansible](lab-04b-capture-both-output-error-ansible/) · [04c Verify](lab-04c-capture-both-output-error-verify/) | `&>`, `2>&1` — Send both stdout and stderr to the same file using the `&>` operator |
 
 ---
 
