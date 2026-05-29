@@ -531,12 +531,13 @@ Foundation → advanced. Each step locks in prerequisites for the next. Mirrors 
 
 | Status | # | Lab | Full Path |
 |---|---|---|---|
-| not completed | 05 | Directory Navigation | <https://github.com/kelvintechnical/directory-nav> |
-| not completed | 06 | Listing Files and SELinux Contexts | <https://github.com/kelvintechnical/listing-files-selinux> |
-| not completed | 07 | Creating Empty Files and Timestamps | <https://github.com/kelvintechnical/touch-timestamps> |
-| not completed | 08 | Copying Files and Directories | <https://github.com/kelvintechnical/copying-files-directories> |
-| not completed | 09 | Hard and Soft Links | <https://github.com/kelvintechnical/hard-and-soft-links> |
-| not completed | 10 | Moving and Renaming Files | <https://github.com/kelvintechnical/moving-renaming-files> |
+| not completed | 00 | Ansible Control Node Setup | [00a RHCSA](lab-00a-ansible-control-node-setup-rhcsa/) · [00b Ansible](lab-00b-ansible-control-node-setup-ansible/) · [00c Verify](lab-00c-ansible-control-node-setup-verify/) |
+| not completed | 05 | Directory Navigation | [05a RHCSA](lab-05a-directory-navigation-rhcsa/) · [05b Ansible](lab-05b-directory-navigation-ansible/) · [05c Verify](lab-05c-directory-navigation-verify/) |
+| not completed | 06 | Listing Files and SELinux Contexts | [06a RHCSA](lab-06a-listing-files-selinux-rhcsa/) · [06b Ansible](lab-06b-listing-files-selinux-ansible/) · [06c Verify](lab-06c-listing-files-selinux-verify/) |
+| not completed | 07 | Creating Empty Files and Timestamps | [07a RHCSA](lab-07a-touch-timestamps-rhcsa/) · [07b Ansible](lab-07b-touch-timestamps-ansible/) · [07c Verify](lab-07c-touch-timestamps-verify/) |
+| not completed | 08 | Copying Files and Directories | [08a RHCSA](lab-08a-copying-files-directories-rhcsa/) · [08b Ansible](lab-08b-copying-files-directories-ansible/) · [08c Verify](lab-08c-copying-files-directories-verify/) |
+| not completed | 09 | Hard and Soft Links | [09a RHCSA](lab-09a-hard-and-soft-links-rhcsa/) · [09b Ansible](lab-09b-hard-and-soft-links-ansible/) · [09c Verify](lab-09c-hard-and-soft-links-verify/) |
+| not completed | 10 | Moving and Renaming Files | [10a RHCSA](lab-10a-moving-renaming-files-rhcsa/) · [10b Ansible](lab-10b-moving-renaming-files-ansible/) · [10c Verify](lab-10c-moving-renaming-files-verify/) |
 | not completed | 11 | Safe Deletion of Files and Directories | <https://github.com/kelvintechnical/safe-deletion> |
 | not completed | 12 | Creating Nested Directories | <https://github.com/kelvintechnical/creating-nested-directories> |
 | not completed | 13 | Creating Command Aliases | <https://github.com/kelvintechnical/creating-command-aliases> |

@@ -1,0 +1,20 @@
+---
+- name: "Lab 10b Task 2 — atomic copy replace with backup"
+  hosts: localhost
+  connection: local
+  gather_facts: false
+
+  tasks:
+    - name: "Replace service.conf atomically and keep backup"
+      ansible.builtin.copy:
+        content: "config-v1 (managed)\n"
+        dest: /tmp/mv-ansible-lab/dst/service.conf
+        owner: root
+        group: root
+        mode: '0644'
+        backup: true
+      register: copy_result
+
+    - name: "Per-task result"
+      ansible.builtin.debug:
+        msg: "changed={{ copy_result.changed }} backup={{ copy_result.backup_file | default('n/a') }}"

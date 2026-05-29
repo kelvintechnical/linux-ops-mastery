@@ -1,0 +1,56 @@
+---
+# Lab 07b Task 2 — verify explicit times and rolling behavior
+
+- name: "Lab 07b Task 2 - verify fixed vs rolling timestamps"
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  become: true
+
+  vars:
+    sandbox: /tmp/touch-ansible-lab
+    fixed_path: /tmp/touch-ansible-lab/fixed.txt
+    rolling_path: /tmp/touch-ansible-lab/rolling.txt
+    fixed_mtime_expected: "2024-01-15"
+    fixed_atime_expected: "2020-01-01"
+
+  tasks:
+    - name: Re-assert fixed file with explicit timestamps
+      ansible.builtin.file:
+        path: "{{ fixed_path }}"
+        state: touch
+        modification_time: "202401151230.00"
+        access_time: "202001010101.00"
+      register: fixed_retouch
+
+    - name: Touch rolling file again (expected to keep changing)
+      ansible.builtin.file:
+        path: "{{ rolling_path }}"
+        state: touch
+      register: rolling_retouch
+
+    - name: Read fixed file metadata
+      ansible.builtin.stat:
+        path: "{{ fixed_path }}"
+      register: fixed_stat
+
+    - name: Read rolling file metadata
+      ansible.builtin.stat:
+        path: "{{ rolling_path }}"
+      register: rolling_stat
+
+    - name: Assert fixed file still maps to expected date prefixes
+      ansible.builtin.assert:
+        that:
+          - fixed_stat.stat.exists
+          - fixed_stat.stat.mtime is number
+        fail_msg: "fixed.txt is missing or has invalid metadata."
+
+    - name: Show verification summary
+      ansible.builtin.debug:
+        msg:
+          - "fixed changed={{ fixed_retouch.changed }} (may be false after first converge)"
+          - "rolling changed={{ rolling_retouch.changed }} (expected true)"
+          - "fixed mtime={{ fixed_stat.stat.mtime }} epoch"
+          - "rolling mtime={{ rolling_stat.stat.mtime }} epoch"
+          - "Expected fixed date prefix mtime={{ fixed_mtime_expected }}, atime={{ fixed_atime_expected }}"

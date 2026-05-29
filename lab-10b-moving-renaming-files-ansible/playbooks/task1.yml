@@ -1,0 +1,17 @@
+---
+- name: "Lab 10b Task 1 — guarded mv boundary"
+  hosts: localhost
+  connection: local
+  gather_facts: false
+
+  tasks:
+    - name: "Move app.log to dst with idempotent guards"
+      ansible.builtin.command:
+        cmd: mv /tmp/mv-ansible-lab/src/app.log /tmp/mv-ansible-lab/dst/app.log
+        creates: /tmp/mv-ansible-lab/dst/app.log
+        removes: /tmp/mv-ansible-lab/src/app.log
+      register: mv_result
+
+    - name: "Per-task result"
+      ansible.builtin.debug:
+        msg: "changed={{ mv_result.changed }} rc={{ mv_result.rc }}"

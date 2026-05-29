@@ -1,0 +1,46 @@
+---
+# Lab 07b Task 1 — create fixed and rolling timestamp files
+
+- name: "Lab 07b Task 1 - state=touch with explicit and rolling times"
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  become: true
+
+  vars:
+    sandbox: /tmp/touch-ansible-lab
+    fixed_mtime: "202401151230.00"
+    fixed_atime: "202001010101.00"
+
+  tasks:
+    - name: Ensure sandbox exists
+      ansible.builtin.file:
+        path: "{{ sandbox }}"
+        state: directory
+        mode: "0755"
+
+    - name: Touch fixed file with explicit timestamps
+      ansible.builtin.file:
+        path: "{{ sandbox }}/fixed.txt"
+        state: touch
+        owner: root
+        group: root
+        mode: "0644"
+        modification_time: "{{ fixed_mtime }}"
+        access_time: "{{ fixed_atime }}"
+      register: fixed_touch
+
+    - name: Touch rolling file with current-time behavior
+      ansible.builtin.file:
+        path: "{{ sandbox }}/rolling.txt"
+        state: touch
+        owner: root
+        group: root
+        mode: "0644"
+      register: rolling_touch
+
+    - name: Show task change states
+      ansible.builtin.debug:
+        msg:
+          - "fixed changed={{ fixed_touch.changed }}"
+          - "rolling changed={{ rolling_touch.changed }}"
