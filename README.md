@@ -246,15 +246,15 @@ Labs organized by official RHCSA EX200 exam objectives.
 
 | # | Lab | Key Commands |
 |---|-----|-------------|
-| 31 | [Configure a Static IP Address](https://github.com/kelvintechnical/static-ip-address) | `nmcli con mod`, `ip addr`, `ip route` — Configure a network interface with a static IPv4 address, gateway, and DNS using `nmcli` |
-| 32 | [Check Network Connectivity](https://github.com/kelvintechnical/network-connectivity-check) | `ping`, `traceroute` — Use `ping` to test connections and `traceroute` to map the path packets take across the network |
-| 33 | [Display IP and Routing Info](https://github.com/kelvintechnical/ip-and-routing-info) | `ip addr show`, `ip route show` — Use `ip addr show` to check IP assignments and `ip route show` to review the routing table |
-| 34 | [Inspecting Listening Sockets](https://github.com/kelvintechnical/listening-sockets) | `ss -tuna4` — View active TCP and UDP sockets and identify open ports |
-| 35 | [Text-Based Network Config nmtui](https://github.com/kelvintechnical/nmtui-network-config) | `nmtui` — Launch `nmtui` to set a static IPv4 address, subnet mask, gateway, and DNS |
-| 36 | [Command-Line Network Config nmcli](https://github.com/kelvintechnical/nmcli-network-config) | `nmcli` — Use `nmcli` to modify connection settings and reload a network interface |
-| 37 | [Configuring Local Host Resolution](https://github.com/kelvintechnical/local-host-resolution) | `/etc/hosts` — Open `/etc/hosts` and manually map IP addresses to hostnames for local name resolution |
-| 38 | [Configuring DNS Servers](https://github.com/kelvintechnical/dns-servers-config) | `/etc/resolv.conf` — Examine and modify `/etc/resolv.conf` to specify external name servers and search domains |
-| 39 | [Configure SSH and Key-Based Auth](https://github.com/kelvintechnical/ssh-key-based-auth) | `ssh-keygen`, `ssh-copy-id` — Generate an RSA key pair and deploy it for passwordless login |
+| 31 | Configure a Static IP Address Trilogy: [31a RHCSA](lab-31a-static-ip-nmcli-rhcsa/) · [31b Ansible](lab-31b-static-ip-nmcli-ansible/) · [31c Verify](lab-31c-static-ip-nmcli-verify/) | `nmcli con mod`, `ip addr`, `ip route` — Configure a network interface with a static IPv4 address, gateway, and DNS using `nmcli` |
+| 32 | Check Network Connectivity Trilogy: [32a RHCSA](lab-32a-ping-traceroute-rhcsa/) · [32b Ansible](lab-32b-ping-traceroute-ansible/) · [32c Verify](lab-32c-ping-traceroute-verify/) | `ping`, `traceroute` — Use `ping` to test connections and `traceroute` to map the path packets take across the network |
+| 33 | Display IP and Routing Info Trilogy: [33a RHCSA](lab-33a-ip-addr-route-show-rhcsa/) · [33b Ansible](lab-33b-ip-addr-route-show-ansible/) · [33c Verify](lab-33c-ip-addr-route-show-verify/) | `ip addr show`, `ip route show` — Use `ip addr show` to check IP assignments and `ip route show` to review the routing table |
+| 34 | Inspecting Listening Sockets Trilogy: [34a RHCSA](lab-34a-ss-listening-sockets-rhcsa/) · [34b Ansible](lab-34b-ss-listening-sockets-ansible/) · [34c Verify](lab-34c-ss-listening-sockets-verify/) | `ss -tuna4` — View active TCP and UDP sockets and identify open ports |
+| 35 | Text-Based Network Config nmtui Trilogy: [35a RHCSA](lab-35a-nmtui-tui-config-rhcsa/) · [35b Ansible](lab-35b-nmtui-tui-config-ansible/) · [35c Verify](lab-35c-nmtui-tui-config-verify/) | `nmtui` — Launch `nmtui` to set a static IPv4 address, subnet mask, gateway, and DNS |
+| 36 | Command-Line Network Config nmcli Trilogy: [36a RHCSA](lab-36a-nmcli-cli-config-rhcsa/) · [36b Ansible](lab-36b-nmcli-cli-config-ansible/) · [36c Verify](lab-36c-nmcli-cli-config-verify/) | `nmcli` — Use `nmcli` to modify connection settings and reload a network interface |
+| 37 | Configuring Local Host Resolution Trilogy: [37a RHCSA](lab-37a-etc-hosts-resolution-rhcsa/) · [37b Ansible](lab-37b-etc-hosts-resolution-ansible/) · [37c Verify](lab-37c-etc-hosts-resolution-verify/) | `/etc/hosts` — Open `/etc/hosts` and manually map IP addresses to hostnames for local name resolution |
+| 38 | Configuring DNS Servers Trilogy: [38a RHCSA](lab-38a-resolv-conf-dns-rhcsa/) · [38b Ansible](lab-38b-resolv-conf-dns-ansible/) · [38c Verify](lab-38c-resolv-conf-dns-verify/) | `/etc/resolv.conf` — Examine and modify `/etc/resolv.conf` to specify external name servers and search domains |
+| 39 | Configure SSH and Key-Based Auth Trilogy: [39a RHCSA](lab-39a-ssh-key-auth-rhcsa/) · [39b Ansible](lab-39b-ssh-key-auth-ansible/) · [39c Verify](lab-39c-ssh-key-auth-verify/) | `ssh-keygen`, `ssh-copy-id` — Generate an RSA key pair and deploy it for passwordless login |
 
 ---
 
@@ -264,21 +264,21 @@ Labs organized by official RHCSA EX200 exam objectives.
 
 | # | Lab | Key Commands |
 |---|-----|-------------|
-| 40 | [Standard File Permissions](https://github.com/kelvintechnical/standard-file-permissions) | `chmod` — Use `chmod` to list, set, and change standard ugo/rwx permissions |
-| 41 | [Changing Ownership](https://github.com/kelvintechnical/changing-file-ownership) | `chown`, `chgrp` — Reassign file and directory ownership using `chown` and `chgrp` |
-| 42 | [SUID Executables](https://github.com/kelvintechnical/suid-executables) | `chmod u+s`, `ls -l` — Configure the SUID bit on a file and observe how it executes with the privileges of the file owner |
-| 43 | [Configure SGID and Sticky Bit](https://github.com/kelvintechnical/sgid-sticky-bit) | `chmod g+s`, `chmod +t`, `ls -ld` — Create a directory with SGID set so new files inherit the group ownership of the parent |
-| 44 | [Immutable File Attribute](https://github.com/kelvintechnical/immutable-file-attribute) | `chattr +i`, `lsattr` — Use `chattr +i` to make a critical file immutable, preventing deletion even by root |
-| 45 | [Append-Only File Attribute](https://github.com/kelvintechnical/append-only-file-attribute) | `chattr +a`, `lsattr` — Use `chattr +a` on a log file to ensure data can only be appended and never overwritten |
-| 46 | [Identifying File Attributes](https://github.com/kelvintechnical/identifying-file-attributes) | `lsattr` — Use `lsattr` to list extended attributes of files on ext4 or XFS filesystems |
-| 47 | [Check ACL Support](https://github.com/kelvintechnical/acl-support-check) | `mount`, `acl` option — Verify a filesystem is mounted with the `acl` option using the `mount` command |
-| 48 | [Viewing ACLs](https://github.com/kelvintechnical/viewing-acls) | `getfacl` — Inspect a file's current access control list using `getfacl` |
-| 49 | [Modifying ACLs](https://github.com/kelvintechnical/modifying-acls) | `setfacl -m` — Use `setfacl` to grant a specific user read and write access to a file |
-| 50 | [Denying Access via ACLs](https://github.com/kelvintechnical/acl-deny-access) | `setfacl` — Implement an ACL to explicitly deny access to a specific user |
-| 51 | [Default Directory ACLs](https://github.com/kelvintechnical/default-directory-acls) | `setfacl -d` — Configure a default ACL on a directory so newly created files automatically inherit permissions |
-| 52 | [ACL Masks](https://github.com/kelvintechnical/acl-masks) | `setfacl -m m::` — Use `setfacl` to set a mask that caps maximum allowable permissions for users and groups |
-| 53 | [Removing ACLs](https://github.com/kelvintechnical/removing-acls) | `setfacl -x`, `setfacl -b` — Strip specific ACL entries with `setfacl -x` or remove all ACLs with `setfacl -b` |
-| 54 | [NFSv4 ACLs](https://github.com/kelvintechnical/nfsv4-acls) | `nfs4_getfacl`, `nfs4_setfacl` — Use `nfs4_getfacl` and `nfs4_setfacl` to display and edit permissions on an NFS v4 share |
+| 40 | Standard File Permissions Trilogy: [40a RHCSA](lab-40a-chmod-standard-perms-rhcsa/) · [40b Ansible](lab-40b-chmod-standard-perms-ansible/) · [40c Verify](lab-40c-chmod-standard-perms-verify/) | `chmod` — Use `chmod` to list, set, and change standard ugo/rwx permissions |
+| 41 | Changing Ownership Trilogy: [41a RHCSA](lab-41a-chown-chgrp-ownership-rhcsa/) · [41b Ansible](lab-41b-chown-chgrp-ownership-ansible/) · [41c Verify](lab-41c-chown-chgrp-ownership-verify/) | `chown`, `chgrp` — Reassign file and directory ownership using `chown` and `chgrp` |
+| 42 | SUID Executables Trilogy: [42a RHCSA](lab-42a-suid-executable-rhcsa/) · [42b Ansible](lab-42b-suid-executable-ansible/) · [42c Verify](lab-42c-suid-executable-verify/) | `chmod u+s`, `ls -l` — Configure the SUID bit on a file and observe how it executes with the privileges of the file owner |
+| 43 | Configure SGID and Sticky Bit Trilogy: [43a RHCSA](lab-43a-sgid-sticky-bit-rhcsa/) · [43b Ansible](lab-43b-sgid-sticky-bit-ansible/) · [43c Verify](lab-43c-sgid-sticky-bit-verify/) | `chmod g+s`, `chmod +t`, `ls -ld` — Create a directory with SGID set so new files inherit the group ownership of the parent |
+| 44 | Immutable File Attribute Trilogy: [44a RHCSA](lab-44a-chattr-immutable-rhcsa/) · [44b Ansible](lab-44b-chattr-immutable-ansible/) · [44c Verify](lab-44c-chattr-immutable-verify/) | `chattr +i`, `lsattr` — Use `chattr +i` to make a critical file immutable, preventing deletion even by root |
+| 45 | Append-Only File Attribute Trilogy: [45a RHCSA](lab-45a-chattr-append-only-rhcsa/) · [45b Ansible](lab-45b-chattr-append-only-ansible/) · [45c Verify](lab-45c-chattr-append-only-verify/) | `chattr +a`, `lsattr` — Use `chattr +a` on a log file to ensure data can only be appended and never overwritten |
+| 46 | Identifying File Attributes Trilogy: [46a RHCSA](lab-46a-lsattr-extended-attrs-rhcsa/) · [46b Ansible](lab-46b-lsattr-extended-attrs-ansible/) · [46c Verify](lab-46c-lsattr-extended-attrs-verify/) | `lsattr` — Use `lsattr` to list extended attributes of files on ext4 or XFS filesystems |
+| 47 | Check ACL Support Trilogy: [47a RHCSA](lab-47a-acl-mount-option-rhcsa/) · [47b Ansible](lab-47b-acl-mount-option-ansible/) · [47c Verify](lab-47c-acl-mount-option-verify/) | `mount`, `acl` option — Verify a filesystem is mounted with the `acl` option using the `mount` command |
+| 48 | Viewing ACLs Trilogy: [48a RHCSA](lab-48a-getfacl-view-acl-rhcsa/) · [48b Ansible](lab-48b-getfacl-view-acl-ansible/) · [48c Verify](lab-48c-getfacl-view-acl-verify/) | `getfacl` — Inspect a file's current access control list using `getfacl` |
+| 49 | Modifying ACLs Trilogy: [49a RHCSA](lab-49a-setfacl-modify-rhcsa/) · [49b Ansible](lab-49b-setfacl-modify-ansible/) · [49c Verify](lab-49c-setfacl-modify-verify/) | `setfacl -m` — Use `setfacl` to grant a specific user read and write access to a file |
+| 50 | Denying Access via ACLs Trilogy: [50a RHCSA](lab-50a-setfacl-deny-rhcsa/) · [50b Ansible](lab-50b-setfacl-deny-ansible/) · [50c Verify](lab-50c-setfacl-deny-verify/) | `setfacl` — Implement an ACL to explicitly deny access to a specific user |
+| 51 | Default Directory ACLs Trilogy: [51a RHCSA](lab-51a-default-acl-inherit-rhcsa/) · [51b Ansible](lab-51b-default-acl-inherit-ansible/) · [51c Verify](lab-51c-default-acl-inherit-verify/) | `setfacl -d` — Configure a default ACL on a directory so newly created files automatically inherit permissions |
+| 52 | ACL Masks Trilogy: [52a RHCSA](lab-52a-acl-masks-rhcsa/) · [52b Ansible](lab-52b-acl-masks-ansible/) · [52c Verify](lab-52c-acl-masks-verify/) | `setfacl -m m::` — Use `setfacl` to set a mask that caps maximum allowable permissions for users and groups |
+| 53 | Removing ACLs Trilogy: [53a RHCSA](lab-53a-setfacl-remove-rhcsa/) · [53b Ansible](lab-53b-setfacl-remove-ansible/) · [53c Verify](lab-53c-setfacl-remove-verify/) | `setfacl -x`, `setfacl -b` — Strip specific ACL entries with `setfacl -x` or remove all ACLs with `setfacl -b` |
+| 54 | NFSv4 ACLs Trilogy: [54a RHCSA](lab-54a-nfs4-acl-rhcsa/) · [54b Ansible](lab-54b-nfs4-acl-ansible/) · [54c Verify](lab-54c-nfs4-acl-verify/) | `nfs4_getfacl`, `nfs4_setfacl` — Use `nfs4_getfacl` and `nfs4_setfacl` to display and edit permissions on an NFS v4 share |
 
 ---
 
@@ -288,12 +288,12 @@ Labs organized by official RHCSA EX200 exam objectives.
 
 | # | Lab | Key Commands |
 |---|-----|-------------|
-| 55 | [Inspecting iptables](https://github.com/kelvintechnical/inspecting-iptables) | `iptables -L` — Review the default filtering chains and packet rules using `iptables -L` |
-| 56 | [Exploring firewalld Zones](https://github.com/kelvintechnical/firewalld-zones) | `firewall-cmd --get-default-zone`, `--list-all` — List available and active zones |
-| 57 | [Changing Default Firewall Zone](https://github.com/kelvintechnical/default-firewall-zone) | `firewall-cmd --set-default-zone` — Reassign an active interface from the public zone to the dmz or internal zone |
-| 58 | [Adding Services to Zones](https://github.com/kelvintechnical/firewalld-add-services) | `firewall-cmd --add-service`, `--permanent` — Permanently open ports for a service using `firewall-cmd --add-service` and reload |
-| 59 | [Opening Custom Ports](https://github.com/kelvintechnical/firewalld-custom-ports) | `firewall-cmd --add-port` — Open a non-standard port by adding it directly to a zone |
-| 60 | [Inspect Active Firewall Zones](https://github.com/kelvintechnical/active-firewall-zones) | `firewall-cmd --get-default-zone`, `--list-all` — Review zones and allowed services |
+| 55 | Inspecting iptables Trilogy: [55a RHCSA](lab-55a-iptables-inspect-rhcsa/) · [55b Ansible](lab-55b-iptables-inspect-ansible/) · [55c Verify](lab-55c-iptables-inspect-verify/) | `iptables -L` — Review the default filtering chains and packet rules using `iptables -L` |
+| 56 | Exploring firewalld Zones Trilogy: [56a RHCSA](lab-56a-firewalld-zones-rhcsa/) · [56b Ansible](lab-56b-firewalld-zones-ansible/) · [56c Verify](lab-56c-firewalld-zones-verify/) | `firewall-cmd --get-default-zone`, `--list-all` — List available and active zones |
+| 57 | Changing Default Firewall Zone Trilogy: [57a RHCSA](lab-57a-firewalld-default-zone-rhcsa/) · [57b Ansible](lab-57b-firewalld-default-zone-ansible/) · [57c Verify](lab-57c-firewalld-default-zone-verify/) | `firewall-cmd --set-default-zone` — Reassign an active interface from the public zone to the dmz or internal zone |
+| 58 | Adding Services to Zones Trilogy: [58a RHCSA](lab-58a-firewalld-add-service-rhcsa/) · [58b Ansible](lab-58b-firewalld-add-service-ansible/) · [58c Verify](lab-58c-firewalld-add-service-verify/) | `firewall-cmd --add-service`, `--permanent` — Permanently open ports for a service using `firewall-cmd --add-service` and reload |
+| 59 | Opening Custom Ports Trilogy: [59a RHCSA](lab-59a-firewalld-add-port-rhcsa/) · [59b Ansible](lab-59b-firewalld-add-port-ansible/) · [59c Verify](lab-59c-firewalld-add-port-verify/) | `firewall-cmd --add-port` — Open a non-standard port by adding it directly to a zone |
+| 60 | Inspect Active Firewall Zones Trilogy: [60a RHCSA](lab-60a-firewalld-active-zones-rhcsa/) · [60b Ansible](lab-60b-firewalld-active-zones-ansible/) · [60c Verify](lab-60c-firewalld-active-zones-verify/) | `firewall-cmd --get-default-zone`, `--list-all` — Review zones and allowed services |
 | 61 | [Reassign Interfaces to Zones](https://github.com/kelvintechnical/reassign-interfaces-zones) | `firewall-cmd --change-interface` — Temporarily and permanently move a network interface between zones |
 | 62 | [Allow Services Through Firewall](https://github.com/kelvintechnical/firewall-allow-services) | `firewall-cmd --permanent --add-service` — Use `firewall-cmd` to open ports for web and FTP servers |
 | 63 | [Configure IP Masquerading NAT](https://github.com/kelvintechnical/ip-masquerading-nat) | `firewall-cmd --add-masquerade` — Enable IP masquerading on the external zone |

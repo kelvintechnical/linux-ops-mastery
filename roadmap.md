@@ -166,15 +166,15 @@ Foundation → advanced. Each step locks in prerequisites for the next. Mirrors 
 | 2 | not completed | 29 | Searching Manuals by Keyword | [29a RHCSA](lab-29a-apropos-whatis-rhcsa/) · [29b Ansible](lab-29b-apropos-whatis-ansible/) · [29c Verify](lab-29c-apropos-whatis-verify/) — `whatis`, `apropos` |
 | 3 | not completed | 30 | Navigating info Pages | [30a RHCSA](lab-30a-info-pages-rhcsa/) · [30b Ansible](lab-30b-info-pages-ansible/) · [30c Verify](lab-30c-info-pages-verify/) — `info` |
 | 4 | not completed | DOC-F01 | Locate Command Documentation Under `/usr/share/doc` | `find /usr/share/doc -iname '*passwd*'`, `rpm -qf` owner |
-| 5 | not completed | 31 | Configure a Static IP Address | `nmcli con mod`, `ip addr`, `ip route` — static IPv4 + gateway + DNS |
-| 6 | not completed | 32 | Check Network Connectivity | `ping`, `traceroute` — test + map network path |
-| 7 | not completed | 33 | Display IP and Routing Info | `ip addr show`, `ip route show` |
-| 8 | not completed | 34 | Inspecting Listening Sockets | `ss -tuna4` — view TCP/UDP sockets, open ports |
-| 9 | not completed | 35 | Text-Based Network Config nmtui | `nmtui` — set static IP + mask + gateway + DNS |
-| 10 | not completed | 36 | Command-Line Network Config nmcli | `nmcli` — modify settings + reload interface |
-| 11 | not completed | 37 | Configuring Local Host Resolution | `/etc/hosts` — manual hostname-to-IP mapping |
-| 12 | not completed | 38 | Configuring DNS Servers | `/etc/resolv.conf` — name servers + search domains |
-| 13 | not completed | 39 | Configure SSH and Key-Based Auth | `ssh-keygen`, `ssh-copy-id` — RSA pair + passwordless login |
+| 5 | not completed | 31 | Configure a Static IP Address | [31a RHCSA](lab-31a-static-ip-nmcli-rhcsa/) · [31b Ansible](lab-31b-static-ip-nmcli-ansible/) · [31c Verify](lab-31c-static-ip-nmcli-verify/) — `nmcli con mod`, `ip addr`, `ip route` |
+| 6 | not completed | 32 | Check Network Connectivity | [32a RHCSA](lab-32a-ping-traceroute-rhcsa/) · [32b Ansible](lab-32b-ping-traceroute-ansible/) · [32c Verify](lab-32c-ping-traceroute-verify/) — `ping`, `traceroute` |
+| 7 | not completed | 33 | Display IP and Routing Info | [33a RHCSA](lab-33a-ip-addr-route-show-rhcsa/) · [33b Ansible](lab-33b-ip-addr-route-show-ansible/) · [33c Verify](lab-33c-ip-addr-route-show-verify/) — `ip addr show`, `ip route show` |
+| 8 | not completed | 34 | Inspecting Listening Sockets | [34a RHCSA](lab-34a-ss-listening-sockets-rhcsa/) · [34b Ansible](lab-34b-ss-listening-sockets-ansible/) · [34c Verify](lab-34c-ss-listening-sockets-verify/) — `ss -tuna4` |
+| 9 | not completed | 35 | Text-Based Network Config nmtui | [35a RHCSA](lab-35a-nmtui-tui-config-rhcsa/) · [35b Ansible](lab-35b-nmtui-tui-config-ansible/) · [35c Verify](lab-35c-nmtui-tui-config-verify/) — `nmtui` |
+| 10 | not completed | 36 | Command-Line Network Config nmcli | [36a RHCSA](lab-36a-nmcli-cli-config-rhcsa/) · [36b Ansible](lab-36b-nmcli-cli-config-ansible/) · [36c Verify](lab-36c-nmcli-cli-config-verify/) — `nmcli` |
+| 11 | not completed | 37 | Configuring Local Host Resolution | [37a RHCSA](lab-37a-etc-hosts-resolution-rhcsa/) · [37b Ansible](lab-37b-etc-hosts-resolution-ansible/) · [37c Verify](lab-37c-etc-hosts-resolution-verify/) — `/etc/hosts` |
+| 12 | not completed | 38 | Configuring DNS Servers | [38a RHCSA](lab-38a-resolv-conf-dns-rhcsa/) · [38b Ansible](lab-38b-resolv-conf-dns-ansible/) · [38c Verify](lab-38c-resolv-conf-dns-verify/) — `/etc/resolv.conf` |
+| 13 | not completed | 39 | Configure SSH and Key-Based Auth | [39a RHCSA](lab-39a-ssh-key-auth-rhcsa/) · [39b Ansible](lab-39b-ssh-key-auth-ansible/) · [39c Verify](lab-39c-ssh-key-auth-verify/) — `ssh-keygen`, `ssh-copy-id` |
 | 14 | not completed | NET-F01 | Manual Hostname Configuration by Editing `/etc/hostname` | Write FQDN to `/etc/hostname`, no `hostnamectl`, persist on reboot |
 | 15 | not completed | NET-F02 | Manual Network Configuration by Editing Connection Files | Hand-edit `/etc/NetworkManager/system-connections/`, `nmcli connection reload` |
 | 16 | not completed | NET-F03 | Configure Static IPv4 with Specific Host Address | `nmcli con mod ipv4.addresses/gateway/dns/method manual`, `autoconnect yes` |
@@ -185,19 +185,19 @@ Foundation → advanced. Each step locks in prerequisites for the next. Mirrors 
 
 | # | Status | ID / # | Full Lab Name | Key Commands / Focus |
 |---|---|---|---|---|
-| 1 | not completed | 40 | Standard File Permissions | `chmod` — set + change standard ugo/rwx |
-| 2 | not completed | 41 | Changing Ownership | `chown`, `chgrp` — reassign user + group |
-| 3 | not completed | 42 | SUID Executables | `chmod u+s`, `ls -l` — run as file owner |
-| 4 | not completed | 43 | Configure SGID and Sticky Bit | `chmod g+s`, `chmod +t`, `ls -ld` — group inherit + delete-protect |
-| 5 | not completed | 44 | Immutable File Attribute | `chattr +i`, `lsattr` — prevent deletion even by root |
-| 6 | not completed | 45 | Append-Only File Attribute | `chattr +a` — log files that cannot be overwritten |
-| 7 | not completed | 46 | Identifying File Attributes | `lsattr` — list extended attributes on ext4/XFS |
-| 8 | not completed | 47 | Check ACL Support | `mount`, `acl` option — verify filesystem ACL support |
-| 9 | not completed | 48 | Viewing ACLs | `getfacl` — inspect current ACL |
-| 10 | not completed | 49 | Modifying ACLs | `setfacl -m` — grant per-user permissions |
-| 11 | not completed | 50 | Denying Access via ACLs | `setfacl` — explicit per-user deny |
-| 12 | not completed | 51 | Default Directory ACLs | `setfacl -d` — auto-inherit ACL on new files |
-| 13 | not completed | 52 | ACL Masks | `setfacl -m m::` — cap max permissions for users + groups |
+| 1 | not completed | 40 | Standard File Permissions | [40a RHCSA](lab-40a-chmod-standard-perms-rhcsa/) · [40b Ansible](lab-40b-chmod-standard-perms-ansible/) · [40c Verify](lab-40c-chmod-standard-perms-verify/) — `chmod` |
+| 2 | not completed | 41 | Changing Ownership | [41a RHCSA](lab-41a-chown-chgrp-ownership-rhcsa/) · [41b Ansible](lab-41b-chown-chgrp-ownership-ansible/) · [41c Verify](lab-41c-chown-chgrp-ownership-verify/) — `chown`, `chgrp` |
+| 3 | not completed | 42 | SUID Executables | [42a RHCSA](lab-42a-suid-executable-rhcsa/) · [42b Ansible](lab-42b-suid-executable-ansible/) · [42c Verify](lab-42c-suid-executable-verify/) — `chmod u+s`, `ls -l` |
+| 4 | not completed | 43 | Configure SGID and Sticky Bit | [43a RHCSA](lab-43a-sgid-sticky-bit-rhcsa/) · [43b Ansible](lab-43b-sgid-sticky-bit-ansible/) · [43c Verify](lab-43c-sgid-sticky-bit-verify/) — `chmod g+s`, `chmod +t`, `ls -ld` |
+| 5 | not completed | 44 | Immutable File Attribute | [44a RHCSA](lab-44a-chattr-immutable-rhcsa/) · [44b Ansible](lab-44b-chattr-immutable-ansible/) · [44c Verify](lab-44c-chattr-immutable-verify/) — `chattr +i`, `lsattr` |
+| 6 | not completed | 45 | Append-Only File Attribute | [45a RHCSA](lab-45a-chattr-append-only-rhcsa/) · [45b Ansible](lab-45b-chattr-append-only-ansible/) · [45c Verify](lab-45c-chattr-append-only-verify/) — `chattr +a` |
+| 7 | not completed | 46 | Identifying File Attributes | [46a RHCSA](lab-46a-lsattr-extended-attrs-rhcsa/) · [46b Ansible](lab-46b-lsattr-extended-attrs-ansible/) · [46c Verify](lab-46c-lsattr-extended-attrs-verify/) — `lsattr` |
+| 8 | not completed | 47 | Check ACL Support | [47a RHCSA](lab-47a-acl-mount-option-rhcsa/) · [47b Ansible](lab-47b-acl-mount-option-ansible/) · [47c Verify](lab-47c-acl-mount-option-verify/) — `mount`, `acl` option |
+| 9 | not completed | 48 | Viewing ACLs | [48a RHCSA](lab-48a-getfacl-view-acl-rhcsa/) · [48b Ansible](lab-48b-getfacl-view-acl-ansible/) · [48c Verify](lab-48c-getfacl-view-acl-verify/) — `getfacl` |
+| 10 | not completed | 49 | Modifying ACLs | [49a RHCSA](lab-49a-setfacl-modify-rhcsa/) · [49b Ansible](lab-49b-setfacl-modify-ansible/) · [49c Verify](lab-49c-setfacl-modify-verify/) — `setfacl -m` |
+| 11 | not completed | 50 | Denying Access via ACLs | [50a RHCSA](lab-50a-setfacl-deny-rhcsa/) · [50b Ansible](lab-50b-setfacl-deny-ansible/) · [50c Verify](lab-50c-setfacl-deny-verify/) — `setfacl` |
+| 12 | not completed | 51 | Default Directory ACLs | [51a RHCSA](lab-51a-default-acl-inherit-rhcsa/) · [51b Ansible](lab-51b-default-acl-inherit-ansible/) · [51c Verify](lab-51c-default-acl-inherit-verify/) — `setfacl -d` |
+| 13 | not completed | 52 | ACL Masks | [52a RHCSA](lab-52a-acl-masks-rhcsa/) · [52b Ansible](lab-52b-acl-masks-ansible/) · [52c Verify](lab-52c-acl-masks-verify/) — `setfacl -m m::` |
 | 14 | not completed | 53 | Removing ACLs | `setfacl -x`, `setfacl -b` — strip specific or all ACL entries |
 | 15 | not completed | 54 | NFSv4 ACLs | `nfs4_getfacl`, `nfs4_setfacl` — edit NFSv4 share permissions |
 | 16 | not completed | PERM-F01 | Collaborative SGID Directory with Multi-User Write Test | `chmod 2770 /sdata`, prove cross-user edit + no-delete |
@@ -1055,15 +1055,15 @@ Foundation → advanced. Each step locks in prerequisites for the next. Mirrors 
 
 | Status | # | Lab | Full Path |
 |---|---|---|---|
-| not completed | 31 | Configure a Static IP Address | <https://github.com/kelvintechnical/static-ip-address> |
-| not completed | 32 | Check Network Connectivity | <https://github.com/kelvintechnical/network-connectivity-check> |
-| not completed | 33 | Display IP and Routing Info | <https://github.com/kelvintechnical/ip-and-routing-info> |
-| not completed | 34 | Inspecting Listening Sockets | <https://github.com/kelvintechnical/listening-sockets> |
-| not completed | 35 | Text-Based Network Config nmtui | <https://github.com/kelvintechnical/nmtui-network-config> |
-| not completed | 36 | Command-Line Network Config nmcli | <https://github.com/kelvintechnical/nmcli-network-config> |
-| not completed | 37 | Configuring Local Host Resolution | <https://github.com/kelvintechnical/local-host-resolution> |
-| not completed | 38 | Configuring DNS Servers | <https://github.com/kelvintechnical/dns-servers-config> |
-| not completed | 39 | Configure SSH and Key-Based Auth | <https://github.com/kelvintechnical/ssh-key-based-auth> |
+| not completed | 31 | Configure a Static IP Address | [31a RHCSA](lab-31a-static-ip-nmcli-rhcsa/) · [31b Ansible](lab-31b-static-ip-nmcli-ansible/) · [31c Verify](lab-31c-static-ip-nmcli-verify/) |
+| not completed | 32 | Check Network Connectivity | [32a RHCSA](lab-32a-ping-traceroute-rhcsa/) · [32b Ansible](lab-32b-ping-traceroute-ansible/) · [32c Verify](lab-32c-ping-traceroute-verify/) |
+| not completed | 33 | Display IP and Routing Info | [33a RHCSA](lab-33a-ip-addr-route-show-rhcsa/) · [33b Ansible](lab-33b-ip-addr-route-show-ansible/) · [33c Verify](lab-33c-ip-addr-route-show-verify/) |
+| not completed | 34 | Inspecting Listening Sockets | [34a RHCSA](lab-34a-ss-listening-sockets-rhcsa/) · [34b Ansible](lab-34b-ss-listening-sockets-ansible/) · [34c Verify](lab-34c-ss-listening-sockets-verify/) |
+| not completed | 35 | Text-Based Network Config nmtui | [35a RHCSA](lab-35a-nmtui-tui-config-rhcsa/) · [35b Ansible](lab-35b-nmtui-tui-config-ansible/) · [35c Verify](lab-35c-nmtui-tui-config-verify/) |
+| not completed | 36 | Command-Line Network Config nmcli | [36a RHCSA](lab-36a-nmcli-cli-config-rhcsa/) · [36b Ansible](lab-36b-nmcli-cli-config-ansible/) · [36c Verify](lab-36c-nmcli-cli-config-verify/) |
+| not completed | 37 | Configuring Local Host Resolution | [37a RHCSA](lab-37a-etc-hosts-resolution-rhcsa/) · [37b Ansible](lab-37b-etc-hosts-resolution-ansible/) · [37c Verify](lab-37c-etc-hosts-resolution-verify/) |
+| not completed | 38 | Configuring DNS Servers | [38a RHCSA](lab-38a-resolv-conf-dns-rhcsa/) · [38b Ansible](lab-38b-resolv-conf-dns-ansible/) · [38c Verify](lab-38c-resolv-conf-dns-verify/) |
+| not completed | 39 | Configure SSH and Key-Based Auth | [39a RHCSA](lab-39a-ssh-key-auth-rhcsa/) · [39b Ansible](lab-39b-ssh-key-auth-ansible/) · [39c Verify](lab-39c-ssh-key-auth-verify/) |
 
 **Future Labs (planned):**
 
@@ -1081,21 +1081,21 @@ Foundation → advanced. Each step locks in prerequisites for the next. Mirrors 
 
 | Status | # | Lab | Full Path |
 |---|---|---|---|
-| not completed | 40 | Standard File Permissions | <https://github.com/kelvintechnical/standard-file-permissions> |
-| not completed | 41 | Changing Ownership | <https://github.com/kelvintechnical/changing-file-ownership> |
-| not completed | 42 | SUID Executables | <https://github.com/kelvintechnical/suid-executables> |
-| not completed | 43 | Configure SGID and Sticky Bit | <https://github.com/kelvintechnical/sgid-sticky-bit> |
-| not completed | 44 | Immutable File Attribute | <https://github.com/kelvintechnical/immutable-file-attribute> |
-| not completed | 45 | Append-Only File Attribute | <https://github.com/kelvintechnical/append-only-file-attribute> |
-| not completed | 46 | Identifying File Attributes | <https://github.com/kelvintechnical/identifying-file-attributes> |
-| not completed | 47 | Check ACL Support | <https://github.com/kelvintechnical/acl-support-check> |
-| not completed | 48 | Viewing ACLs | <https://github.com/kelvintechnical/viewing-acls> |
-| not completed | 49 | Modifying ACLs | <https://github.com/kelvintechnical/modifying-acls> |
-| not completed | 50 | Denying Access via ACLs | <https://github.com/kelvintechnical/acl-deny-access> |
-| not completed | 51 | Default Directory ACLs | <https://github.com/kelvintechnical/default-directory-acls> |
-| not completed | 52 | ACL Masks | <https://github.com/kelvintechnical/acl-masks> |
-| not completed | 53 | Removing ACLs | <https://github.com/kelvintechnical/removing-acls> |
-| not completed | 54 | NFSv4 ACLs | <https://github.com/kelvintechnical/nfsv4-acls> |
+| not completed | 40 | Standard File Permissions | [40a RHCSA](lab-40a-chmod-standard-perms-rhcsa/) · [40b Ansible](lab-40b-chmod-standard-perms-ansible/) · [40c Verify](lab-40c-chmod-standard-perms-verify/) |
+| not completed | 41 | Changing Ownership | [41a RHCSA](lab-41a-chown-chgrp-ownership-rhcsa/) · [41b Ansible](lab-41b-chown-chgrp-ownership-ansible/) · [41c Verify](lab-41c-chown-chgrp-ownership-verify/) |
+| not completed | 42 | SUID Executables | [42a RHCSA](lab-42a-suid-executable-rhcsa/) · [42b Ansible](lab-42b-suid-executable-ansible/) · [42c Verify](lab-42c-suid-executable-verify/) |
+| not completed | 43 | Configure SGID and Sticky Bit | [43a RHCSA](lab-43a-sgid-sticky-bit-rhcsa/) · [43b Ansible](lab-43b-sgid-sticky-bit-ansible/) · [43c Verify](lab-43c-sgid-sticky-bit-verify/) |
+| not completed | 44 | Immutable File Attribute | [44a RHCSA](lab-44a-chattr-immutable-rhcsa/) · [44b Ansible](lab-44b-chattr-immutable-ansible/) · [44c Verify](lab-44c-chattr-immutable-verify/) |
+| not completed | 45 | Append-Only File Attribute | [45a RHCSA](lab-45a-chattr-append-only-rhcsa/) · [45b Ansible](lab-45b-chattr-append-only-ansible/) · [45c Verify](lab-45c-chattr-append-only-verify/) |
+| not completed | 46 | Identifying File Attributes | [46a RHCSA](lab-46a-lsattr-extended-attrs-rhcsa/) · [46b Ansible](lab-46b-lsattr-extended-attrs-ansible/) · [46c Verify](lab-46c-lsattr-extended-attrs-verify/) |
+| not completed | 47 | Check ACL Support | [47a RHCSA](lab-47a-acl-mount-option-rhcsa/) · [47b Ansible](lab-47b-acl-mount-option-ansible/) · [47c Verify](lab-47c-acl-mount-option-verify/) |
+| not completed | 48 | Viewing ACLs | [48a RHCSA](lab-48a-getfacl-view-acl-rhcsa/) · [48b Ansible](lab-48b-getfacl-view-acl-ansible/) · [48c Verify](lab-48c-getfacl-view-acl-verify/) |
+| not completed | 49 | Modifying ACLs | [49a RHCSA](lab-49a-setfacl-modify-rhcsa/) · [49b Ansible](lab-49b-setfacl-modify-ansible/) · [49c Verify](lab-49c-setfacl-modify-verify/) |
+| not completed | 50 | Denying Access via ACLs | [50a RHCSA](lab-50a-setfacl-deny-rhcsa/) · [50b Ansible](lab-50b-setfacl-deny-ansible/) · [50c Verify](lab-50c-setfacl-deny-verify/) |
+| not completed | 51 | Default Directory ACLs | [51a RHCSA](lab-51a-default-acl-inherit-rhcsa/) · [51b Ansible](lab-51b-default-acl-inherit-ansible/) · [51c Verify](lab-51c-default-acl-inherit-verify/) |
+| not completed | 52 | ACL Masks | [52a RHCSA](lab-52a-acl-masks-rhcsa/) · [52b Ansible](lab-52b-acl-masks-ansible/) · [52c Verify](lab-52c-acl-masks-verify/) |
+| not completed | 53 | Removing ACLs | [53a RHCSA](lab-53a-setfacl-remove-rhcsa/) · [53b Ansible](lab-53b-setfacl-remove-ansible/) · [53c Verify](lab-53c-setfacl-remove-verify/) |
+| not completed | 54 | NFSv4 ACLs | [54a RHCSA](lab-54a-nfs4-acl-rhcsa/) · [54b Ansible](lab-54b-nfs4-acl-ansible/) · [54c Verify](lab-54c-nfs4-acl-verify/) |
 
 **Future Labs (planned):**
 
@@ -1114,12 +1114,12 @@ Foundation → advanced. Each step locks in prerequisites for the next. Mirrors 
 
 | Status | # | Lab | Full Path |
 |---|---|---|---|
-| not completed | 55 | Inspecting iptables | <https://github.com/kelvintechnical/inspecting-iptables> |
-| not completed | 56 | Exploring firewalld Zones | <https://github.com/kelvintechnical/firewalld-zones> |
-| not completed | 57 | Changing Default Firewall Zone | <https://github.com/kelvintechnical/default-firewall-zone> |
-| not completed | 58 | Adding Services to Zones | <https://github.com/kelvintechnical/firewalld-add-services> |
-| not completed | 59 | Opening Custom Ports | <https://github.com/kelvintechnical/firewalld-custom-ports> |
-| not completed | 60 | Inspect Active Firewall Zones | <https://github.com/kelvintechnical/active-firewall-zones> |
+| not completed | 55 | Inspecting iptables | [55a RHCSA](lab-55a-iptables-inspect-rhcsa/) · [55b Ansible](lab-55b-iptables-inspect-ansible/) · [55c Verify](lab-55c-iptables-inspect-verify/) |
+| not completed | 56 | Exploring firewalld Zones | [56a RHCSA](lab-56a-firewalld-zones-rhcsa/) · [56b Ansible](lab-56b-firewalld-zones-ansible/) · [56c Verify](lab-56c-firewalld-zones-verify/) |
+| not completed | 57 | Changing Default Firewall Zone | [57a RHCSA](lab-57a-firewalld-default-zone-rhcsa/) · [57b Ansible](lab-57b-firewalld-default-zone-ansible/) · [57c Verify](lab-57c-firewalld-default-zone-verify/) |
+| not completed | 58 | Adding Services to Zones | [58a RHCSA](lab-58a-firewalld-add-service-rhcsa/) · [58b Ansible](lab-58b-firewalld-add-service-ansible/) · [58c Verify](lab-58c-firewalld-add-service-verify/) |
+| not completed | 59 | Opening Custom Ports | [59a RHCSA](lab-59a-firewalld-add-port-rhcsa/) · [59b Ansible](lab-59b-firewalld-add-port-ansible/) · [59c Verify](lab-59c-firewalld-add-port-verify/) |
+| not completed | 60 | Inspect Active Firewall Zones | [60a RHCSA](lab-60a-firewalld-active-zones-rhcsa/) · [60b Ansible](lab-60b-firewalld-active-zones-ansible/) · [60c Verify](lab-60c-firewalld-active-zones-verify/) |
 | not completed | 61 | Reassign Interfaces to Zones | <https://github.com/kelvintechnical/reassign-interfaces-zones> |
 | not completed | 62 | Allow Services Through Firewall | <https://github.com/kelvintechnical/firewall-allow-services> |
 | not completed | 63 | Configure IP Masquerading NAT | <https://github.com/kelvintechnical/ip-masquerading-nat> |
