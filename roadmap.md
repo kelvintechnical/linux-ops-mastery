@@ -19,7 +19,7 @@ Every lab in this roadmap is currently marked **not completed**. The entire curr
 | Ansible (Mastering Ansible 4th Ed. + RHCE companion repos) | 88 | 88 |
 | **Total** | **522** | **522** |
 
-> **About these counts.** Every row counts every lab visible across this repo — the in-repo labs in [`labs/`](labs/), the external companion repos linked from the main [README](README.md), **and** every future lab listed in [`future_labs.txt`](future_labs.txt). All 522 are being re-authored under the ADHD-method format.
+> **About these counts.** Every row counts every lab visible across this repo — the in-repo labs in [`LABS/`](LABS/), the external companion repos linked from the main [README](README.md), **and** every future lab listed in [`future_labs.txt`](future_labs.txt). All 522 are being re-authored under the ADHD-method format.
 
 ---
 
@@ -79,23 +79,23 @@ Each planned lab gets a stable per-category identifier so cross-referencing surv
 
 ## ✨ Currently Built
 
-The **13** labs with full or placeholder content in **this** repository today (under [`labs/`](labs/)), plus links straight to the file. External companion repos linked from the main [README](README.md) are listed by track below.
+The **13** labs with full or placeholder content in **this** repository today (under [`LABS/`](LABS/)), plus links straight to the file. External companion repos linked from the main [README](README.md) are listed by track below.
 
 | Status | Lab | Location |
 |---|---|---|
-| not completed | Create LV `lvol1` (ext4, 280 MB) and Mount Persistently | [`labs/lvm-create-lvol1-ext4/`](labs/lvm-create-lvol1-ext4/) |
-| not completed | Create LV with XFS Filesystem | [`labs/lvm-create-lv1-xfs/`](labs/lvm-create-lv1-xfs/) |
-| not completed | Scheduling Jobs with systemd Timers | [`labs/scheduling-jobs-systemd-timer/`](labs/scheduling-jobs-systemd-timer/) |
-| not completed | Find Files by Modification Time and Act on Them | [`labs/find-files-by-mtime/`](labs/find-files-by-mtime/) |
-| not completed | Lock User Account and Capture Regex Evidence | [`labs/user-lock-capture-regex/`](labs/user-lock-capture-regex/) |
-| not completed | Online Extend an LV and Its Filesystem Without Unmounting | [`labs/lvm-online-extend-xfs/`](labs/lvm-online-extend-xfs/) |
-| not completed | Create a Swap Partition by UUID | [`labs/storage-swap-partition-uuid/`](labs/storage-swap-partition-uuid/) |
-| not completed | Create an Ext4 Partition Mounted by LABEL | [`labs/storage-ext4-partition-label/`](labs/storage-ext4-partition-label/) |
-| not completed | Apply Recursive SELinux Contexts to a New Directory | [`labs/selinux-recursive-contexts-direct01/`](labs/selinux-recursive-contexts-direct01/) |
-| not completed | User-Level Cron Job with `find -exec` | [`labs/cron-user-find-exec-coredir/`](labs/cron-user-find-exec-coredir/) |
-| not completed | Install Development Tools Package Group with Output Capture | [`labs/dnf-install-dev-tools-capture/`](labs/dnf-install-dev-tools-capture/) |
-| not completed | Bidirectional Bash Script with Argument Logic | [`labs/bash-bidirectional-arg-script/`](labs/bash-bidirectional-arg-script/) |
-| not completed | Rootless Container with Bind Mount and systemd Auto-Start | [`labs/podman-rootless-bind-mount-systemd/`](labs/podman-rootless-bind-mount-systemd/) |
+| not completed | Create LV `lvol1` (ext4, 280 MB) and Mount Persistently | [`LABS/lvm-create-lvol1-ext4/`](LABS/lvm-create-lvol1-ext4/) |
+| not completed | Create LV with XFS Filesystem | [`LABS/lvm-create-lv1-xfs/`](LABS/lvm-create-lv1-xfs/) |
+| not completed | Scheduling Jobs with systemd Timers | [`LABS/scheduling-jobs-systemd-timer/`](LABS/scheduling-jobs-systemd-timer/) |
+| not completed | Find Files by Modification Time and Act on Them | [`LABS/find-files-by-mtime/`](LABS/find-files-by-mtime/) |
+| not completed | Lock User Account and Capture Regex Evidence | [`LABS/user-lock-capture-regex/`](LABS/user-lock-capture-regex/) |
+| not completed | Online Extend an LV and Its Filesystem Without Unmounting | [`LABS/lvm-online-extend-xfs/`](LABS/lvm-online-extend-xfs/) |
+| not completed | Create a Swap Partition by UUID | [`LABS/storage-swap-partition-uuid/`](LABS/storage-swap-partition-uuid/) |
+| not completed | Create an Ext4 Partition Mounted by LABEL | [`LABS/storage-ext4-partition-label/`](LABS/storage-ext4-partition-label/) |
+| not completed | Apply Recursive SELinux Contexts to a New Directory | [`LABS/selinux-recursive-contexts-direct01/`](LABS/selinux-recursive-contexts-direct01/) |
+| not completed | User-Level Cron Job with `find -exec` | [`LABS/cron-user-find-exec-coredir/`](LABS/cron-user-find-exec-coredir/) |
+| not completed | Install Development Tools Package Group with Output Capture | [`LABS/dnf-install-dev-tools-capture/`](LABS/dnf-install-dev-tools-capture/) |
+| not completed | Bidirectional Bash Script with Argument Logic | [`LABS/bash-bidirectional-arg-script/`](LABS/bash-bidirectional-arg-script/) |
+| not completed | Rootless Container with Bind Mount and systemd Auto-Start | [`LABS/podman-rootless-bind-mount-systemd/`](LABS/podman-rootless-bind-mount-systemd/) |
 
 ---
 
@@ -104,7 +104,7 @@ The **13** labs with full or placeholder content in **this** repository today (u
 The RHCSA curriculum has three buckets:
 
 1. **External companion repos** — the 227+ numbered labs in the main [README](README.md). Each row below links straight to the repo. Where a row reads `*(coming soon — see Lab #NN in README)*`, the lab number is scoped in the main README but no companion repo exists yet.
-2. **In-repo labs** under [`labs/`](labs/) — listed inline in the relevant section.
+2. **In-repo labs** under [`LABS/`](LABS/) — listed inline in the relevant section.
 3. **Future planned labs** — the `*-F##`-tagged entries from [`future_labs.txt`](future_labs.txt), grouped by category.
 
 ### 📋 Complete Labs in This Order
@@ -134,19 +134,19 @@ Foundation → advanced. Each step locks in prerequisites for the next. Mirrors 
 | 13 | not completed | 13 | Creating Command Aliases | `alias` — map custom shortcuts, override defaults |
 | 14 | not completed | 14 | File Searching with find | `find` — search by name from any directory |
 | 15 | not completed | 15 | Instant File Searching with locate | `locate`, `updatedb` — fast indexed lookups |
-| 16 | not completed | 16 | Search for a String and Save Output | [16a RHCSA](lab-16a-grep-search-save-output-rhcsa/) · [16b Ansible](lab-16b-grep-search-save-output-ansible/) · [16c Verify](lab-16c-grep-search-save-output-verify/) — `grep`, `tee`, `>` |
-| 17 | not completed | 17 | Find and Save Config Files | [17a RHCSA](lab-17a-find-save-config-files-rhcsa/) · [17b Ansible](lab-17b-find-save-config-files-ansible/) · [17c Verify](lab-17c-find-save-config-files-verify/) — `find -type f -name -user`, `2>/dev/null` |
-| 18 | not completed | 18 | Locate Command Documentation | [18a RHCSA](lab-18a-locate-command-docs-rhcsa/) · [18b Ansible](lab-18b-locate-command-docs-ansible/) · [18c Verify](lab-18c-locate-command-docs-verify/) — `find /usr/share/doc`, `rpm -qf`, `rpm -qd` |
+| 16 | not completed | 16 | Search for a String and Save Output | [16a RHCSA](LABS/lab-16a-grep-search-save-output-rhcsa/) · [16b Ansible](LABS/lab-16b-grep-search-save-output-ansible/) · [16c Verify](LABS/lab-16c-grep-search-save-output-verify/) — `grep`, `tee`, `>` |
+| 17 | not completed | 17 | Find and Save Config Files | [17a RHCSA](LABS/lab-17a-find-save-config-files-rhcsa/) · [17b Ansible](LABS/lab-17b-find-save-config-files-ansible/) · [17c Verify](LABS/lab-17c-find-save-config-files-verify/) — `find -type f -name -user`, `2>/dev/null` |
+| 18 | not completed | 18 | Locate Command Documentation | [18a RHCSA](LABS/lab-18a-locate-command-docs-rhcsa/) · [18b Ansible](LABS/lab-18b-locate-command-docs-ansible/) · [18c Verify](LABS/lab-18c-locate-command-docs-verify/) — `find /usr/share/doc`, `rpm -qf`, `rpm -qd` |
 | 19 | not completed | in-repo | Find Files by Modification Time and Act on Them | `find / -mtime -30`, `-exec`, `tar --files-from` — mtime predicates |
-| 20 | not completed | 19 | Concatenating Files with cat | [19a RHCSA](lab-19a-cat-concatenate-files-rhcsa/) · [19b Ansible](lab-19b-cat-concatenate-files-ansible/) · [19c Verify](lab-19c-cat-concatenate-files-verify/) — `cat` |
-| 21 | not completed | 20 | Scrolling Through Large Files | [20a RHCSA](lab-20a-less-more-scrolling-rhcsa/) · [20b Ansible](lab-20b-less-more-scrolling-ansible/) · [20c Verify](lab-20c-less-more-scrolling-verify/) — `less`, `more`, `/` + `?` search |
-| 22 | not completed | 21 | Monitoring Live Log Files | [21a RHCSA](lab-21a-tail-f-live-logs-rhcsa/) · [21b Ansible](lab-21b-tail-f-live-logs-ansible/) · [21c Verify](lab-21c-tail-f-live-logs-verify/) — `tail -f` |
-| 23 | not completed | 22 | Filtering Text with grep and Regex | [22a RHCSA](lab-22a-grep-regex-rhcsa/) · [22b Ansible](lab-22b-grep-regex-ansible/) · [22c Verify](lab-22c-grep-regex-verify/) — `grep`, regex inside config files |
-| 24 | not completed | 23 | Comparing File Differences with diff | [23a RHCSA](lab-23a-diff-comparing-files-rhcsa/) · [23b Ansible](lab-23b-diff-comparing-files-ansible/) · [23c Verify](lab-23c-diff-comparing-files-verify/) — `diff` |
-| 25 | not completed | 24 | Stream Editing with sed | [24a RHCSA](lab-24a-sed-stream-editor-rhcsa/) · [24b Ansible](lab-24b-sed-stream-editor-ansible/) · [24c Verify](lab-24c-sed-stream-editor-verify/) — `sed` |
-| 26 | not completed | 25 | Extracting Columns with awk | [25a RHCSA](lab-25a-awk-columns-rhcsa/) · [25b Ansible](lab-25b-awk-columns-ansible/) · [25c Verify](lab-25c-awk-columns-verify/) — `awk` |
-| 27 | not completed | 26 | Command Mode and Insert Mode in vi | [26a RHCSA](lab-26a-vi-editor-rhcsa/) · [26b Ansible](lab-26b-vi-editor-ansible/) · [26c Verify](lab-26c-vi-editor-verify/) — `vi`, `:wq` |
-| 28 | not completed | 27 | Safely Editing System Databases | [27a RHCSA](lab-27a-vipw-vigr-safe-editing-rhcsa/) · [27b Ansible](lab-27b-vipw-vigr-safe-editing-ansible/) · [27c Verify](lab-27c-vipw-vigr-safe-editing-verify/) — `vipw`, `vigr` |
+| 20 | not completed | 19 | Concatenating Files with cat | [19a RHCSA](LABS/lab-19a-cat-concatenate-files-rhcsa/) · [19b Ansible](LABS/lab-19b-cat-concatenate-files-ansible/) · [19c Verify](LABS/lab-19c-cat-concatenate-files-verify/) — `cat` |
+| 21 | not completed | 20 | Scrolling Through Large Files | [20a RHCSA](LABS/lab-20a-less-more-scrolling-rhcsa/) · [20b Ansible](LABS/lab-20b-less-more-scrolling-ansible/) · [20c Verify](LABS/lab-20c-less-more-scrolling-verify/) — `less`, `more`, `/` + `?` search |
+| 22 | not completed | 21 | Monitoring Live Log Files | [21a RHCSA](LABS/lab-21a-tail-f-live-logs-rhcsa/) · [21b Ansible](LABS/lab-21b-tail-f-live-logs-ansible/) · [21c Verify](LABS/lab-21c-tail-f-live-logs-verify/) — `tail -f` |
+| 23 | not completed | 22 | Filtering Text with grep and Regex | [22a RHCSA](LABS/lab-22a-grep-regex-rhcsa/) · [22b Ansible](LABS/lab-22b-grep-regex-ansible/) · [22c Verify](LABS/lab-22c-grep-regex-verify/) — `grep`, regex inside config files |
+| 24 | not completed | 23 | Comparing File Differences with diff | [23a RHCSA](LABS/lab-23a-diff-comparing-files-rhcsa/) · [23b Ansible](LABS/lab-23b-diff-comparing-files-ansible/) · [23c Verify](LABS/lab-23c-diff-comparing-files-verify/) — `diff` |
+| 25 | not completed | 24 | Stream Editing with sed | [24a RHCSA](LABS/lab-24a-sed-stream-editor-rhcsa/) · [24b Ansible](LABS/lab-24b-sed-stream-editor-ansible/) · [24c Verify](LABS/lab-24c-sed-stream-editor-verify/) — `sed` |
+| 26 | not completed | 25 | Extracting Columns with awk | [25a RHCSA](LABS/lab-25a-awk-columns-rhcsa/) · [25b Ansible](LABS/lab-25b-awk-columns-ansible/) · [25c Verify](LABS/lab-25c-awk-columns-verify/) — `awk` |
+| 27 | not completed | 26 | Command Mode and Insert Mode in vi | [26a RHCSA](LABS/lab-26a-vi-editor-rhcsa/) · [26b Ansible](LABS/lab-26b-vi-editor-ansible/) · [26c Verify](LABS/lab-26c-vi-editor-verify/) — `vi`, `:wq` |
+| 28 | not completed | 27 | Safely Editing System Databases | [27a RHCSA](LABS/lab-27a-vipw-vigr-safe-editing-rhcsa/) · [27b Ansible](LABS/lab-27b-vipw-vigr-safe-editing-ansible/) · [27c Verify](LABS/lab-27c-vipw-vigr-safe-editing-verify/) — `vipw`, `vigr` |
 | 29 | not completed | FILES-F01 | Find Files by Size Range and Copy Preserving All Attributes | `find /etc -size +5M -size -10M -exec cp --preserve=all` |
 | 30 | not completed | FILES-F02 | Find Files Owned by a User Within a Size Range | `find / -xdev -user linda -size +3M -size -50M 2>/dev/null` |
 | 31 | not completed | FILES-F03 | Find Configuration Files by Name and Owner | `find /etc -name '*.conf' -user root > /root/config_files` |
@@ -162,19 +162,19 @@ Foundation → advanced. Each step locks in prerequisites for the next. Mirrors 
 
 | # | Status | ID / # | Full Lab Name | Key Commands / Focus |
 |---|---|---|---|---|
-| 1 | not completed | 28 | Exploring Manual Pages | [28a RHCSA](lab-28a-man-pages-rhcsa/) · [28b Ansible](lab-28b-man-pages-ansible/) · [28c Verify](lab-28c-man-pages-verify/) — `man` |
-| 2 | not completed | 29 | Searching Manuals by Keyword | [29a RHCSA](lab-29a-apropos-whatis-rhcsa/) · [29b Ansible](lab-29b-apropos-whatis-ansible/) · [29c Verify](lab-29c-apropos-whatis-verify/) — `whatis`, `apropos` |
-| 3 | not completed | 30 | Navigating info Pages | [30a RHCSA](lab-30a-info-pages-rhcsa/) · [30b Ansible](lab-30b-info-pages-ansible/) · [30c Verify](lab-30c-info-pages-verify/) — `info` |
+| 1 | not completed | 28 | Exploring Manual Pages | [28a RHCSA](LABS/lab-28a-man-pages-rhcsa/) · [28b Ansible](LABS/lab-28b-man-pages-ansible/) · [28c Verify](LABS/lab-28c-man-pages-verify/) — `man` |
+| 2 | not completed | 29 | Searching Manuals by Keyword | [29a RHCSA](LABS/lab-29a-apropos-whatis-rhcsa/) · [29b Ansible](LABS/lab-29b-apropos-whatis-ansible/) · [29c Verify](LABS/lab-29c-apropos-whatis-verify/) — `whatis`, `apropos` |
+| 3 | not completed | 30 | Navigating info Pages | [30a RHCSA](LABS/lab-30a-info-pages-rhcsa/) · [30b Ansible](LABS/lab-30b-info-pages-ansible/) · [30c Verify](LABS/lab-30c-info-pages-verify/) — `info` |
 | 4 | not completed | DOC-F01 | Locate Command Documentation Under `/usr/share/doc` | `find /usr/share/doc -iname '*passwd*'`, `rpm -qf` owner |
-| 5 | not completed | 31 | Configure a Static IP Address | [31a RHCSA](lab-31a-static-ip-nmcli-rhcsa/) · [31b Ansible](lab-31b-static-ip-nmcli-ansible/) · [31c Verify](lab-31c-static-ip-nmcli-verify/) — `nmcli con mod`, `ip addr`, `ip route` |
-| 6 | not completed | 32 | Check Network Connectivity | [32a RHCSA](lab-32a-ping-traceroute-rhcsa/) · [32b Ansible](lab-32b-ping-traceroute-ansible/) · [32c Verify](lab-32c-ping-traceroute-verify/) — `ping`, `traceroute` |
-| 7 | not completed | 33 | Display IP and Routing Info | [33a RHCSA](lab-33a-ip-addr-route-show-rhcsa/) · [33b Ansible](lab-33b-ip-addr-route-show-ansible/) · [33c Verify](lab-33c-ip-addr-route-show-verify/) — `ip addr show`, `ip route show` |
-| 8 | not completed | 34 | Inspecting Listening Sockets | [34a RHCSA](lab-34a-ss-listening-sockets-rhcsa/) · [34b Ansible](lab-34b-ss-listening-sockets-ansible/) · [34c Verify](lab-34c-ss-listening-sockets-verify/) — `ss -tuna4` |
-| 9 | not completed | 35 | Text-Based Network Config nmtui | [35a RHCSA](lab-35a-nmtui-tui-config-rhcsa/) · [35b Ansible](lab-35b-nmtui-tui-config-ansible/) · [35c Verify](lab-35c-nmtui-tui-config-verify/) — `nmtui` |
-| 10 | not completed | 36 | Command-Line Network Config nmcli | [36a RHCSA](lab-36a-nmcli-cli-config-rhcsa/) · [36b Ansible](lab-36b-nmcli-cli-config-ansible/) · [36c Verify](lab-36c-nmcli-cli-config-verify/) — `nmcli` |
-| 11 | not completed | 37 | Configuring Local Host Resolution | [37a RHCSA](lab-37a-etc-hosts-resolution-rhcsa/) · [37b Ansible](lab-37b-etc-hosts-resolution-ansible/) · [37c Verify](lab-37c-etc-hosts-resolution-verify/) — `/etc/hosts` |
-| 12 | not completed | 38 | Configuring DNS Servers | [38a RHCSA](lab-38a-resolv-conf-dns-rhcsa/) · [38b Ansible](lab-38b-resolv-conf-dns-ansible/) · [38c Verify](lab-38c-resolv-conf-dns-verify/) — `/etc/resolv.conf` |
-| 13 | not completed | 39 | Configure SSH and Key-Based Auth | [39a RHCSA](lab-39a-ssh-key-auth-rhcsa/) · [39b Ansible](lab-39b-ssh-key-auth-ansible/) · [39c Verify](lab-39c-ssh-key-auth-verify/) — `ssh-keygen`, `ssh-copy-id` |
+| 5 | not completed | 31 | Configure a Static IP Address | [31a RHCSA](LABS/lab-31a-static-ip-nmcli-rhcsa/) · [31b Ansible](LABS/lab-31b-static-ip-nmcli-ansible/) · [31c Verify](LABS/lab-31c-static-ip-nmcli-verify/) — `nmcli con mod`, `ip addr`, `ip route` |
+| 6 | not completed | 32 | Check Network Connectivity | [32a RHCSA](LABS/lab-32a-ping-traceroute-rhcsa/) · [32b Ansible](LABS/lab-32b-ping-traceroute-ansible/) · [32c Verify](LABS/lab-32c-ping-traceroute-verify/) — `ping`, `traceroute` |
+| 7 | not completed | 33 | Display IP and Routing Info | [33a RHCSA](LABS/lab-33a-ip-addr-route-show-rhcsa/) · [33b Ansible](LABS/lab-33b-ip-addr-route-show-ansible/) · [33c Verify](LABS/lab-33c-ip-addr-route-show-verify/) — `ip addr show`, `ip route show` |
+| 8 | not completed | 34 | Inspecting Listening Sockets | [34a RHCSA](LABS/lab-34a-ss-listening-sockets-rhcsa/) · [34b Ansible](LABS/lab-34b-ss-listening-sockets-ansible/) · [34c Verify](LABS/lab-34c-ss-listening-sockets-verify/) — `ss -tuna4` |
+| 9 | not completed | 35 | Text-Based Network Config nmtui | [35a RHCSA](LABS/lab-35a-nmtui-tui-config-rhcsa/) · [35b Ansible](LABS/lab-35b-nmtui-tui-config-ansible/) · [35c Verify](LABS/lab-35c-nmtui-tui-config-verify/) — `nmtui` |
+| 10 | not completed | 36 | Command-Line Network Config nmcli | [36a RHCSA](LABS/lab-36a-nmcli-cli-config-rhcsa/) · [36b Ansible](LABS/lab-36b-nmcli-cli-config-ansible/) · [36c Verify](LABS/lab-36c-nmcli-cli-config-verify/) — `nmcli` |
+| 11 | not completed | 37 | Configuring Local Host Resolution | [37a RHCSA](LABS/lab-37a-etc-hosts-resolution-rhcsa/) · [37b Ansible](LABS/lab-37b-etc-hosts-resolution-ansible/) · [37c Verify](LABS/lab-37c-etc-hosts-resolution-verify/) — `/etc/hosts` |
+| 12 | not completed | 38 | Configuring DNS Servers | [38a RHCSA](LABS/lab-38a-resolv-conf-dns-rhcsa/) · [38b Ansible](LABS/lab-38b-resolv-conf-dns-ansible/) · [38c Verify](LABS/lab-38c-resolv-conf-dns-verify/) — `/etc/resolv.conf` |
+| 13 | not completed | 39 | Configure SSH and Key-Based Auth | [39a RHCSA](LABS/lab-39a-ssh-key-auth-rhcsa/) · [39b Ansible](LABS/lab-39b-ssh-key-auth-ansible/) · [39c Verify](LABS/lab-39c-ssh-key-auth-verify/) — `ssh-keygen`, `ssh-copy-id` |
 | 14 | not completed | NET-F01 | Manual Hostname Configuration by Editing `/etc/hostname` | Write FQDN to `/etc/hostname`, no `hostnamectl`, persist on reboot |
 | 15 | not completed | NET-F02 | Manual Network Configuration by Editing Connection Files | Hand-edit `/etc/NetworkManager/system-connections/`, `nmcli connection reload` |
 | 16 | not completed | NET-F03 | Configure Static IPv4 with Specific Host Address | `nmcli con mod ipv4.addresses/gateway/dns/method manual`, `autoconnect yes` |
@@ -185,19 +185,19 @@ Foundation → advanced. Each step locks in prerequisites for the next. Mirrors 
 
 | # | Status | ID / # | Full Lab Name | Key Commands / Focus |
 |---|---|---|---|---|
-| 1 | not completed | 40 | Standard File Permissions | [40a RHCSA](lab-40a-chmod-standard-perms-rhcsa/) · [40b Ansible](lab-40b-chmod-standard-perms-ansible/) · [40c Verify](lab-40c-chmod-standard-perms-verify/) — `chmod` |
-| 2 | not completed | 41 | Changing Ownership | [41a RHCSA](lab-41a-chown-chgrp-ownership-rhcsa/) · [41b Ansible](lab-41b-chown-chgrp-ownership-ansible/) · [41c Verify](lab-41c-chown-chgrp-ownership-verify/) — `chown`, `chgrp` |
-| 3 | not completed | 42 | SUID Executables | [42a RHCSA](lab-42a-suid-executable-rhcsa/) · [42b Ansible](lab-42b-suid-executable-ansible/) · [42c Verify](lab-42c-suid-executable-verify/) — `chmod u+s`, `ls -l` |
-| 4 | not completed | 43 | Configure SGID and Sticky Bit | [43a RHCSA](lab-43a-sgid-sticky-bit-rhcsa/) · [43b Ansible](lab-43b-sgid-sticky-bit-ansible/) · [43c Verify](lab-43c-sgid-sticky-bit-verify/) — `chmod g+s`, `chmod +t`, `ls -ld` |
-| 5 | not completed | 44 | Immutable File Attribute | [44a RHCSA](lab-44a-chattr-immutable-rhcsa/) · [44b Ansible](lab-44b-chattr-immutable-ansible/) · [44c Verify](lab-44c-chattr-immutable-verify/) — `chattr +i`, `lsattr` |
-| 6 | not completed | 45 | Append-Only File Attribute | [45a RHCSA](lab-45a-chattr-append-only-rhcsa/) · [45b Ansible](lab-45b-chattr-append-only-ansible/) · [45c Verify](lab-45c-chattr-append-only-verify/) — `chattr +a` |
-| 7 | not completed | 46 | Identifying File Attributes | [46a RHCSA](lab-46a-lsattr-extended-attrs-rhcsa/) · [46b Ansible](lab-46b-lsattr-extended-attrs-ansible/) · [46c Verify](lab-46c-lsattr-extended-attrs-verify/) — `lsattr` |
-| 8 | not completed | 47 | Check ACL Support | [47a RHCSA](lab-47a-acl-mount-option-rhcsa/) · [47b Ansible](lab-47b-acl-mount-option-ansible/) · [47c Verify](lab-47c-acl-mount-option-verify/) — `mount`, `acl` option |
-| 9 | not completed | 48 | Viewing ACLs | [48a RHCSA](lab-48a-getfacl-view-acl-rhcsa/) · [48b Ansible](lab-48b-getfacl-view-acl-ansible/) · [48c Verify](lab-48c-getfacl-view-acl-verify/) — `getfacl` |
-| 10 | not completed | 49 | Modifying ACLs | [49a RHCSA](lab-49a-setfacl-modify-rhcsa/) · [49b Ansible](lab-49b-setfacl-modify-ansible/) · [49c Verify](lab-49c-setfacl-modify-verify/) — `setfacl -m` |
-| 11 | not completed | 50 | Denying Access via ACLs | [50a RHCSA](lab-50a-setfacl-deny-rhcsa/) · [50b Ansible](lab-50b-setfacl-deny-ansible/) · [50c Verify](lab-50c-setfacl-deny-verify/) — `setfacl` |
-| 12 | not completed | 51 | Default Directory ACLs | [51a RHCSA](lab-51a-default-acl-inherit-rhcsa/) · [51b Ansible](lab-51b-default-acl-inherit-ansible/) · [51c Verify](lab-51c-default-acl-inherit-verify/) — `setfacl -d` |
-| 13 | not completed | 52 | ACL Masks | [52a RHCSA](lab-52a-acl-masks-rhcsa/) · [52b Ansible](lab-52b-acl-masks-ansible/) · [52c Verify](lab-52c-acl-masks-verify/) — `setfacl -m m::` |
+| 1 | not completed | 40 | Standard File Permissions | [40a RHCSA](LABS/lab-40a-chmod-standard-perms-rhcsa/) · [40b Ansible](LABS/lab-40b-chmod-standard-perms-ansible/) · [40c Verify](LABS/lab-40c-chmod-standard-perms-verify/) — `chmod` |
+| 2 | not completed | 41 | Changing Ownership | [41a RHCSA](LABS/lab-41a-chown-chgrp-ownership-rhcsa/) · [41b Ansible](LABS/lab-41b-chown-chgrp-ownership-ansible/) · [41c Verify](LABS/lab-41c-chown-chgrp-ownership-verify/) — `chown`, `chgrp` |
+| 3 | not completed | 42 | SUID Executables | [42a RHCSA](LABS/lab-42a-suid-executable-rhcsa/) · [42b Ansible](LABS/lab-42b-suid-executable-ansible/) · [42c Verify](LABS/lab-42c-suid-executable-verify/) — `chmod u+s`, `ls -l` |
+| 4 | not completed | 43 | Configure SGID and Sticky Bit | [43a RHCSA](LABS/lab-43a-sgid-sticky-bit-rhcsa/) · [43b Ansible](LABS/lab-43b-sgid-sticky-bit-ansible/) · [43c Verify](LABS/lab-43c-sgid-sticky-bit-verify/) — `chmod g+s`, `chmod +t`, `ls -ld` |
+| 5 | not completed | 44 | Immutable File Attribute | [44a RHCSA](LABS/lab-44a-chattr-immutable-rhcsa/) · [44b Ansible](LABS/lab-44b-chattr-immutable-ansible/) · [44c Verify](LABS/lab-44c-chattr-immutable-verify/) — `chattr +i`, `lsattr` |
+| 6 | not completed | 45 | Append-Only File Attribute | [45a RHCSA](LABS/lab-45a-chattr-append-only-rhcsa/) · [45b Ansible](LABS/lab-45b-chattr-append-only-ansible/) · [45c Verify](LABS/lab-45c-chattr-append-only-verify/) — `chattr +a` |
+| 7 | not completed | 46 | Identifying File Attributes | [46a RHCSA](LABS/lab-46a-lsattr-extended-attrs-rhcsa/) · [46b Ansible](LABS/lab-46b-lsattr-extended-attrs-ansible/) · [46c Verify](LABS/lab-46c-lsattr-extended-attrs-verify/) — `lsattr` |
+| 8 | not completed | 47 | Check ACL Support | [47a RHCSA](LABS/lab-47a-acl-mount-option-rhcsa/) · [47b Ansible](LABS/lab-47b-acl-mount-option-ansible/) · [47c Verify](LABS/lab-47c-acl-mount-option-verify/) — `mount`, `acl` option |
+| 9 | not completed | 48 | Viewing ACLs | [48a RHCSA](LABS/lab-48a-getfacl-view-acl-rhcsa/) · [48b Ansible](LABS/lab-48b-getfacl-view-acl-ansible/) · [48c Verify](LABS/lab-48c-getfacl-view-acl-verify/) — `getfacl` |
+| 10 | not completed | 49 | Modifying ACLs | [49a RHCSA](LABS/lab-49a-setfacl-modify-rhcsa/) · [49b Ansible](LABS/lab-49b-setfacl-modify-ansible/) · [49c Verify](LABS/lab-49c-setfacl-modify-verify/) — `setfacl -m` |
+| 11 | not completed | 50 | Denying Access via ACLs | [50a RHCSA](LABS/lab-50a-setfacl-deny-rhcsa/) · [50b Ansible](LABS/lab-50b-setfacl-deny-ansible/) · [50c Verify](LABS/lab-50c-setfacl-deny-verify/) — `setfacl` |
+| 12 | not completed | 51 | Default Directory ACLs | [51a RHCSA](LABS/lab-51a-default-acl-inherit-rhcsa/) · [51b Ansible](LABS/lab-51b-default-acl-inherit-ansible/) · [51c Verify](LABS/lab-51c-default-acl-inherit-verify/) — `setfacl -d` |
+| 13 | not completed | 52 | ACL Masks | [52a RHCSA](LABS/lab-52a-acl-masks-rhcsa/) · [52b Ansible](LABS/lab-52b-acl-masks-ansible/) · [52c Verify](LABS/lab-52c-acl-masks-verify/) — `setfacl -m m::` |
 | 14 | not completed | 53 | Removing ACLs | `setfacl -x`, `setfacl -b` — strip specific or all ACL entries |
 | 15 | not completed | 54 | NFSv4 ACLs | `nfs4_getfacl`, `nfs4_setfacl` — edit NFSv4 share permissions |
 | 16 | not completed | PERM-F01 | Collaborative SGID Directory with Multi-User Write Test | `chmod 2770 /sdata`, prove cross-user edit + no-delete |
@@ -212,13 +212,13 @@ Foundation → advanced. Each step locks in prerequisites for the next. Mirrors 
 | 25 | not completed | 58 | Adding Services to Zones | `firewall-cmd --add-service`, `--permanent` |
 | 26 | not completed | 59 | Opening Custom Ports | `firewall-cmd --add-port` — non-standard port to zone |
 | 27 | not completed | 60 | Inspect Active Firewall Zones | `firewall-cmd --get-default-zone`, `--list-all` |
-| 28 | not completed | 61 | Reassign Interfaces to Zones | [61a RHCSA](lab-61a-firewalld-reassign-interfaces-rhcsa/) · [61b Ansible](lab-61b-firewalld-reassign-interfaces-ansible/) · [61c Verify](lab-61c-firewalld-reassign-interfaces-verify/) — `firewall-cmd --change-interface` |
-| 29 | not completed | 62 | Allow Services Through Firewall | [62a RHCSA](lab-62a-firewall-allow-services-rhcsa/) · [62b Ansible](lab-62b-firewall-allow-services-ansible/) · [62c Verify](lab-62c-firewall-allow-services-verify/) — `firewall-cmd --permanent --add-service` |
-| 30 | not completed | 63 | Configure IP Masquerading NAT | [63a RHCSA](lab-63a-ip-masquerading-nat-rhcsa/) · [63b Ansible](lab-63b-ip-masquerading-nat-ansible/) · [63c Verify](lab-63c-ip-masquerading-nat-verify/) — `firewall-cmd --add-masquerade` |
-| 31 | not completed | 64 | Configure IP Forwarding | [64a RHCSA](lab-64a-ip-forwarding-sysctl-rhcsa/) · [64b Ansible](lab-64b-ip-forwarding-sysctl-ansible/) · [64c Verify](lab-64c-ip-forwarding-sysctl-verify/) — `/etc/sysctl.conf, sysctl -p` |
-| 32 | not completed | 65 | Configure Rich Rules | [65a RHCSA](lab-65a-firewalld-rich-rules-rhcsa/) · [65b Ansible](lab-65b-firewalld-rich-rules-ansible/) · [65c Verify](lab-65c-firewalld-rich-rules-verify/) — `firewall-cmd --add-rich-rule` |
-| 33 | not completed | 66 | Setup Port Forwarding DNAT | [66a RHCSA](lab-66a-firewalld-port-forward-dnat-rhcsa/) · [66b Ansible](lab-66b-firewalld-port-forward-dnat-ansible/) · [66c Verify](lab-66c-firewalld-port-forward-dnat-verify/) — `firewall-cmd rich rules` |
-| 34 | not completed | 67 | Configure ICMP Filters | [67a RHCSA](lab-67a-firewalld-icmp-filters-rhcsa/) · [67b Ansible](lab-67b-firewalld-icmp-filters-ansible/) · [67c Verify](lab-67c-firewalld-icmp-filters-verify/) — `firewall-cmd --add-icmp-block` |
+| 28 | not completed | 61 | Reassign Interfaces to Zones | [61a RHCSA](LABS/lab-61a-firewalld-reassign-interfaces-rhcsa/) · [61b Ansible](LABS/lab-61b-firewalld-reassign-interfaces-ansible/) · [61c Verify](LABS/lab-61c-firewalld-reassign-interfaces-verify/) — `firewall-cmd --change-interface` |
+| 29 | not completed | 62 | Allow Services Through Firewall | [62a RHCSA](LABS/lab-62a-firewall-allow-services-rhcsa/) · [62b Ansible](LABS/lab-62b-firewall-allow-services-ansible/) · [62c Verify](LABS/lab-62c-firewall-allow-services-verify/) — `firewall-cmd --permanent --add-service` |
+| 30 | not completed | 63 | Configure IP Masquerading NAT | [63a RHCSA](LABS/lab-63a-ip-masquerading-nat-rhcsa/) · [63b Ansible](LABS/lab-63b-ip-masquerading-nat-ansible/) · [63c Verify](LABS/lab-63c-ip-masquerading-nat-verify/) — `firewall-cmd --add-masquerade` |
+| 31 | not completed | 64 | Configure IP Forwarding | [64a RHCSA](LABS/lab-64a-ip-forwarding-sysctl-rhcsa/) · [64b Ansible](LABS/lab-64b-ip-forwarding-sysctl-ansible/) · [64c Verify](LABS/lab-64c-ip-forwarding-sysctl-verify/) — `/etc/sysctl.conf, sysctl -p` |
+| 32 | not completed | 65 | Configure Rich Rules | [65a RHCSA](LABS/lab-65a-firewalld-rich-rules-rhcsa/) · [65b Ansible](LABS/lab-65b-firewalld-rich-rules-ansible/) · [65c Verify](LABS/lab-65c-firewalld-rich-rules-verify/) — `firewall-cmd --add-rich-rule` |
+| 33 | not completed | 66 | Setup Port Forwarding DNAT | [66a RHCSA](LABS/lab-66a-firewalld-port-forward-dnat-rhcsa/) · [66b Ansible](LABS/lab-66b-firewalld-port-forward-dnat-ansible/) · [66c Verify](LABS/lab-66c-firewalld-port-forward-dnat-verify/) — `firewall-cmd rich rules` |
+| 34 | not completed | 67 | Configure ICMP Filters | [67a RHCSA](LABS/lab-67a-firewalld-icmp-filters-rhcsa/) · [67b Ansible](LABS/lab-67b-firewalld-icmp-filters-ansible/) · [67c Verify](LABS/lab-67c-firewalld-icmp-filters-verify/) — `firewall-cmd --add-icmp-block` |
 | 35 | not completed | FW-F01 | Open Multiple Services at Once for Web Hosting | `--add-service={ssh,http,https}`, `--list-services` |
 | 36 | not completed | FW-F02 | Open a Non-Standard SSH Port + Move SSH There | `--add-port=88/tcp`, `sshd_config Port 88`, `semanage port` |
 
@@ -226,23 +226,23 @@ Foundation → advanced. Each step locks in prerequisites for the next. Mirrors 
 
 | # | Status | ID / # | Full Lab Name | Key Commands / Focus |
 |---|---|---|---|---|
-| 1 | not completed | 68 | Verify TCP Wrappers Support | [68a RHCSA](lab-68a-tcp-wrappers-support-rhcsa/) · [68b Ansible](lab-68b-tcp-wrappers-support-ansible/) · [68c Verify](lab-68c-tcp-wrappers-support-verify/) — `ldd /usr/sbin/sshd | grep libwrap` |
-| 2 | not completed | 69 | Restrict Access via hosts.deny | [69a RHCSA](lab-69a-hosts-deny-restrictions-rhcsa/) · [69b Ansible](lab-69b-hosts-deny-restrictions-ansible/) · [69c Verify](lab-69c-hosts-deny-restrictions-verify/) — `/etc/hosts.deny` |
-| 3 | not completed | 70 | Allow Specific Access via hosts.allow | [70a RHCSA](lab-70a-hosts-allow-access-rhcsa/) · [70b Ansible](lab-70b-hosts-allow-access-ansible/) · [70c Verify](lab-70c-hosts-allow-access-verify/) — `/etc/hosts.allow` |
-| 4 | not completed | 71 | Configure TCP Wrappers for FTP | [71a RHCSA](lab-71a-tcp-wrappers-ftp-rhcsa/) · [71b Ansible](lab-71b-tcp-wrappers-ftp-ansible/) · [71c Verify](lab-71c-tcp-wrappers-ftp-verify/) — `vsftpd, /etc/hosts.deny` |
-| 5 | not completed | 72 | Explore PAM Config Files | [72a RHCSA](lab-72a-pam-config-files-rhcsa/) · [72b Ansible](lab-72b-pam-config-files-ansible/) · [72c Verify](lab-72c-pam-config-files-verify/) — `/etc/pam.d/` |
-| 6 | not completed | 73 | Read PAM Module Documentation | [73a RHCSA](lab-73a-pam-module-docs-rhcsa/) · [73b Ansible](lab-73b-pam-module-docs-ansible/) · [73c Verify](lab-73c-pam-module-docs-verify/) — `/usr/share/doc/pam-*/txts/` |
-| 7 | not completed | 74 | Implement Password Complexity | [74a RHCSA](lab-74a-pam-password-complexity-rhcsa/) · [74b Ansible](lab-74b-pam-password-complexity-ansible/) · [74c Verify](lab-74c-pam-password-complexity-verify/) — `pam_pwquality.so, system-auth` |
-| 8 | not completed | 75 | Configure PAM to Limit root Access | [75a RHCSA](lab-75a-pam-securetty-root-access-rhcsa/) · [75b Ansible](lab-75b-pam-securetty-root-access-ansible/) · [75c Verify](lab-75c-pam-securetty-root-access-verify/) — `pam_securetty.so` |
-| 9 | not completed | 76 | Use PAM to Limit User Access | [76a RHCSA](lab-76a-pam-nologin-user-access-rhcsa/) · [76b Ansible](lab-76b-pam-nologin-user-access-ansible/) · [76c Verify](lab-76c-pam-nologin-user-access-verify/) — `/etc/nologin` |
-| 10 | not completed | 77 | Restrict Service Access by User List | [77a RHCSA](lab-77a-pam-listfile-user-restriction-rhcsa/) · [77b Ansible](lab-77b-pam-listfile-user-restriction-ansible/) · [77c Verify](lab-77c-pam-listfile-user-restriction-verify/) — `pam_listfile.so` |
-| 11 | not completed | 78 | Managing SELinux Modes | [78a RHCSA](lab-78a-selinux-modes-rhcsa/) · [78b Ansible](lab-78b-selinux-modes-ansible/) · [78c Verify](lab-78c-selinux-modes-verify/) — `sestatus, setenforce` |
-| 12 | not completed | 79 | Viewing SELinux Contexts | [79a RHCSA](lab-79a-selinux-contexts-rhcsa/) · [79b Ansible](lab-79b-selinux-contexts-ansible/) · [79c Verify](lab-79c-selinux-contexts-verify/) — `ls -Z, ps -eZ` |
-| 13 | not completed | 80 | Temporary Context Changes | [80a RHCSA](lab-80a-selinux-chcon-temporary-rhcsa/) · [80b Ansible](lab-80b-selinux-chcon-temporary-ansible/) · [80c Verify](lab-80c-selinux-chcon-temporary-verify/) — `chcon` |
-| 14 | not completed | 81 | Persistent Context Restoration | [81a RHCSA](lab-81a-selinux-fcontext-restorecon-rhcsa/) · [81b Ansible](lab-81b-selinux-fcontext-restorecon-ansible/) · [81c Verify](lab-81c-selinux-fcontext-restorecon-verify/) — `semanage fcontext, restorecon` |
-| 15 | not completed | 82 | Toggling SELinux Booleans | [82a RHCSA](lab-82a-selinux-booleans-rhcsa/) · [82b Ansible](lab-82b-selinux-booleans-ansible/) · [82c Verify](lab-82c-selinux-booleans-verify/) — `getsebool, setsebool -P` |
-| 16 | not completed | 83 | SELinux User Mapping | [83a RHCSA](lab-83a-selinux-user-mapping-rhcsa/) · [83b Ansible](lab-83b-selinux-user-mapping-ansible/) · [83c Verify](lab-83c-selinux-user-mapping-verify/) — `semanage login` |
-| 17 | not completed | 84 | Troubleshooting SELinux | [84a RHCSA](lab-84a-selinux-troubleshooting-rhcsa/) · [84b Ansible](lab-84b-selinux-troubleshooting-ansible/) · [84c Verify](lab-84c-selinux-troubleshooting-verify/) — `audit.log, sealert` |
+| 1 | not completed | 68 | Verify TCP Wrappers Support | [68a RHCSA](LABS/lab-68a-tcp-wrappers-support-rhcsa/) · [68b Ansible](LABS/lab-68b-tcp-wrappers-support-ansible/) · [68c Verify](LABS/lab-68c-tcp-wrappers-support-verify/) — `ldd /usr/sbin/sshd | grep libwrap` |
+| 2 | not completed | 69 | Restrict Access via hosts.deny | [69a RHCSA](LABS/lab-69a-hosts-deny-restrictions-rhcsa/) · [69b Ansible](LABS/lab-69b-hosts-deny-restrictions-ansible/) · [69c Verify](LABS/lab-69c-hosts-deny-restrictions-verify/) — `/etc/hosts.deny` |
+| 3 | not completed | 70 | Allow Specific Access via hosts.allow | [70a RHCSA](LABS/lab-70a-hosts-allow-access-rhcsa/) · [70b Ansible](LABS/lab-70b-hosts-allow-access-ansible/) · [70c Verify](LABS/lab-70c-hosts-allow-access-verify/) — `/etc/hosts.allow` |
+| 4 | not completed | 71 | Configure TCP Wrappers for FTP | [71a RHCSA](LABS/lab-71a-tcp-wrappers-ftp-rhcsa/) · [71b Ansible](LABS/lab-71b-tcp-wrappers-ftp-ansible/) · [71c Verify](LABS/lab-71c-tcp-wrappers-ftp-verify/) — `vsftpd, /etc/hosts.deny` |
+| 5 | not completed | 72 | Explore PAM Config Files | [72a RHCSA](LABS/lab-72a-pam-config-files-rhcsa/) · [72b Ansible](LABS/lab-72b-pam-config-files-ansible/) · [72c Verify](LABS/lab-72c-pam-config-files-verify/) — `/etc/pam.d/` |
+| 6 | not completed | 73 | Read PAM Module Documentation | [73a RHCSA](LABS/lab-73a-pam-module-docs-rhcsa/) · [73b Ansible](LABS/lab-73b-pam-module-docs-ansible/) · [73c Verify](LABS/lab-73c-pam-module-docs-verify/) — `/usr/share/doc/pam-*/txts/` |
+| 7 | not completed | 74 | Implement Password Complexity | [74a RHCSA](LABS/lab-74a-pam-password-complexity-rhcsa/) · [74b Ansible](LABS/lab-74b-pam-password-complexity-ansible/) · [74c Verify](LABS/lab-74c-pam-password-complexity-verify/) — `pam_pwquality.so, system-auth` |
+| 8 | not completed | 75 | Configure PAM to Limit root Access | [75a RHCSA](LABS/lab-75a-pam-securetty-root-access-rhcsa/) · [75b Ansible](LABS/lab-75b-pam-securetty-root-access-ansible/) · [75c Verify](LABS/lab-75c-pam-securetty-root-access-verify/) — `pam_securetty.so` |
+| 9 | not completed | 76 | Use PAM to Limit User Access | [76a RHCSA](LABS/lab-76a-pam-nologin-user-access-rhcsa/) · [76b Ansible](LABS/lab-76b-pam-nologin-user-access-ansible/) · [76c Verify](LABS/lab-76c-pam-nologin-user-access-verify/) — `/etc/nologin` |
+| 10 | not completed | 77 | Restrict Service Access by User List | [77a RHCSA](LABS/lab-77a-pam-listfile-user-restriction-rhcsa/) · [77b Ansible](LABS/lab-77b-pam-listfile-user-restriction-ansible/) · [77c Verify](LABS/lab-77c-pam-listfile-user-restriction-verify/) — `pam_listfile.so` |
+| 11 | not completed | 78 | Managing SELinux Modes | [78a RHCSA](LABS/lab-78a-selinux-modes-rhcsa/) · [78b Ansible](LABS/lab-78b-selinux-modes-ansible/) · [78c Verify](LABS/lab-78c-selinux-modes-verify/) — `sestatus, setenforce` |
+| 12 | not completed | 79 | Viewing SELinux Contexts | [79a RHCSA](LABS/lab-79a-selinux-contexts-rhcsa/) · [79b Ansible](LABS/lab-79b-selinux-contexts-ansible/) · [79c Verify](LABS/lab-79c-selinux-contexts-verify/) — `ls -Z, ps -eZ` |
+| 13 | not completed | 80 | Temporary Context Changes | [80a RHCSA](LABS/lab-80a-selinux-chcon-temporary-rhcsa/) · [80b Ansible](LABS/lab-80b-selinux-chcon-temporary-ansible/) · [80c Verify](LABS/lab-80c-selinux-chcon-temporary-verify/) — `chcon` |
+| 14 | not completed | 81 | Persistent Context Restoration | [81a RHCSA](LABS/lab-81a-selinux-fcontext-restorecon-rhcsa/) · [81b Ansible](LABS/lab-81b-selinux-fcontext-restorecon-ansible/) · [81c Verify](LABS/lab-81c-selinux-fcontext-restorecon-verify/) — `semanage fcontext, restorecon` |
+| 15 | not completed | 82 | Toggling SELinux Booleans | [82a RHCSA](LABS/lab-82a-selinux-booleans-rhcsa/) · [82b Ansible](LABS/lab-82b-selinux-booleans-ansible/) · [82c Verify](LABS/lab-82c-selinux-booleans-verify/) — `getsebool, setsebool -P` |
+| 16 | not completed | 83 | SELinux User Mapping | [83a RHCSA](LABS/lab-83a-selinux-user-mapping-rhcsa/) · [83b Ansible](LABS/lab-83b-selinux-user-mapping-ansible/) · [83c Verify](LABS/lab-83c-selinux-user-mapping-verify/) — `semanage login` |
+| 17 | not completed | 84 | Troubleshooting SELinux | [84a RHCSA](LABS/lab-84a-selinux-troubleshooting-rhcsa/) · [84b Ansible](LABS/lab-84b-selinux-troubleshooting-ansible/) · [84c Verify](LABS/lab-84c-selinux-troubleshooting-verify/) — `audit.log, sealert` |
 | 18 | not completed | in-repo | Apply Recursive SELinux Contexts to a New Directory | `semanage fcontext -a -e`, `restorecon -RFv` reference-dir contexts |
 | 19 | not completed | SEL-F02 | Add a Custom HTTP Port to the SELinux Policy Database | `semanage port -a -t http_port_t -p tcp 8300` |
 | 20 | not completed | SEL-F03 | Set SELinux to Permissive Mode Persistently | `/etc/selinux/config: SELINUX=permissive`, `setenforce 0` |
@@ -254,11 +254,11 @@ Foundation → advanced. Each step locks in prerequisites for the next. Mirrors 
 
 | # | Status | ID / # | Full Lab Name | Key Commands / Focus |
 |---|---|---|---|---|
-| 1 | not completed | 85 | Modify GRUB Timeout | [85a RHCSA](lab-85a-grub-timeout-rhcsa/) · [85b Ansible](lab-85b-grub-timeout-ansible/) · [85c Verify](lab-85c-grub-timeout-verify/) — `GRUB_TIMEOUT in /etc/default/grub` |
-| 2 | not completed | 86 | Enable Verbose Kernel Messages | [86a RHCSA](lab-86a-grub-verbose-kernel-rhcsa/) · [86b Ansible](lab-86b-grub-verbose-kernel-ansible/) · [86c Verify](lab-86c-grub-verbose-kernel-verify/) — `GRUB_CMDLINE_LINUX` |
-| 3 | not completed | 87 | Generate New GRUB Config | [87a RHCSA](lab-87a-grub-mkconfig-rhcsa/) · [87b Ansible](lab-87b-grub-mkconfig-ansible/) · [87c Verify](lab-87c-grub-mkconfig-verify/) — `grub2-mkconfig -o /boot/grub2/grub.cfg` |
-| 4 | not completed | 88 | Reset Root Password via Boot | [88a RHCSA](lab-88a-grub-reset-root-password-rhcsa/) · [88b Ansible](lab-88b-grub-reset-root-password-ansible/) · [88c Verify](lab-88c-grub-reset-root-password-verify/) — `rd.break, chroot, passwd` |
-| 5 | not completed | 89 | Chroot into Rescue Filesystem | [89a RHCSA](lab-89a-chroot-rescue-filesystem-rhcsa/) · [89b Ansible](lab-89b-chroot-rescue-filesystem-ansible/) · [89c Verify](lab-89c-chroot-rescue-filesystem-verify/) — `chroot /mnt/sysimage` |
+| 1 | not completed | 85 | Modify GRUB Timeout | [85a RHCSA](LABS/lab-85a-grub-timeout-rhcsa/) · [85b Ansible](LABS/lab-85b-grub-timeout-ansible/) · [85c Verify](LABS/lab-85c-grub-timeout-verify/) — `GRUB_TIMEOUT in /etc/default/grub` |
+| 2 | not completed | 86 | Enable Verbose Kernel Messages | [86a RHCSA](LABS/lab-86a-grub-verbose-kernel-rhcsa/) · [86b Ansible](LABS/lab-86b-grub-verbose-kernel-ansible/) · [86c Verify](LABS/lab-86c-grub-verbose-kernel-verify/) — `GRUB_CMDLINE_LINUX` |
+| 3 | not completed | 87 | Generate New GRUB Config | [87a RHCSA](LABS/lab-87a-grub-mkconfig-rhcsa/) · [87b Ansible](LABS/lab-87b-grub-mkconfig-ansible/) · [87c Verify](LABS/lab-87c-grub-mkconfig-verify/) — `grub2-mkconfig -o /boot/grub2/grub.cfg` |
+| 4 | not completed | 88 | Reset Root Password via Boot | [88a RHCSA](LABS/lab-88a-grub-reset-root-password-rhcsa/) · [88b Ansible](LABS/lab-88b-grub-reset-root-password-ansible/) · [88c Verify](LABS/lab-88c-grub-reset-root-password-verify/) — `rd.break, chroot, passwd` |
+| 5 | not completed | 89 | Chroot into Rescue Filesystem | [89a RHCSA](LABS/lab-89a-chroot-rescue-filesystem-rhcsa/) · [89b Ansible](LABS/lab-89b-chroot-rescue-filesystem-ansible/) · [89c Verify](LABS/lab-89c-chroot-rescue-filesystem-verify/) — `chroot /mnt/sysimage` |
 | 6 | not completed | BOOT-F01 | Enable Verbose Boot by Removing `quiet` and `rhgb` | Edit `/etc/default/grub`, `grub2-mkconfig`, observe verbose boot |
 | 7 | not completed | 90 | Check Default Boot Target | `systemctl get-default` |
 | 8 | not completed | 91 | Change Default Boot Target | `systemctl set-default` — permanent text-mode boot |
@@ -303,16 +303,16 @@ Foundation → advanced. Each step locks in prerequisites for the next. Mirrors 
 | 18 | not completed | STOR-F04 | Create a Companion LVM-Type Partition on the Same Disk | `parted mkpart`, `set 2 lvm on`, prove with `fdisk -l` |
 | 19 | not completed | in-repo | Create a Swap Partition by UUID | `mkswap`, `blkid`, fstab `UUID=... swap sw 0 0`, `swapon -a` |
 | 20 | not completed | in-repo | Create an Ext4 Partition Mounted by LABEL | `mkfs.ext4 -L`, fstab `LABEL=... ext4 defaults 0 2` |
-| 21 | not completed | in-repo | Initialize Physical Volumes | [`labs/lvm-pvcreate-initialize-pv/`](labs/lvm-pvcreate-initialize-pv/) — `pvcreate`, `pvremove`, loopback practice |
-| 22 | not completed | in-repo | Display Physical Volumes | [`labs/lvm-display-physical-volumes/`](labs/lvm-display-physical-volumes/) — `pvs`, `pvdisplay`, `pvscan` |
-| 23 | not completed | in-repo | Create Volume Group | [`labs/lvm-create-volume-group/`](labs/lvm-create-volume-group/) — `vgcreate`, `-s` PE size |
-| 24 | not completed | in-repo | Display Volume Groups | [`labs/lvm-display-volume-groups/`](labs/lvm-display-volume-groups/) — `vgs`, `vgdisplay` |
-| 25 | not completed | in-repo | Create Logical Volume | [`labs/lvm-create-logical-volume/`](labs/lvm-create-logical-volume/) — `lvcreate -L`, `-l`, `100%FREE` |
-| 26 | not completed | in-repo | Display Logical Volumes | [`labs/lvm-display-logical-volumes/`](labs/lvm-display-logical-volumes/) — `lvs`, `lvdisplay`, `lv_attr` |
-| 27 | not completed | in-repo | Extend Volume Group | [`labs/lvm-extend-volume-group/`](labs/lvm-extend-volume-group/) — `vgextend` |
-| 28 | not completed | in-repo | Extend Logical Volume | [`labs/lvm-extend-logical-volume/`](labs/lvm-extend-logical-volume/) — `lvextend` |
-| 29 | not completed | in-repo | Resize Filesystem After Extend | [`labs/lvm-resize-filesystem-after-extend/`](labs/lvm-resize-filesystem-after-extend/) — `xfs_growfs`, `resize2fs` |
-| 30 | not completed | in-repo | Remove LVM Components | [`labs/lvm-remove-components/`](labs/lvm-remove-components/) — `lvremove`, `vgremove`, `pvremove` |
+| 21 | not completed | in-repo | Initialize Physical Volumes | [`LABS/lvm-pvcreate-initialize-pv/`](LABS/lvm-pvcreate-initialize-pv/) — `pvcreate`, `pvremove`, loopback practice |
+| 22 | not completed | in-repo | Display Physical Volumes | [`LABS/lvm-display-physical-volumes/`](LABS/lvm-display-physical-volumes/) — `pvs`, `pvdisplay`, `pvscan` |
+| 23 | not completed | in-repo | Create Volume Group | [`LABS/lvm-create-volume-group/`](LABS/lvm-create-volume-group/) — `vgcreate`, `-s` PE size |
+| 24 | not completed | in-repo | Display Volume Groups | [`LABS/lvm-display-volume-groups/`](LABS/lvm-display-volume-groups/) — `vgs`, `vgdisplay` |
+| 25 | not completed | in-repo | Create Logical Volume | [`LABS/lvm-create-logical-volume/`](LABS/lvm-create-logical-volume/) — `lvcreate -L`, `-l`, `100%FREE` |
+| 26 | not completed | in-repo | Display Logical Volumes | [`LABS/lvm-display-logical-volumes/`](LABS/lvm-display-logical-volumes/) — `lvs`, `lvdisplay`, `lv_attr` |
+| 27 | not completed | in-repo | Extend Volume Group | [`LABS/lvm-extend-volume-group/`](LABS/lvm-extend-volume-group/) — `vgextend` |
+| 28 | not completed | in-repo | Extend Logical Volume | [`LABS/lvm-extend-logical-volume/`](LABS/lvm-extend-logical-volume/) — `lvextend` |
+| 29 | not completed | in-repo | Resize Filesystem After Extend | [`LABS/lvm-resize-filesystem-after-extend/`](LABS/lvm-resize-filesystem-after-extend/) — `xfs_growfs`, `resize2fs` |
+| 30 | not completed | in-repo | Remove LVM Components | [`LABS/lvm-remove-components/`](LABS/lvm-remove-components/) — `lvremove`, `vgremove`, `pvremove` |
 | 31 | not completed | in-repo (LAB) | Create LV `lvol1` (ext4, 280 MB) | `pvcreate`, `vgcreate`, `lvcreate -L 280M -n lvol1`, mkfs.ext4, UUID fstab on `/mnt/mnt1` |
 | 32 | not completed | in-repo | Create LV with XFS Filesystem | `lvcreate -l 10 -n lv1 vg1` (8 MB PE × 10 LE), mkfs.xfs, persistent mount `/mnt/lvfs1` |
 | 33 | not completed | in-repo | Online Extend an LV and Its Filesystem Without Unmounting | `lvextend -L +64M`, `xfs_growfs` while mounted |
@@ -520,7 +520,7 @@ Foundation → advanced. Each step locks in prerequisites for the next. Mirrors 
 
 ### 📋 Complete Labs by RHCSA v10 Objective (EX200)
 
-> **Exam-prep order.** Every RHCSA lab — README companion repos, in-repo labs under [`labs/`](labs/), and `*-F##` future labs — grouped under the **official Red Hat RHCSA v10 (EX200) objective** it satisfies. Work through objectives **1 → 10** in order; within each objective, labs run foundation → advanced. Items tagged `.RHEL8` / `.RHEL9` are version-scoped variants on the same exam blueprint.
+> **Exam-prep order.** Every RHCSA lab — README companion repos, in-repo labs under [`LABS/`](LABS/), and `*-F##` future labs — grouped under the **official Red Hat RHCSA v10 (EX200) objective** it satisfies. Work through objectives **1 → 10** in order; within each objective, labs run foundation → advanced. Items tagged `.RHEL8` / `.RHEL9` are version-scoped variants on the same exam blueprint.
 >
 > Cross-reference: [Official RHCSA v10 Objectives Index](./rhcsa-v10-exam-objectives.md#official-rhcsa-v10-objectives-index) · [Suggested Learning Path (prerequisite flow)](README.md#-suggested-learning-path)
 
@@ -969,10 +969,10 @@ Foundation → advanced. Each step locks in prerequisites for the next. Mirrors 
 
 | Status | # | Lab | Full Path |
 |---|---|---|---|
-| not completed | 01 | Standard Output Redirection | [01a RHCSA](lab-01a-stdout-redirection-rhcsa/) · [01b Ansible](lab-01b-stdout-redirection-ansible/) · [01c Verify](lab-01c-stdout-redirection-verify/) |
-| not completed | 02 | Standard Error Redirection | [02a RHCSA](lab-02a-stderr-redirection-rhcsa/) · [02b Ansible](lab-02b-stderr-redirection-ansible/) · [02c Verify](lab-02c-stderr-redirection-verify/) |
-| not completed | 03 | Pipe Text Streams | [03a RHCSA](lab-03a-pipe-text-streams-rhcsa/) · [03b Ansible](lab-03b-pipe-text-streams-ansible/) · [03c Verify](lab-03c-pipe-text-streams-verify/) |
-| not completed | 04 | Capture Both Output and Error | [04a RHCSA](lab-04a-capture-both-output-error-rhcsa/) · [04b Ansible](lab-04b-capture-both-output-error-ansible/) · [04c Verify](lab-04c-capture-both-output-error-verify/) |
+| not completed | 01 | Standard Output Redirection | [01a RHCSA](LABS/lab-01a-stdout-redirection-rhcsa/) · [01b Ansible](LABS/lab-01b-stdout-redirection-ansible/) · [01c Verify](LABS/lab-01c-stdout-redirection-verify/) |
+| not completed | 02 | Standard Error Redirection | [02a RHCSA](LABS/lab-02a-stderr-redirection-rhcsa/) · [02b Ansible](LABS/lab-02b-stderr-redirection-ansible/) · [02c Verify](LABS/lab-02c-stderr-redirection-verify/) |
+| not completed | 03 | Pipe Text Streams | [03a RHCSA](LABS/lab-03a-pipe-text-streams-rhcsa/) · [03b Ansible](LABS/lab-03b-pipe-text-streams-ansible/) · [03c Verify](LABS/lab-03c-pipe-text-streams-verify/) |
+| not completed | 04 | Capture Both Output and Error | [04a RHCSA](LABS/lab-04a-capture-both-output-error-rhcsa/) · [04b Ansible](LABS/lab-04b-capture-both-output-error-ansible/) · [04c Verify](LABS/lab-04c-capture-both-output-error-verify/) |
 
 ---
 
@@ -980,22 +980,22 @@ Foundation → advanced. Each step locks in prerequisites for the next. Mirrors 
 
 | Status | # | Lab | Full Path |
 |---|---|---|---|
-| not completed | 00 | Ansible Control Node Setup | [00a RHCSA](lab-00a-ansible-control-node-setup-rhcsa/) · [00b Ansible](lab-00b-ansible-control-node-setup-ansible/) · [00c Verify](lab-00c-ansible-control-node-setup-verify/) |
-| not completed | 05 | Directory Navigation | [05a RHCSA](lab-05a-directory-navigation-rhcsa/) · [05b Ansible](lab-05b-directory-navigation-ansible/) · [05c Verify](lab-05c-directory-navigation-verify/) |
-| not completed | 06 | Listing Files and SELinux Contexts | [06a RHCSA](lab-06a-listing-files-selinux-rhcsa/) · [06b Ansible](lab-06b-listing-files-selinux-ansible/) · [06c Verify](lab-06c-listing-files-selinux-verify/) |
-| not completed | 07 | Creating Empty Files and Timestamps | [07a RHCSA](lab-07a-touch-timestamps-rhcsa/) · [07b Ansible](lab-07b-touch-timestamps-ansible/) · [07c Verify](lab-07c-touch-timestamps-verify/) |
-| not completed | 08 | Copying Files and Directories | [08a RHCSA](lab-08a-copying-files-directories-rhcsa/) · [08b Ansible](lab-08b-copying-files-directories-ansible/) · [08c Verify](lab-08c-copying-files-directories-verify/) |
-| not completed | 09 | Hard and Soft Links | [09a RHCSA](lab-09a-hard-and-soft-links-rhcsa/) · [09b Ansible](lab-09b-hard-and-soft-links-ansible/) · [09c Verify](lab-09c-hard-and-soft-links-verify/) |
-| not completed | 10 | Moving and Renaming Files | [10a RHCSA](lab-10a-moving-renaming-files-rhcsa/) · [10b Ansible](lab-10b-moving-renaming-files-ansible/) · [10c Verify](lab-10c-moving-renaming-files-verify/) |
-| not completed | 11 | Safe Deletion of Files and Directories | [11a RHCSA](lab-11a-removing-files-rhcsa/) · [11b Ansible](lab-11b-removing-files-ansible/) · [11c Verify](lab-11c-removing-files-verify/) |
-| not completed | 12 | Creating Nested Directories | [12a RHCSA](lab-12a-creating-nested-directories-rhcsa/) · [12b Ansible](lab-12b-creating-nested-directories-ansible/) · [12c Verify](lab-12c-creating-nested-directories-verify/) |
-| not completed | 13 | Creating Command Aliases | [13a RHCSA](lab-13a-creating-command-aliases-rhcsa/) · [13b Ansible](lab-13b-creating-command-aliases-ansible/) · [13c Verify](lab-13c-creating-command-aliases-verify/) |
-| not completed | 14 | File Searching with find | [14a RHCSA](lab-14a-searching-with-find-rhcsa/) · [14b Ansible](lab-14b-searching-with-find-ansible/) · [14c Verify](lab-14c-searching-with-find-verify/) |
-| not completed | 15 | Instant File Searching with locate | [15a RHCSA](lab-15a-searching-with-locate-rhcsa/) · [15b Ansible](lab-15b-searching-with-locate-ansible/) · [15c Verify](lab-15c-searching-with-locate-verify/) |
+| not completed | 00 | Ansible Control Node Setup | [00a RHCSA](LABS/lab-00a-ansible-control-node-rhcsa/) · [00b Ansible](LABS/lab-00b-ansible-control-node-ansible/) · [00c Verify](LABS/lab-00c-ansible-control-node-verify/) |
+| not completed | 05 | Directory Navigation | [05a RHCSA](LABS/lab-05a-directory-navigation-rhcsa/) · [05b Ansible](LABS/lab-05b-directory-navigation-ansible/) · [05c Verify](LABS/lab-05c-directory-navigation-verify/) |
+| not completed | 06 | Listing Files and SELinux Contexts | [06a RHCSA](LABS/lab-06a-listing-files-selinux-rhcsa/) · [06b Ansible](LABS/lab-06b-listing-files-selinux-ansible/) · [06c Verify](LABS/lab-06c-listing-files-selinux-verify/) |
+| not completed | 07 | Creating Empty Files and Timestamps | [07a RHCSA](LABS/lab-07a-touch-timestamps-rhcsa/) · [07b Ansible](LABS/lab-07b-touch-timestamps-ansible/) · [07c Verify](LABS/lab-07c-touch-timestamps-verify/) |
+| not completed | 08 | Copying Files and Directories | [08a RHCSA](LABS/lab-08a-copying-files-rhcsa/) · [08b Ansible](LABS/lab-08b-copying-files-ansible/) · [08c Verify](LABS/lab-08c-copying-files-verify/) |
+| not completed | 09 | Hard and Soft Links | [09a RHCSA](LABS/lab-09a-hard-and-soft-links-rhcsa/) · [09b Ansible](LABS/lab-09b-hard-and-soft-links-ansible/) · [09c Verify](LABS/lab-09c-hard-and-soft-links-verify/) |
+| not completed | 10 | Moving and Renaming Files | [10a RHCSA](LABS/lab-10a-moving-renaming-files-rhcsa/) · [10b Ansible](LABS/lab-10b-moving-renaming-files-ansible/) · [10c Verify](LABS/lab-10c-moving-renaming-files-verify/) |
+| not completed | 11 | Safe Deletion of Files and Directories | [11a RHCSA](LABS/lab-11a-removing-files-rhcsa/) · [11b Ansible](LABS/lab-11b-removing-files-ansible/) · [11c Verify](LABS/lab-11c-removing-files-verify/) |
+| not completed | 12 | Creating Nested Directories | [12a RHCSA](LABS/lab-12a-creating-nested-directories-rhcsa/) · [12b Ansible](LABS/lab-12b-creating-nested-directories-ansible/) · [12c Verify](LABS/lab-12c-creating-nested-directories-verify/) |
+| not completed | 13 | Creating Command Aliases | [13a RHCSA](LABS/lab-13a-creating-command-aliases-rhcsa/) · [13b Ansible](LABS/lab-13b-creating-command-aliases-ansible/) · [13c Verify](LABS/lab-13c-creating-command-aliases-verify/) |
+| not completed | 14 | File Searching with find | [14a RHCSA](LABS/lab-14a-searching-with-find-rhcsa/) · [14b Ansible](LABS/lab-14b-searching-with-find-ansible/) · [14c Verify](LABS/lab-14c-searching-with-find-verify/) |
+| not completed | 15 | Instant File Searching with locate | [15a RHCSA](LABS/lab-15a-searching-with-locate-rhcsa/) · [15b Ansible](LABS/lab-15b-searching-with-locate-ansible/) · [15c Verify](LABS/lab-15c-searching-with-locate-verify/) |
 | not completed | 16 | Search for a String and Save Output | <https://github.com/kelvintechnical/search-string-save-output> |
 | not completed | 17 | Find and Save Config Files | <https://github.com/kelvintechnical/find-save-config-files> |
 | not completed | 18 | Locate Command Documentation | <https://github.com/kelvintechnical/locate-command-docs> |
-| not completed | — | Find Files by Modification Time and Act on Them (in-repo) | [`labs/find-files-by-mtime/`](labs/find-files-by-mtime/) |
+| not completed | — | Find Files by Modification Time and Act on Them (in-repo) | [`LABS/find-files-by-mtime/`](LABS/find-files-by-mtime/) |
 
 **Future Labs (planned — from [`future_labs.txt`](future_labs.txt)):**
 
@@ -1055,15 +1055,15 @@ Foundation → advanced. Each step locks in prerequisites for the next. Mirrors 
 
 | Status | # | Lab | Full Path |
 |---|---|---|---|
-| not completed | 31 | Configure a Static IP Address | [31a RHCSA](lab-31a-static-ip-nmcli-rhcsa/) · [31b Ansible](lab-31b-static-ip-nmcli-ansible/) · [31c Verify](lab-31c-static-ip-nmcli-verify/) |
-| not completed | 32 | Check Network Connectivity | [32a RHCSA](lab-32a-ping-traceroute-rhcsa/) · [32b Ansible](lab-32b-ping-traceroute-ansible/) · [32c Verify](lab-32c-ping-traceroute-verify/) |
-| not completed | 33 | Display IP and Routing Info | [33a RHCSA](lab-33a-ip-addr-route-show-rhcsa/) · [33b Ansible](lab-33b-ip-addr-route-show-ansible/) · [33c Verify](lab-33c-ip-addr-route-show-verify/) |
-| not completed | 34 | Inspecting Listening Sockets | [34a RHCSA](lab-34a-ss-listening-sockets-rhcsa/) · [34b Ansible](lab-34b-ss-listening-sockets-ansible/) · [34c Verify](lab-34c-ss-listening-sockets-verify/) |
-| not completed | 35 | Text-Based Network Config nmtui | [35a RHCSA](lab-35a-nmtui-tui-config-rhcsa/) · [35b Ansible](lab-35b-nmtui-tui-config-ansible/) · [35c Verify](lab-35c-nmtui-tui-config-verify/) |
-| not completed | 36 | Command-Line Network Config nmcli | [36a RHCSA](lab-36a-nmcli-cli-config-rhcsa/) · [36b Ansible](lab-36b-nmcli-cli-config-ansible/) · [36c Verify](lab-36c-nmcli-cli-config-verify/) |
-| not completed | 37 | Configuring Local Host Resolution | [37a RHCSA](lab-37a-etc-hosts-resolution-rhcsa/) · [37b Ansible](lab-37b-etc-hosts-resolution-ansible/) · [37c Verify](lab-37c-etc-hosts-resolution-verify/) |
-| not completed | 38 | Configuring DNS Servers | [38a RHCSA](lab-38a-resolv-conf-dns-rhcsa/) · [38b Ansible](lab-38b-resolv-conf-dns-ansible/) · [38c Verify](lab-38c-resolv-conf-dns-verify/) |
-| not completed | 39 | Configure SSH and Key-Based Auth | [39a RHCSA](lab-39a-ssh-key-auth-rhcsa/) · [39b Ansible](lab-39b-ssh-key-auth-ansible/) · [39c Verify](lab-39c-ssh-key-auth-verify/) |
+| not completed | 31 | Configure a Static IP Address | [31a RHCSA](LABS/lab-31a-static-ip-nmcli-rhcsa/) · [31b Ansible](LABS/lab-31b-static-ip-nmcli-ansible/) · [31c Verify](LABS/lab-31c-static-ip-nmcli-verify/) |
+| not completed | 32 | Check Network Connectivity | [32a RHCSA](LABS/lab-32a-ping-traceroute-rhcsa/) · [32b Ansible](LABS/lab-32b-ping-traceroute-ansible/) · [32c Verify](LABS/lab-32c-ping-traceroute-verify/) |
+| not completed | 33 | Display IP and Routing Info | [33a RHCSA](LABS/lab-33a-ip-addr-route-show-rhcsa/) · [33b Ansible](LABS/lab-33b-ip-addr-route-show-ansible/) · [33c Verify](LABS/lab-33c-ip-addr-route-show-verify/) |
+| not completed | 34 | Inspecting Listening Sockets | [34a RHCSA](LABS/lab-34a-ss-listening-sockets-rhcsa/) · [34b Ansible](LABS/lab-34b-ss-listening-sockets-ansible/) · [34c Verify](LABS/lab-34c-ss-listening-sockets-verify/) |
+| not completed | 35 | Text-Based Network Config nmtui | [35a RHCSA](LABS/lab-35a-nmtui-tui-config-rhcsa/) · [35b Ansible](LABS/lab-35b-nmtui-tui-config-ansible/) · [35c Verify](LABS/lab-35c-nmtui-tui-config-verify/) |
+| not completed | 36 | Command-Line Network Config nmcli | [36a RHCSA](LABS/lab-36a-nmcli-cli-config-rhcsa/) · [36b Ansible](LABS/lab-36b-nmcli-cli-config-ansible/) · [36c Verify](LABS/lab-36c-nmcli-cli-config-verify/) |
+| not completed | 37 | Configuring Local Host Resolution | [37a RHCSA](LABS/lab-37a-etc-hosts-resolution-rhcsa/) · [37b Ansible](LABS/lab-37b-etc-hosts-resolution-ansible/) · [37c Verify](LABS/lab-37c-etc-hosts-resolution-verify/) |
+| not completed | 38 | Configuring DNS Servers | [38a RHCSA](LABS/lab-38a-resolv-conf-dns-rhcsa/) · [38b Ansible](LABS/lab-38b-resolv-conf-dns-ansible/) · [38c Verify](LABS/lab-38c-resolv-conf-dns-verify/) |
+| not completed | 39 | Configure SSH and Key-Based Auth | [39a RHCSA](LABS/lab-39a-ssh-key-auth-rhcsa/) · [39b Ansible](LABS/lab-39b-ssh-key-auth-ansible/) · [39c Verify](LABS/lab-39c-ssh-key-auth-verify/) |
 
 **Future Labs (planned):**
 
@@ -1081,21 +1081,21 @@ Foundation → advanced. Each step locks in prerequisites for the next. Mirrors 
 
 | Status | # | Lab | Full Path |
 |---|---|---|---|
-| not completed | 40 | Standard File Permissions | [40a RHCSA](lab-40a-chmod-standard-perms-rhcsa/) · [40b Ansible](lab-40b-chmod-standard-perms-ansible/) · [40c Verify](lab-40c-chmod-standard-perms-verify/) |
-| not completed | 41 | Changing Ownership | [41a RHCSA](lab-41a-chown-chgrp-ownership-rhcsa/) · [41b Ansible](lab-41b-chown-chgrp-ownership-ansible/) · [41c Verify](lab-41c-chown-chgrp-ownership-verify/) |
-| not completed | 42 | SUID Executables | [42a RHCSA](lab-42a-suid-executable-rhcsa/) · [42b Ansible](lab-42b-suid-executable-ansible/) · [42c Verify](lab-42c-suid-executable-verify/) |
-| not completed | 43 | Configure SGID and Sticky Bit | [43a RHCSA](lab-43a-sgid-sticky-bit-rhcsa/) · [43b Ansible](lab-43b-sgid-sticky-bit-ansible/) · [43c Verify](lab-43c-sgid-sticky-bit-verify/) |
-| not completed | 44 | Immutable File Attribute | [44a RHCSA](lab-44a-chattr-immutable-rhcsa/) · [44b Ansible](lab-44b-chattr-immutable-ansible/) · [44c Verify](lab-44c-chattr-immutable-verify/) |
-| not completed | 45 | Append-Only File Attribute | [45a RHCSA](lab-45a-chattr-append-only-rhcsa/) · [45b Ansible](lab-45b-chattr-append-only-ansible/) · [45c Verify](lab-45c-chattr-append-only-verify/) |
-| not completed | 46 | Identifying File Attributes | [46a RHCSA](lab-46a-lsattr-extended-attrs-rhcsa/) · [46b Ansible](lab-46b-lsattr-extended-attrs-ansible/) · [46c Verify](lab-46c-lsattr-extended-attrs-verify/) |
-| not completed | 47 | Check ACL Support | [47a RHCSA](lab-47a-acl-mount-option-rhcsa/) · [47b Ansible](lab-47b-acl-mount-option-ansible/) · [47c Verify](lab-47c-acl-mount-option-verify/) |
-| not completed | 48 | Viewing ACLs | [48a RHCSA](lab-48a-getfacl-view-acl-rhcsa/) · [48b Ansible](lab-48b-getfacl-view-acl-ansible/) · [48c Verify](lab-48c-getfacl-view-acl-verify/) |
-| not completed | 49 | Modifying ACLs | [49a RHCSA](lab-49a-setfacl-modify-rhcsa/) · [49b Ansible](lab-49b-setfacl-modify-ansible/) · [49c Verify](lab-49c-setfacl-modify-verify/) |
-| not completed | 50 | Denying Access via ACLs | [50a RHCSA](lab-50a-setfacl-deny-rhcsa/) · [50b Ansible](lab-50b-setfacl-deny-ansible/) · [50c Verify](lab-50c-setfacl-deny-verify/) |
-| not completed | 51 | Default Directory ACLs | [51a RHCSA](lab-51a-default-acl-inherit-rhcsa/) · [51b Ansible](lab-51b-default-acl-inherit-ansible/) · [51c Verify](lab-51c-default-acl-inherit-verify/) |
-| not completed | 52 | ACL Masks | [52a RHCSA](lab-52a-acl-masks-rhcsa/) · [52b Ansible](lab-52b-acl-masks-ansible/) · [52c Verify](lab-52c-acl-masks-verify/) |
-| not completed | 53 | Removing ACLs | [53a RHCSA](lab-53a-setfacl-remove-rhcsa/) · [53b Ansible](lab-53b-setfacl-remove-ansible/) · [53c Verify](lab-53c-setfacl-remove-verify/) |
-| not completed | 54 | NFSv4 ACLs | [54a RHCSA](lab-54a-nfs4-acl-rhcsa/) · [54b Ansible](lab-54b-nfs4-acl-ansible/) · [54c Verify](lab-54c-nfs4-acl-verify/) |
+| not completed | 40 | Standard File Permissions | [40a RHCSA](LABS/lab-40a-chmod-standard-perms-rhcsa/) · [40b Ansible](LABS/lab-40b-chmod-standard-perms-ansible/) · [40c Verify](LABS/lab-40c-chmod-standard-perms-verify/) |
+| not completed | 41 | Changing Ownership | [41a RHCSA](LABS/lab-41a-chown-chgrp-ownership-rhcsa/) · [41b Ansible](LABS/lab-41b-chown-chgrp-ownership-ansible/) · [41c Verify](LABS/lab-41c-chown-chgrp-ownership-verify/) |
+| not completed | 42 | SUID Executables | [42a RHCSA](LABS/lab-42a-suid-executable-rhcsa/) · [42b Ansible](LABS/lab-42b-suid-executable-ansible/) · [42c Verify](LABS/lab-42c-suid-executable-verify/) |
+| not completed | 43 | Configure SGID and Sticky Bit | [43a RHCSA](LABS/lab-43a-sgid-sticky-bit-rhcsa/) · [43b Ansible](LABS/lab-43b-sgid-sticky-bit-ansible/) · [43c Verify](LABS/lab-43c-sgid-sticky-bit-verify/) |
+| not completed | 44 | Immutable File Attribute | [44a RHCSA](LABS/lab-44a-chattr-immutable-rhcsa/) · [44b Ansible](LABS/lab-44b-chattr-immutable-ansible/) · [44c Verify](LABS/lab-44c-chattr-immutable-verify/) |
+| not completed | 45 | Append-Only File Attribute | [45a RHCSA](LABS/lab-45a-chattr-append-only-rhcsa/) · [45b Ansible](LABS/lab-45b-chattr-append-only-ansible/) · [45c Verify](LABS/lab-45c-chattr-append-only-verify/) |
+| not completed | 46 | Identifying File Attributes | [46a RHCSA](LABS/lab-46a-lsattr-extended-attrs-rhcsa/) · [46b Ansible](LABS/lab-46b-lsattr-extended-attrs-ansible/) · [46c Verify](LABS/lab-46c-lsattr-extended-attrs-verify/) |
+| not completed | 47 | Check ACL Support | [47a RHCSA](LABS/lab-47a-acl-mount-option-rhcsa/) · [47b Ansible](LABS/lab-47b-acl-mount-option-ansible/) · [47c Verify](LABS/lab-47c-acl-mount-option-verify/) |
+| not completed | 48 | Viewing ACLs | [48a RHCSA](LABS/lab-48a-getfacl-view-acl-rhcsa/) · [48b Ansible](LABS/lab-48b-getfacl-view-acl-ansible/) · [48c Verify](LABS/lab-48c-getfacl-view-acl-verify/) |
+| not completed | 49 | Modifying ACLs | [49a RHCSA](LABS/lab-49a-setfacl-modify-rhcsa/) · [49b Ansible](LABS/lab-49b-setfacl-modify-ansible/) · [49c Verify](LABS/lab-49c-setfacl-modify-verify/) |
+| not completed | 50 | Denying Access via ACLs | [50a RHCSA](LABS/lab-50a-setfacl-deny-rhcsa/) · [50b Ansible](LABS/lab-50b-setfacl-deny-ansible/) · [50c Verify](LABS/lab-50c-setfacl-deny-verify/) |
+| not completed | 51 | Default Directory ACLs | [51a RHCSA](LABS/lab-51a-default-acl-inherit-rhcsa/) · [51b Ansible](LABS/lab-51b-default-acl-inherit-ansible/) · [51c Verify](LABS/lab-51c-default-acl-inherit-verify/) |
+| not completed | 52 | ACL Masks | [52a RHCSA](LABS/lab-52a-acl-masks-rhcsa/) · [52b Ansible](LABS/lab-52b-acl-masks-ansible/) · [52c Verify](LABS/lab-52c-acl-masks-verify/) |
+| not completed | 53 | Removing ACLs | [53a RHCSA](LABS/lab-53a-setfacl-remove-rhcsa/) · [53b Ansible](LABS/lab-53b-setfacl-remove-ansible/) · [53c Verify](LABS/lab-53c-setfacl-remove-verify/) |
+| not completed | 54 | NFSv4 ACLs | [54a RHCSA](LABS/lab-54a-nfs4-acl-rhcsa/) · [54b Ansible](LABS/lab-54b-nfs4-acl-ansible/) · [54c Verify](LABS/lab-54c-nfs4-acl-verify/) |
 
 **Future Labs (planned):**
 
@@ -1114,19 +1114,19 @@ Foundation → advanced. Each step locks in prerequisites for the next. Mirrors 
 
 | Status | # | Lab | Full Path |
 |---|---|---|---|
-| not completed | 55 | Inspecting iptables | [55a RHCSA](lab-55a-iptables-inspect-rhcsa/) · [55b Ansible](lab-55b-iptables-inspect-ansible/) · [55c Verify](lab-55c-iptables-inspect-verify/) |
-| not completed | 56 | Exploring firewalld Zones | [56a RHCSA](lab-56a-firewalld-zones-rhcsa/) · [56b Ansible](lab-56b-firewalld-zones-ansible/) · [56c Verify](lab-56c-firewalld-zones-verify/) |
-| not completed | 57 | Changing Default Firewall Zone | [57a RHCSA](lab-57a-firewalld-default-zone-rhcsa/) · [57b Ansible](lab-57b-firewalld-default-zone-ansible/) · [57c Verify](lab-57c-firewalld-default-zone-verify/) |
-| not completed | 58 | Adding Services to Zones | [58a RHCSA](lab-58a-firewalld-add-service-rhcsa/) · [58b Ansible](lab-58b-firewalld-add-service-ansible/) · [58c Verify](lab-58c-firewalld-add-service-verify/) |
-| not completed | 59 | Opening Custom Ports | [59a RHCSA](lab-59a-firewalld-add-port-rhcsa/) · [59b Ansible](lab-59b-firewalld-add-port-ansible/) · [59c Verify](lab-59c-firewalld-add-port-verify/) |
-| not completed | 60 | Inspect Active Firewall Zones | [60a RHCSA](lab-60a-firewalld-active-zones-rhcsa/) · [60b Ansible](lab-60b-firewalld-active-zones-ansible/) · [60c Verify](lab-60c-firewalld-active-zones-verify/) |
-| not completed | 61 | Reassign Interfaces to Zones | [61a RHCSA](lab-61a-firewalld-reassign-interfaces-rhcsa/) · [61b Ansible](lab-61b-firewalld-reassign-interfaces-ansible/) · [61c Verify](lab-61c-firewalld-reassign-interfaces-verify/) |
-| not completed | 62 | Allow Services Through Firewall | [62a RHCSA](lab-62a-firewall-allow-services-rhcsa/) · [62b Ansible](lab-62b-firewall-allow-services-ansible/) · [62c Verify](lab-62c-firewall-allow-services-verify/) |
-| not completed | 63 | Configure IP Masquerading NAT | [63a RHCSA](lab-63a-ip-masquerading-nat-rhcsa/) · [63b Ansible](lab-63b-ip-masquerading-nat-ansible/) · [63c Verify](lab-63c-ip-masquerading-nat-verify/) |
-| not completed | 64 | Configure IP Forwarding | [64a RHCSA](lab-64a-ip-forwarding-sysctl-rhcsa/) · [64b Ansible](lab-64b-ip-forwarding-sysctl-ansible/) · [64c Verify](lab-64c-ip-forwarding-sysctl-verify/) |
-| not completed | 65 | Configure Rich Rules | [65a RHCSA](lab-65a-firewalld-rich-rules-rhcsa/) · [65b Ansible](lab-65b-firewalld-rich-rules-ansible/) · [65c Verify](lab-65c-firewalld-rich-rules-verify/) |
-| not completed | 66 | Setup Port Forwarding DNAT | [66a RHCSA](lab-66a-firewalld-port-forward-dnat-rhcsa/) · [66b Ansible](lab-66b-firewalld-port-forward-dnat-ansible/) · [66c Verify](lab-66c-firewalld-port-forward-dnat-verify/) |
-| not completed | 67 | Configure ICMP Filters | [67a RHCSA](lab-67a-firewalld-icmp-filters-rhcsa/) · [67b Ansible](lab-67b-firewalld-icmp-filters-ansible/) · [67c Verify](lab-67c-firewalld-icmp-filters-verify/) |
+| not completed | 55 | Inspecting iptables | [55a RHCSA](LABS/lab-55a-iptables-inspect-rhcsa/) · [55b Ansible](LABS/lab-55b-iptables-inspect-ansible/) · [55c Verify](LABS/lab-55c-iptables-inspect-verify/) |
+| not completed | 56 | Exploring firewalld Zones | [56a RHCSA](LABS/lab-56a-firewalld-zones-rhcsa/) · [56b Ansible](LABS/lab-56b-firewalld-zones-ansible/) · [56c Verify](LABS/lab-56c-firewalld-zones-verify/) |
+| not completed | 57 | Changing Default Firewall Zone | [57a RHCSA](LABS/lab-57a-firewalld-default-zone-rhcsa/) · [57b Ansible](LABS/lab-57b-firewalld-default-zone-ansible/) · [57c Verify](LABS/lab-57c-firewalld-default-zone-verify/) |
+| not completed | 58 | Adding Services to Zones | [58a RHCSA](LABS/lab-58a-firewalld-add-service-rhcsa/) · [58b Ansible](LABS/lab-58b-firewalld-add-service-ansible/) · [58c Verify](LABS/lab-58c-firewalld-add-service-verify/) |
+| not completed | 59 | Opening Custom Ports | [59a RHCSA](LABS/lab-59a-firewalld-add-port-rhcsa/) · [59b Ansible](LABS/lab-59b-firewalld-add-port-ansible/) · [59c Verify](LABS/lab-59c-firewalld-add-port-verify/) |
+| not completed | 60 | Inspect Active Firewall Zones | [60a RHCSA](LABS/lab-60a-firewalld-active-zones-rhcsa/) · [60b Ansible](LABS/lab-60b-firewalld-active-zones-ansible/) · [60c Verify](LABS/lab-60c-firewalld-active-zones-verify/) |
+| not completed | 61 | Reassign Interfaces to Zones | [61a RHCSA](LABS/lab-61a-firewalld-reassign-interfaces-rhcsa/) · [61b Ansible](LABS/lab-61b-firewalld-reassign-interfaces-ansible/) · [61c Verify](LABS/lab-61c-firewalld-reassign-interfaces-verify/) |
+| not completed | 62 | Allow Services Through Firewall | [62a RHCSA](LABS/lab-62a-firewall-allow-services-rhcsa/) · [62b Ansible](LABS/lab-62b-firewall-allow-services-ansible/) · [62c Verify](LABS/lab-62c-firewall-allow-services-verify/) |
+| not completed | 63 | Configure IP Masquerading NAT | [63a RHCSA](LABS/lab-63a-ip-masquerading-nat-rhcsa/) · [63b Ansible](LABS/lab-63b-ip-masquerading-nat-ansible/) · [63c Verify](LABS/lab-63c-ip-masquerading-nat-verify/) |
+| not completed | 64 | Configure IP Forwarding | [64a RHCSA](LABS/lab-64a-ip-forwarding-sysctl-rhcsa/) · [64b Ansible](LABS/lab-64b-ip-forwarding-sysctl-ansible/) · [64c Verify](LABS/lab-64c-ip-forwarding-sysctl-verify/) |
+| not completed | 65 | Configure Rich Rules | [65a RHCSA](LABS/lab-65a-firewalld-rich-rules-rhcsa/) · [65b Ansible](LABS/lab-65b-firewalld-rich-rules-ansible/) · [65c Verify](LABS/lab-65c-firewalld-rich-rules-verify/) |
+| not completed | 66 | Setup Port Forwarding DNAT | [66a RHCSA](LABS/lab-66a-firewalld-port-forward-dnat-rhcsa/) · [66b Ansible](LABS/lab-66b-firewalld-port-forward-dnat-ansible/) · [66c Verify](LABS/lab-66c-firewalld-port-forward-dnat-verify/) |
+| not completed | 67 | Configure ICMP Filters | [67a RHCSA](LABS/lab-67a-firewalld-icmp-filters-rhcsa/) · [67b Ansible](LABS/lab-67b-firewalld-icmp-filters-ansible/) · [67c Verify](LABS/lab-67c-firewalld-icmp-filters-verify/) |
 
 **Future Labs (planned):**
 
@@ -1141,16 +1141,16 @@ Foundation → advanced. Each step locks in prerequisites for the next. Mirrors 
 
 | Status | # | Lab | Full Path |
 |---|---|---|---|
-| not completed | 68 | Verify TCP Wrappers Support | [68a RHCSA](lab-68a-tcp-wrappers-support-rhcsa/) · [68b Ansible](lab-68b-tcp-wrappers-support-ansible/) · [68c Verify](lab-68c-tcp-wrappers-support-verify/) |
-| not completed | 69 | Restrict Access via hosts.deny | [69a RHCSA](lab-69a-hosts-deny-restrictions-rhcsa/) · [69b Ansible](lab-69b-hosts-deny-restrictions-ansible/) · [69c Verify](lab-69c-hosts-deny-restrictions-verify/) |
-| not completed | 70 | Allow Specific Access via hosts.allow | [70a RHCSA](lab-70a-hosts-allow-access-rhcsa/) · [70b Ansible](lab-70b-hosts-allow-access-ansible/) · [70c Verify](lab-70c-hosts-allow-access-verify/) |
-| not completed | 71 | Configure TCP Wrappers for FTP | [71a RHCSA](lab-71a-tcp-wrappers-ftp-rhcsa/) · [71b Ansible](lab-71b-tcp-wrappers-ftp-ansible/) · [71c Verify](lab-71c-tcp-wrappers-ftp-verify/) |
-| not completed | 72 | Explore PAM Config Files | [72a RHCSA](lab-72a-pam-config-files-rhcsa/) · [72b Ansible](lab-72b-pam-config-files-ansible/) · [72c Verify](lab-72c-pam-config-files-verify/) |
-| not completed | 73 | Read PAM Module Documentation | [73a RHCSA](lab-73a-pam-module-docs-rhcsa/) · [73b Ansible](lab-73b-pam-module-docs-ansible/) · [73c Verify](lab-73c-pam-module-docs-verify/) |
-| not completed | 74 | Implement Password Complexity | [74a RHCSA](lab-74a-pam-password-complexity-rhcsa/) · [74b Ansible](lab-74b-pam-password-complexity-ansible/) · [74c Verify](lab-74c-pam-password-complexity-verify/) |
-| not completed | 75 | Configure PAM to Limit root Access | [75a RHCSA](lab-75a-pam-securetty-root-access-rhcsa/) · [75b Ansible](lab-75b-pam-securetty-root-access-ansible/) · [75c Verify](lab-75c-pam-securetty-root-access-verify/) |
-| not completed | 76 | Use PAM to Limit User Access | [76a RHCSA](lab-76a-pam-nologin-user-access-rhcsa/) · [76b Ansible](lab-76b-pam-nologin-user-access-ansible/) · [76c Verify](lab-76c-pam-nologin-user-access-verify/) |
-| not completed | 77 | Restrict Service Access by User List | [77a RHCSA](lab-77a-pam-listfile-user-restriction-rhcsa/) · [77b Ansible](lab-77b-pam-listfile-user-restriction-ansible/) · [77c Verify](lab-77c-pam-listfile-user-restriction-verify/) |
+| not completed | 68 | Verify TCP Wrappers Support | [68a RHCSA](LABS/lab-68a-tcp-wrappers-support-rhcsa/) · [68b Ansible](LABS/lab-68b-tcp-wrappers-support-ansible/) · [68c Verify](LABS/lab-68c-tcp-wrappers-support-verify/) |
+| not completed | 69 | Restrict Access via hosts.deny | [69a RHCSA](LABS/lab-69a-hosts-deny-restrictions-rhcsa/) · [69b Ansible](LABS/lab-69b-hosts-deny-restrictions-ansible/) · [69c Verify](LABS/lab-69c-hosts-deny-restrictions-verify/) |
+| not completed | 70 | Allow Specific Access via hosts.allow | [70a RHCSA](LABS/lab-70a-hosts-allow-access-rhcsa/) · [70b Ansible](LABS/lab-70b-hosts-allow-access-ansible/) · [70c Verify](LABS/lab-70c-hosts-allow-access-verify/) |
+| not completed | 71 | Configure TCP Wrappers for FTP | [71a RHCSA](LABS/lab-71a-tcp-wrappers-ftp-rhcsa/) · [71b Ansible](LABS/lab-71b-tcp-wrappers-ftp-ansible/) · [71c Verify](LABS/lab-71c-tcp-wrappers-ftp-verify/) |
+| not completed | 72 | Explore PAM Config Files | [72a RHCSA](LABS/lab-72a-pam-config-files-rhcsa/) · [72b Ansible](LABS/lab-72b-pam-config-files-ansible/) · [72c Verify](LABS/lab-72c-pam-config-files-verify/) |
+| not completed | 73 | Read PAM Module Documentation | [73a RHCSA](LABS/lab-73a-pam-module-docs-rhcsa/) · [73b Ansible](LABS/lab-73b-pam-module-docs-ansible/) · [73c Verify](LABS/lab-73c-pam-module-docs-verify/) |
+| not completed | 74 | Implement Password Complexity | [74a RHCSA](LABS/lab-74a-pam-password-complexity-rhcsa/) · [74b Ansible](LABS/lab-74b-pam-password-complexity-ansible/) · [74c Verify](LABS/lab-74c-pam-password-complexity-verify/) |
+| not completed | 75 | Configure PAM to Limit root Access | [75a RHCSA](LABS/lab-75a-pam-securetty-root-access-rhcsa/) · [75b Ansible](LABS/lab-75b-pam-securetty-root-access-ansible/) · [75c Verify](LABS/lab-75c-pam-securetty-root-access-verify/) |
+| not completed | 76 | Use PAM to Limit User Access | [76a RHCSA](LABS/lab-76a-pam-nologin-user-access-rhcsa/) · [76b Ansible](LABS/lab-76b-pam-nologin-user-access-ansible/) · [76c Verify](LABS/lab-76c-pam-nologin-user-access-verify/) |
+| not completed | 77 | Restrict Service Access by User List | [77a RHCSA](LABS/lab-77a-pam-listfile-user-restriction-rhcsa/) · [77b Ansible](LABS/lab-77b-pam-listfile-user-restriction-ansible/) · [77c Verify](LABS/lab-77c-pam-listfile-user-restriction-verify/) |
 
 ---
 
@@ -1158,14 +1158,14 @@ Foundation → advanced. Each step locks in prerequisites for the next. Mirrors 
 
 | Status | # | Lab | Full Path |
 |---|---|---|---|
-| not completed | 78 | Managing SELinux Modes | [78a RHCSA](lab-78a-selinux-modes-rhcsa/) · [78b Ansible](lab-78b-selinux-modes-ansible/) · [78c Verify](lab-78c-selinux-modes-verify/) |
-| not completed | 79 | Viewing SELinux Contexts | [79a RHCSA](lab-79a-selinux-contexts-rhcsa/) · [79b Ansible](lab-79b-selinux-contexts-ansible/) · [79c Verify](lab-79c-selinux-contexts-verify/) |
-| not completed | 80 | Temporary Context Changes | [80a RHCSA](lab-80a-selinux-chcon-temporary-rhcsa/) · [80b Ansible](lab-80b-selinux-chcon-temporary-ansible/) · [80c Verify](lab-80c-selinux-chcon-temporary-verify/) |
-| not completed | 81 | Persistent Context Restoration | [81a RHCSA](lab-81a-selinux-fcontext-restorecon-rhcsa/) · [81b Ansible](lab-81b-selinux-fcontext-restorecon-ansible/) · [81c Verify](lab-81c-selinux-fcontext-restorecon-verify/) |
-| not completed | 82 | Toggling SELinux Booleans | [82a RHCSA](lab-82a-selinux-booleans-rhcsa/) · [82b Ansible](lab-82b-selinux-booleans-ansible/) · [82c Verify](lab-82c-selinux-booleans-verify/) |
-| not completed | 83 | SELinux User Mapping | [83a RHCSA](lab-83a-selinux-user-mapping-rhcsa/) · [83b Ansible](lab-83b-selinux-user-mapping-ansible/) · [83c Verify](lab-83c-selinux-user-mapping-verify/) |
-| not completed | 84 | Troubleshooting SELinux | [84a RHCSA](lab-84a-selinux-troubleshooting-rhcsa/) · [84b Ansible](lab-84b-selinux-troubleshooting-ansible/) · [84c Verify](lab-84c-selinux-troubleshooting-verify/) |
-| not completed | — | Apply Recursive SELinux Contexts to a New Directory (in-repo) | [`labs/selinux-recursive-contexts-direct01/`](labs/selinux-recursive-contexts-direct01/) |
+| not completed | 78 | Managing SELinux Modes | [78a RHCSA](LABS/lab-78a-selinux-modes-rhcsa/) · [78b Ansible](LABS/lab-78b-selinux-modes-ansible/) · [78c Verify](LABS/lab-78c-selinux-modes-verify/) |
+| not completed | 79 | Viewing SELinux Contexts | [79a RHCSA](LABS/lab-79a-selinux-contexts-rhcsa/) · [79b Ansible](LABS/lab-79b-selinux-contexts-ansible/) · [79c Verify](LABS/lab-79c-selinux-contexts-verify/) |
+| not completed | 80 | Temporary Context Changes | [80a RHCSA](LABS/lab-80a-selinux-chcon-temporary-rhcsa/) · [80b Ansible](LABS/lab-80b-selinux-chcon-temporary-ansible/) · [80c Verify](LABS/lab-80c-selinux-chcon-temporary-verify/) |
+| not completed | 81 | Persistent Context Restoration | [81a RHCSA](LABS/lab-81a-selinux-fcontext-restorecon-rhcsa/) · [81b Ansible](LABS/lab-81b-selinux-fcontext-restorecon-ansible/) · [81c Verify](LABS/lab-81c-selinux-fcontext-restorecon-verify/) |
+| not completed | 82 | Toggling SELinux Booleans | [82a RHCSA](LABS/lab-82a-selinux-booleans-rhcsa/) · [82b Ansible](LABS/lab-82b-selinux-booleans-ansible/) · [82c Verify](LABS/lab-82c-selinux-booleans-verify/) |
+| not completed | 83 | SELinux User Mapping | [83a RHCSA](LABS/lab-83a-selinux-user-mapping-rhcsa/) · [83b Ansible](LABS/lab-83b-selinux-user-mapping-ansible/) · [83c Verify](LABS/lab-83c-selinux-user-mapping-verify/) |
+| not completed | 84 | Troubleshooting SELinux | [84a RHCSA](LABS/lab-84a-selinux-troubleshooting-rhcsa/) · [84b Ansible](LABS/lab-84b-selinux-troubleshooting-ansible/) · [84c Verify](LABS/lab-84c-selinux-troubleshooting-verify/) |
+| not completed | — | Apply Recursive SELinux Contexts to a New Directory (in-repo) | [`LABS/selinux-recursive-contexts-direct01/`](LABS/selinux-recursive-contexts-direct01/) |
 
 **Future Labs (planned):**
 
@@ -1183,11 +1183,11 @@ Foundation → advanced. Each step locks in prerequisites for the next. Mirrors 
 
 | Status | # | Lab | Full Path |
 |---|---|---|---|
-| not completed | 85 | Modify GRUB Timeout | [85a RHCSA](lab-85a-grub-timeout-rhcsa/) · [85b Ansible](lab-85b-grub-timeout-ansible/) · [85c Verify](lab-85c-grub-timeout-verify/) |
-| not completed | 86 | Enable Verbose Kernel Messages | [86a RHCSA](lab-86a-grub-verbose-kernel-rhcsa/) · [86b Ansible](lab-86b-grub-verbose-kernel-ansible/) · [86c Verify](lab-86c-grub-verbose-kernel-verify/) |
-| not completed | 87 | Generate New GRUB Config | [87a RHCSA](lab-87a-grub-mkconfig-rhcsa/) · [87b Ansible](lab-87b-grub-mkconfig-ansible/) · [87c Verify](lab-87c-grub-mkconfig-verify/) |
-| not completed | 88 | Reset Root Password via Boot | [88a RHCSA](lab-88a-grub-reset-root-password-rhcsa/) · [88b Ansible](lab-88b-grub-reset-root-password-ansible/) · [88c Verify](lab-88c-grub-reset-root-password-verify/) |
-| not completed | 89 | Chroot into Rescue Filesystem | [89a RHCSA](lab-89a-chroot-rescue-filesystem-rhcsa/) · [89b Ansible](lab-89b-chroot-rescue-filesystem-ansible/) · [89c Verify](lab-89c-chroot-rescue-filesystem-verify/) |
+| not completed | 85 | Modify GRUB Timeout | [85a RHCSA](LABS/lab-85a-grub-timeout-rhcsa/) · [85b Ansible](LABS/lab-85b-grub-timeout-ansible/) · [85c Verify](LABS/lab-85c-grub-timeout-verify/) |
+| not completed | 86 | Enable Verbose Kernel Messages | [86a RHCSA](LABS/lab-86a-grub-verbose-kernel-rhcsa/) · [86b Ansible](LABS/lab-86b-grub-verbose-kernel-ansible/) · [86c Verify](LABS/lab-86c-grub-verbose-kernel-verify/) |
+| not completed | 87 | Generate New GRUB Config | [87a RHCSA](LABS/lab-87a-grub-mkconfig-rhcsa/) · [87b Ansible](LABS/lab-87b-grub-mkconfig-ansible/) · [87c Verify](LABS/lab-87c-grub-mkconfig-verify/) |
+| not completed | 88 | Reset Root Password via Boot | [88a RHCSA](LABS/lab-88a-grub-reset-root-password-rhcsa/) · [88b Ansible](LABS/lab-88b-grub-reset-root-password-ansible/) · [88c Verify](LABS/lab-88c-grub-reset-root-password-verify/) |
+| not completed | 89 | Chroot into Rescue Filesystem | [89a RHCSA](LABS/lab-89a-chroot-rescue-filesystem-rhcsa/) · [89b Ansible](LABS/lab-89b-chroot-rescue-filesystem-ansible/) · [89c Verify](LABS/lab-89c-chroot-rescue-filesystem-verify/) |
 
 **Future Labs (planned):**
 
@@ -1266,8 +1266,8 @@ Foundation → advanced. Each step locks in prerequisites for the next. Mirrors 
 | not completed | 118 | Check Filesystem Consistency | <https://github.com/kelvintechnical/check-filesystem-consistency-fsck> |
 | not completed | 119 | Inspect Filesystem Features | <https://github.com/kelvintechnical/inspect-filesystem-features-dumpe2fs> |
 | not completed | 120 | Create and Activate Swap Space | <https://github.com/kelvintechnical/create-and-activate-swap> |
-| not completed | — | Create a Swap Partition by UUID (in-repo) | [`labs/storage-swap-partition-uuid/`](labs/storage-swap-partition-uuid/) |
-| not completed | — | Create an Ext4 Partition Mounted by LABEL (in-repo) | [`labs/storage-ext4-partition-label/`](labs/storage-ext4-partition-label/) |
+| not completed | — | Create a Swap Partition by UUID (in-repo) | [`LABS/storage-swap-partition-uuid/`](LABS/storage-swap-partition-uuid/) |
+| not completed | — | Create an Ext4 Partition Mounted by LABEL (in-repo) | [`LABS/storage-ext4-partition-label/`](LABS/storage-ext4-partition-label/) |
 
 **Future Labs (planned):**
 
@@ -1282,19 +1282,19 @@ Foundation → advanced. Each step locks in prerequisites for the next. Mirrors 
 
 | Status | # | Lab | Full Path |
 |---|---|---|---|
-| not completed | 121 | Initialize Physical Volumes | [`labs/lvm-pvcreate-initialize-pv/`](labs/lvm-pvcreate-initialize-pv/) |
-| not completed | 122 | Display Physical Volumes | [`labs/lvm-display-physical-volumes/`](labs/lvm-display-physical-volumes/) |
-| not completed | 123 | Create Volume Group | [`labs/lvm-create-volume-group/`](labs/lvm-create-volume-group/) |
-| not completed | 124 | Display Volume Groups | [`labs/lvm-display-volume-groups/`](labs/lvm-display-volume-groups/) |
-| not completed | 125 | Create Logical Volume | [`labs/lvm-create-logical-volume/`](labs/lvm-create-logical-volume/) |
-| not completed | 126 | Display Logical Volumes | [`labs/lvm-display-logical-volumes/`](labs/lvm-display-logical-volumes/) |
-| not completed | 127 | Extend Volume Group | [`labs/lvm-extend-volume-group/`](labs/lvm-extend-volume-group/) |
-| not completed | 128 | Extend Logical Volume | [`labs/lvm-extend-logical-volume/`](labs/lvm-extend-logical-volume/) |
-| not completed | 129 | Resize Filesystem After Extend | [`labs/lvm-resize-filesystem-after-extend/`](labs/lvm-resize-filesystem-after-extend/) |
-| not completed | 130 | Remove LVM Components | [`labs/lvm-remove-components/`](labs/lvm-remove-components/) |
-| not completed | LAB | Create LV `lvol1` (ext4, 280 MB) | <https://github.com/kelvintechnical/lvm-create-lvol1-ext4> ([also `labs/lvm-create-lvol1-ext4/`](labs/lvm-create-lvol1-ext4/)) |
-| not completed | — | Create LV with XFS Filesystem (in-repo) | [`labs/lvm-create-lv1-xfs/`](labs/lvm-create-lv1-xfs/) |
-| not completed | — | Online Extend an LV and Its Filesystem Without Unmounting (in-repo) | [`labs/lvm-online-extend-xfs/`](labs/lvm-online-extend-xfs/) |
+| not completed | 121 | Initialize Physical Volumes | [`LABS/lvm-pvcreate-initialize-pv/`](LABS/lvm-pvcreate-initialize-pv/) |
+| not completed | 122 | Display Physical Volumes | [`LABS/lvm-display-physical-volumes/`](LABS/lvm-display-physical-volumes/) |
+| not completed | 123 | Create Volume Group | [`LABS/lvm-create-volume-group/`](LABS/lvm-create-volume-group/) |
+| not completed | 124 | Display Volume Groups | [`LABS/lvm-display-volume-groups/`](LABS/lvm-display-volume-groups/) |
+| not completed | 125 | Create Logical Volume | [`LABS/lvm-create-logical-volume/`](LABS/lvm-create-logical-volume/) |
+| not completed | 126 | Display Logical Volumes | [`LABS/lvm-display-logical-volumes/`](LABS/lvm-display-logical-volumes/) |
+| not completed | 127 | Extend Volume Group | [`LABS/lvm-extend-volume-group/`](LABS/lvm-extend-volume-group/) |
+| not completed | 128 | Extend Logical Volume | [`LABS/lvm-extend-logical-volume/`](LABS/lvm-extend-logical-volume/) |
+| not completed | 129 | Resize Filesystem After Extend | [`LABS/lvm-resize-filesystem-after-extend/`](LABS/lvm-resize-filesystem-after-extend/) |
+| not completed | 130 | Remove LVM Components | [`LABS/lvm-remove-components/`](LABS/lvm-remove-components/) |
+| not completed | LAB | Create LV `lvol1` (ext4, 280 MB) | <https://github.com/kelvintechnical/lvm-create-lvol1-ext4> ([also `LABS/lvm-create-lvol1-ext4/`](LABS/lvm-create-lvol1-ext4/)) |
+| not completed | — | Create LV with XFS Filesystem (in-repo) | [`LABS/lvm-create-lv1-xfs/`](LABS/lvm-create-lv1-xfs/) |
+| not completed | — | Online Extend an LV and Its Filesystem Without Unmounting (in-repo) | [`LABS/lvm-online-extend-xfs/`](LABS/lvm-online-extend-xfs/) |
 
 **Future Labs (planned):**
 
@@ -1364,7 +1364,7 @@ Foundation → advanced. Each step locks in prerequisites for the next. Mirrors 
 | not completed | 159 | Install Package Groups | <https://github.com/kelvintechnical/install-package-group> |
 | not completed | 160 | Create Custom YUM Repository | *(coming soon — see Lab #160 in [README](README.md#-package-management--repositories))* |
 | not completed | 161 | Managing Flatpak | <https://github.com/kelvintechnical/Managing-Flatpak> |
-| not completed | — | Install Development Tools Package Group with Output Capture (in-repo) | [`labs/dnf-install-dev-tools-capture/`](labs/dnf-install-dev-tools-capture/) |
+| not completed | — | Install Development Tools Package Group with Output Capture (in-repo) | [`LABS/dnf-install-dev-tools-capture/`](LABS/dnf-install-dev-tools-capture/) |
 
 **Future Labs (planned):**
 
@@ -1401,7 +1401,7 @@ Foundation → advanced. Each step locks in prerequisites for the next. Mirrors 
 | not completed | 181 | Distribute Documentation via Skel | *(coming soon — see Lab #181 in [README](README.md#-user--group-management))* |
 | not completed | 182 | Control Group Ownership SGID | *(coming soon — see Lab #182 in [README](README.md#-user--group-management))* |
 | not completed | 183 | Set Up Group-Managed Directory | *(coming soon — see Lab #183 in [README](README.md#-user--group-management))* |
-| not completed | — | Lock User Account and Capture Regex Evidence (in-repo) | [`labs/user-lock-capture-regex/`](labs/user-lock-capture-regex/) |
+| not completed | — | Lock User Account and Capture Regex Evidence (in-repo) | [`LABS/user-lock-capture-regex/`](LABS/user-lock-capture-regex/) |
 
 **User & Group Future Labs (planned):**
 
@@ -1485,8 +1485,8 @@ Foundation → advanced. Each step locks in prerequisites for the next. Mirrors 
 | not completed | 205 | Review the Anacron System | *(coming soon — see Lab #205 in [README](README.md#-scheduled-tasks))* |
 | not completed | 206 | Create a Specific cron Job | *(coming soon — see Lab #206 in [README](README.md#-scheduled-tasks))* |
 | not completed | 207 | Schedule Software Audit with at | *(coming soon — see Lab #207 in [README](README.md#-scheduled-tasks))* |
-| not completed | LAB | Scheduling Jobs (systemd timer, Mon–Fri 2 AM) | <https://github.com/kelvintechnical/scheduling-jobs-systemd-timer> ([also `labs/scheduling-jobs-systemd-timer/`](labs/scheduling-jobs-systemd-timer/)) |
-| not completed | — | User-Level Cron Job with `find -exec` (in-repo) | [`labs/cron-user-find-exec-coredir/`](labs/cron-user-find-exec-coredir/) |
+| not completed | LAB | Scheduling Jobs (systemd timer, Mon–Fri 2 AM) | <https://github.com/kelvintechnical/scheduling-jobs-systemd-timer> ([also `LABS/scheduling-jobs-systemd-timer/`](LABS/scheduling-jobs-systemd-timer/)) |
+| not completed | — | User-Level Cron Job with `find -exec` (in-repo) | [`LABS/cron-user-find-exec-coredir/`](LABS/cron-user-find-exec-coredir/) |
 
 **Future Labs (planned):**
 
@@ -1588,7 +1588,7 @@ Foundation → advanced. Each step locks in prerequisites for the next. Mirrors 
 |---|---|---|---|
 | not completed | 226 | Argument-Based Conditional Script | <https://github.com/kelvintechnical/argument-script> |
 | not completed | 227 | Use for Loops for Iteration | *(coming soon — see Lab #227 in [README](README.md#-shell-scripting--automation))* |
-| not completed | — | Bidirectional Bash Script with Argument Logic (in-repo) | [`labs/bash-bidirectional-arg-script/`](labs/bash-bidirectional-arg-script/) |
+| not completed | — | Bidirectional Bash Script with Argument Logic (in-repo) | [`LABS/bash-bidirectional-arg-script/`](LABS/bash-bidirectional-arg-script/) |
 
 **Future Labs (planned):**
 
@@ -1610,7 +1610,7 @@ Foundation → advanced. Each step locks in prerequisites for the next. Mirrors 
 | Status | # | Lab | Full Path |
 |---|---|---|---|
 | not completed | LAB | Launch Named Root Container with Port Mapping | <https://github.com/kelvintechnical/Launch-Named-Root-Container-with-Port-Mapping> |
-| not completed | — | Rootless Container with Bind Mount and systemd Auto-Start (in-repo) | [`labs/podman-rootless-bind-mount-systemd/`](labs/podman-rootless-bind-mount-systemd/) |
+| not completed | — | Rootless Container with Bind Mount and systemd Auto-Start (in-repo) | [`LABS/podman-rootless-bind-mount-systemd/`](LABS/podman-rootless-bind-mount-systemd/) |
 
 **Future Labs (planned):**
 
@@ -2309,7 +2309,7 @@ Move to the [RHCE Track (EX294)](#-rhce-track-ex294) section and work all 20 RHC
 
 ### RHCSA EX200 (356 labs)
 
-> README columns count only the labs visible in the main [README](README.md) (companion-repo URLs + `*(coming soon)*` placeholders). **In-Repo** counts labs that live in [`labs/<slug>/`](labs/). **Future** counts labs from [`future_labs.txt`](future_labs.txt) that have a `*-F##` ID but no page yet.
+> README columns count only the labs visible in the main [README](README.md) (companion-repo URLs + `*(coming soon)*` placeholders). **In-Repo** counts labs that live in [`LABS/<slug>/`](LABS/). **Future** counts labs from [`future_labs.txt`](future_labs.txt) that have a `*-F##` ID but no page yet.
 
 | Category | README | README (placeholder) | In-Repo | Future | Total |
 |---|---:|---:|---:|---:|---:|
@@ -2345,7 +2345,7 @@ Move to the [RHCE Track (EX294)](#-rhce-track-ex294) section and work all 20 RHC
 | Environment & Shell Configuration | 0 | 0 | 0 | 1 | 1 |
 | **Total** | **118** | **111** | **13** | **121** | **356**\* |
 
-> \* Note: in-repo labs that are *also* listed as a "LAB" row in the README (3 labs: `lvm-create-lvol1-ext4`, `scheduling-jobs-systemd-timer`, plus the Container LAB row pointing to an external repo) are counted in the In-Repo column to avoid double-counting against the README columns; the README "LAB" row count is separately when its companion repo exists.
+> \* Note: in-repo labs that are *also* listed as a "LAB" row in the README (3 labs: `LABS/lvm-create-lvol1-ext4`, `LABS/scheduling-jobs-systemd-timer`, plus the Container LAB row pointing to an external repo) are counted in the In-Repo column to avoid double-counting against the README columns; the README "LAB" row count is separately when its companion repo exists.
 
 ### RHCE EX294 (20 labs)
 
@@ -2396,12 +2396,12 @@ Move to the [RHCE Track (EX294)](#-rhce-track-ex294) section and work all 20 RHC
 The main [README](README.md) is organized by RHCSA EX200 exam objective with globally numbered labs (01, 02, 03...). This roadmap takes the same content and adds four things the README intentionally omits:
 
 1. **Status visibility** — every lab currently reads `not completed` while the curriculum is rebuilt under the ADHD-method format; once a lab is re-authored, its row will update.
-2. **Full paths to every lab** — companion-repo URLs are written out in plain text, in-repo `labs/<slug>/` paths are linked, and "coming soon" placeholders point back to the specific README section by lab number so you can always find the source.
+2. **Full paths to every lab** — companion-repo URLs are written out in plain text, in-repo `LABS/<slug>/` paths are linked, and "coming soon" placeholders point back to the specific README section by lab number so you can always find the source.
 3. **Future-lab prefixes** — `LVM-F##`, `NET-F##`, `ANS-CH1-F##`, etc. are stable identifiers that survive renumbering when labs get built and slotted into the main README's global sequence.
 4. **The non-RHCSA tracks** — the README is RHCSA-first; this roadmap surfaces the parallel RHCE / CKA / CKAD / Ansible curricula so the whole multi-cert arc is visible in one place.
 5. **Exam-objective study order** — the [Complete Labs by RHCSA v10 Objective (EX200)](#-complete-labs-by-rhcsa-v10-objective-ex200) section lists every RHCSA lab under official objectives **1 → 10**, sub-ordered **a → h** within each objective, for straight EX200 exam prep.
 
-When a lab is re-authored under the ADHD-method format in [`labs/<slug>/`](labs/), its row in this roadmap will be updated from `not completed` to the new completion status, and a new row will be added to the main [README](README.md) with the next free global number (e.g. `228`, `229`...).
+When a lab is re-authored under the ADHD-method format in [`LABS/<slug>/`](LABS/), its row in this roadmap will be updated from `not completed` to the new completion status, and a new row will be added to the main [README](README.md) with the next free global number (e.g. `228`, `229`...).
 
 ---
 
