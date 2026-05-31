@@ -294,13 +294,13 @@ Labs organized by official RHCSA EX200 exam objectives.
 | 58 | Adding Services to Zones Trilogy: [58a RHCSA](lab-58a-firewalld-add-service-rhcsa/) · [58b Ansible](lab-58b-firewalld-add-service-ansible/) · [58c Verify](lab-58c-firewalld-add-service-verify/) | `firewall-cmd --add-service`, `--permanent` — Permanently open ports for a service using `firewall-cmd --add-service` and reload |
 | 59 | Opening Custom Ports Trilogy: [59a RHCSA](lab-59a-firewalld-add-port-rhcsa/) · [59b Ansible](lab-59b-firewalld-add-port-ansible/) · [59c Verify](lab-59c-firewalld-add-port-verify/) | `firewall-cmd --add-port` — Open a non-standard port by adding it directly to a zone |
 | 60 | Inspect Active Firewall Zones Trilogy: [60a RHCSA](lab-60a-firewalld-active-zones-rhcsa/) · [60b Ansible](lab-60b-firewalld-active-zones-ansible/) · [60c Verify](lab-60c-firewalld-active-zones-verify/) | `firewall-cmd --get-default-zone`, `--list-all` — Review zones and allowed services |
-| 61 | [Reassign Interfaces to Zones](https://github.com/kelvintechnical/reassign-interfaces-zones) | `firewall-cmd --change-interface` — Temporarily and permanently move a network interface between zones |
-| 62 | [Allow Services Through Firewall](https://github.com/kelvintechnical/firewall-allow-services) | `firewall-cmd --permanent --add-service` — Use `firewall-cmd` to open ports for web and FTP servers |
-| 63 | [Configure IP Masquerading NAT](https://github.com/kelvintechnical/ip-masquerading-nat) | `firewall-cmd --add-masquerade` — Enable IP masquerading on the external zone |
-| 64 | [Configure IP Forwarding](https://github.com/kelvintechnical/ip-forwarding) | `/etc/sysctl.conf`, `sysctl -p` — Edit `/etc/sysctl.conf` to enable `net.ipv4.ip_forward = 1` and apply with `sysctl -p` |
-| 65 | [Configure Rich Rules](https://github.com/kelvintechnical/firewalld-rich-rules) | `firewall-cmd --add-rich-rule` — Use `firewall-cmd` to create a rich rule that denies traffic from a specific host |
-| 66 | [Setup Port Forwarding DNAT](https://github.com/kelvintechnical/port-forwarding-dnat) | `firewall-cmd` rich rules — Use `firewalld` rich rules to redirect inbound traffic from port 80 to port 8008 |
-| 67 | [Configure ICMP Filters](https://github.com/kelvintechnical/icmp-filters) | `firewall-cmd --add-icmp-block` — Block specific ICMP message types like `echo-request` to drop ping floods |
+| 61 | Reassign Interfaces to Zones Trilogy: [61a RHCSA](lab-61a-firewalld-reassign-interfaces-rhcsa/) · [61b Ansible](lab-61b-firewalld-reassign-interfaces-ansible/) · [61c Verify](lab-61c-firewalld-reassign-interfaces-verify/) | `firewall-cmd --change-interface` — Temporarily and permanently move a network interface between zones |
+| 62 | Allow Services Through Firewall Trilogy: [62a RHCSA](lab-62a-firewall-allow-services-rhcsa/) · [62b Ansible](lab-62b-firewall-allow-services-ansible/) · [62c Verify](lab-62c-firewall-allow-services-verify/) | `firewall-cmd --permanent --add-service` — Use `firewall-cmd` to open ports for web and FTP servers |
+| 63 | Configure IP Masquerading NAT Trilogy: [63a RHCSA](lab-63a-ip-masquerading-nat-rhcsa/) · [63b Ansible](lab-63b-ip-masquerading-nat-ansible/) · [63c Verify](lab-63c-ip-masquerading-nat-verify/) | `firewall-cmd --add-masquerade` — Enable IP masquerading on the external zone |
+| 64 | Configure IP Forwarding Trilogy: [64a RHCSA](lab-64a-ip-forwarding-sysctl-rhcsa/) · [64b Ansible](lab-64b-ip-forwarding-sysctl-ansible/) · [64c Verify](lab-64c-ip-forwarding-sysctl-verify/) | `/etc/sysctl.conf`, `sysctl -p` — Edit `/etc/sysctl.conf` to enable `net.ipv4.ip_forward = 1` and apply with `sysctl -p` |
+| 65 | Configure Rich Rules Trilogy: [65a RHCSA](lab-65a-firewalld-rich-rules-rhcsa/) · [65b Ansible](lab-65b-firewalld-rich-rules-ansible/) · [65c Verify](lab-65c-firewalld-rich-rules-verify/) | `firewall-cmd --add-rich-rule` — Use `firewall-cmd` to create a rich rule that denies traffic from a specific host |
+| 66 | Setup Port Forwarding DNAT Trilogy: [66a RHCSA](lab-66a-firewalld-port-forward-dnat-rhcsa/) · [66b Ansible](lab-66b-firewalld-port-forward-dnat-ansible/) · [66c Verify](lab-66c-firewalld-port-forward-dnat-verify/) | `firewall-cmd` rich rules — Use `firewalld` rich rules to redirect inbound traffic from port 80 to port 8008 |
+| 67 | Configure ICMP Filters Trilogy: [67a RHCSA](lab-67a-firewalld-icmp-filters-rhcsa/) · [67b Ansible](lab-67b-firewalld-icmp-filters-ansible/) · [67c Verify](lab-67c-firewalld-icmp-filters-verify/) | `firewall-cmd --add-icmp-block` — Block specific ICMP message types like `echo-request` to drop ping floods |
 
 ---
 
@@ -310,16 +310,16 @@ Labs organized by official RHCSA EX200 exam objectives.
 
 | # | Lab | Key Commands |
 |---|-----|-------------|
-| 68 | [Verify TCP Wrappers Support](https://github.com/kelvintechnical/tcp-wrappers-support) | `ldd /usr/sbin/sshd \| grep libwrap` — Confirm SSH is linked to TCP Wrappers |
-| 69 | [Restrict Access via hosts.deny](https://github.com/kelvintechnical/hosts-deny-restrictions) | `/etc/hosts.deny` — Edit with `ALL : ALL` to block all wrapper-aware network traffic by default |
-| 70 | [Allow Specific Access via hosts.allow](https://github.com/kelvintechnical/hosts-allow-access) | `/etc/hosts.allow` — Explicitly allow SSH from localhost and a specific subnet |
-| 71 | [Configure TCP Wrappers for FTP](https://github.com/kelvintechnical/tcp-wrappers-ftp) | `vsftpd`, `/etc/hosts.deny` — Install `vsftpd`, enable the service, and configure TCP Wrappers to deny a specific IP |
-| 72 | [Explore PAM Config Files](https://github.com/kelvintechnical/pam-config-files) | `/etc/pam.d/` — Inspect `/etc/pam.d/` files to understand PAM types and control flags |
-| 73 | [Read PAM Module Documentation](https://github.com/kelvintechnical/pam-module-docs) | `/usr/share/doc/pam-*/txts/` — Review `pam_securetty.so` documentation |
-| 74 | [Implement Password Complexity](https://github.com/kelvintechnical/password-complexity-pam) | `pam_pwquality.so`, `system-auth` — Review `pam_pwquality.so` in `system-auth` to see how RHEL enforces password rules |
-| 75 | [Configure PAM to Limit root Access](https://github.com/kelvintechnical/pam-limit-root-access) | `pam_securetty.so` — Use `pam_securetty.so` to limit root logins to only virtual terminal 6 |
-| 76 | [Use PAM to Limit User Access](https://github.com/kelvintechnical/pam-limit-user-access) | `/etc/nologin` — Create `/etc/nologin` with a custom message to block regular users from logging in |
-| 77 | [Restrict Service Access by User List](https://github.com/kelvintechnical/pam-restrict-by-user-list) | `pam_listfile.so` — Configure `pam_listfile.so` to deny access to users defined in a text file |
+| 68 | Verify TCP Wrappers Support Trilogy: [68a RHCSA](lab-68a-tcp-wrappers-support-rhcsa/) · [68b Ansible](lab-68b-tcp-wrappers-support-ansible/) · [68c Verify](lab-68c-tcp-wrappers-support-verify/) | `ldd /usr/sbin/sshd \ |
+| 69 | Restrict Access via hosts.deny Trilogy: [69a RHCSA](lab-69a-hosts-deny-restrictions-rhcsa/) · [69b Ansible](lab-69b-hosts-deny-restrictions-ansible/) · [69c Verify](lab-69c-hosts-deny-restrictions-verify/) | `/etc/hosts.deny` — Edit with `ALL : ALL` to block all wrapper-aware network traffic by default |
+| 70 | Allow Specific Access via hosts.allow Trilogy: [70a RHCSA](lab-70a-hosts-allow-access-rhcsa/) · [70b Ansible](lab-70b-hosts-allow-access-ansible/) · [70c Verify](lab-70c-hosts-allow-access-verify/) | `/etc/hosts.allow` — Explicitly allow SSH from localhost and a specific subnet |
+| 71 | Configure TCP Wrappers for FTP Trilogy: [71a RHCSA](lab-71a-tcp-wrappers-ftp-rhcsa/) · [71b Ansible](lab-71b-tcp-wrappers-ftp-ansible/) · [71c Verify](lab-71c-tcp-wrappers-ftp-verify/) | `vsftpd`, `/etc/hosts.deny` — Install `vsftpd`, enable the service, and configure TCP Wrappers to deny a specific IP |
+| 72 | Explore PAM Config Files Trilogy: [72a RHCSA](lab-72a-pam-config-files-rhcsa/) · [72b Ansible](lab-72b-pam-config-files-ansible/) · [72c Verify](lab-72c-pam-config-files-verify/) | `/etc/pam.d/` — Inspect `/etc/pam.d/` files to understand PAM types and control flags |
+| 73 | Read PAM Module Documentation Trilogy: [73a RHCSA](lab-73a-pam-module-docs-rhcsa/) · [73b Ansible](lab-73b-pam-module-docs-ansible/) · [73c Verify](lab-73c-pam-module-docs-verify/) | `/usr/share/doc/pam-*/txts/` — Review `pam_securetty.so` documentation |
+| 74 | Implement Password Complexity Trilogy: [74a RHCSA](lab-74a-pam-password-complexity-rhcsa/) · [74b Ansible](lab-74b-pam-password-complexity-ansible/) · [74c Verify](lab-74c-pam-password-complexity-verify/) | `pam_pwquality.so`, `system-auth` — Review `pam_pwquality.so` in `system-auth` to see how RHEL enforces password rules |
+| 75 | Configure PAM to Limit root Access Trilogy: [75a RHCSA](lab-75a-pam-securetty-root-access-rhcsa/) · [75b Ansible](lab-75b-pam-securetty-root-access-ansible/) · [75c Verify](lab-75c-pam-securetty-root-access-verify/) | `pam_securetty.so` — Use `pam_securetty.so` to limit root logins to only virtual terminal 6 |
+| 76 | Use PAM to Limit User Access Trilogy: [76a RHCSA](lab-76a-pam-nologin-user-access-rhcsa/) · [76b Ansible](lab-76b-pam-nologin-user-access-ansible/) · [76c Verify](lab-76c-pam-nologin-user-access-verify/) | `/etc/nologin` — Create `/etc/nologin` with a custom message to block regular users from logging in |
+| 77 | Restrict Service Access by User List Trilogy: [77a RHCSA](lab-77a-pam-listfile-user-restriction-rhcsa/) · [77b Ansible](lab-77b-pam-listfile-user-restriction-ansible/) · [77c Verify](lab-77c-pam-listfile-user-restriction-verify/) | `pam_listfile.so` — Configure `pam_listfile.so` to deny access to users defined in a text file |
 
 ---
 
@@ -329,13 +329,13 @@ Labs organized by official RHCSA EX200 exam objectives.
 
 | # | Lab | Key Commands |
 |---|-----|-------------|
-| 78 | [Managing SELinux Modes](https://github.com/kelvintechnical/selinux-modes-management) | `sestatus`, `setenforce` — Check SELinux status with `sestatus` and toggle between enforcing and permissive using `setenforce` |
-| 79 | [Viewing SELinux Contexts](https://github.com/kelvintechnical/selinux-viewing-contexts) | `ls -Z`, `ps -eZ` — Use `ls -Z` to view file contexts and `ps -eZ` to view contexts of running processes |
-| 80 | [Temporary Context Changes](https://github.com/kelvintechnical/selinux-temporary-contexts) | `chcon` — Use `chcon` to temporarily modify the SELinux type context of a custom directory |
-| 81 | [Persistent Context Restoration](https://github.com/kelvintechnical/selinux-persistent-contexts) | `semanage fcontext`, `restorecon` — Use `semanage fcontext` to define persistent rules and apply them with `restorecon` |
-| 82 | [Toggling SELinux Booleans](https://github.com/kelvintechnical/selinux-booleans) | `getsebool`, `setsebool -P` — Search available booleans, check their status, and make persistent changes with `setsebool -P` |
-| 83 | [SELinux User Mapping](https://github.com/kelvintechnical/selinux-user-mapping) | `semanage login` — Map a Linux user account to a restricted SELinux user type such as `guest_u` or `staff_u` |
-| 84 | [Troubleshooting SELinux](https://github.com/kelvintechnical/selinux-troubleshooting) | `audit.log`, `sealert` — Trigger a policy violation, locate it in `audit.log`, and analyze using `sealert` |
+| 78 | Managing SELinux Modes Trilogy: [78a RHCSA](lab-78a-selinux-modes-rhcsa/) · [78b Ansible](lab-78b-selinux-modes-ansible/) · [78c Verify](lab-78c-selinux-modes-verify/) | `sestatus`, `setenforce` — Check SELinux status with `sestatus` and toggle between enforcing and permissive using `setenforce` |
+| 79 | Viewing SELinux Contexts Trilogy: [79a RHCSA](lab-79a-selinux-contexts-rhcsa/) · [79b Ansible](lab-79b-selinux-contexts-ansible/) · [79c Verify](lab-79c-selinux-contexts-verify/) | `ls -Z`, `ps -eZ` — Use `ls -Z` to view file contexts and `ps -eZ` to view contexts of running processes |
+| 80 | Temporary Context Changes Trilogy: [80a RHCSA](lab-80a-selinux-chcon-temporary-rhcsa/) · [80b Ansible](lab-80b-selinux-chcon-temporary-ansible/) · [80c Verify](lab-80c-selinux-chcon-temporary-verify/) | `chcon` — Use `chcon` to temporarily modify the SELinux type context of a custom directory |
+| 81 | Persistent Context Restoration Trilogy: [81a RHCSA](lab-81a-selinux-fcontext-restorecon-rhcsa/) · [81b Ansible](lab-81b-selinux-fcontext-restorecon-ansible/) · [81c Verify](lab-81c-selinux-fcontext-restorecon-verify/) | `semanage fcontext`, `restorecon` — Use `semanage fcontext` to define persistent rules and apply them with `restorecon` |
+| 82 | Toggling SELinux Booleans Trilogy: [82a RHCSA](lab-82a-selinux-booleans-rhcsa/) · [82b Ansible](lab-82b-selinux-booleans-ansible/) · [82c Verify](lab-82c-selinux-booleans-verify/) | `getsebool`, `setsebool -P` — Search available booleans, check their status, and make persistent changes with `setsebool -P` |
+| 83 | SELinux User Mapping Trilogy: [83a RHCSA](lab-83a-selinux-user-mapping-rhcsa/) · [83b Ansible](lab-83b-selinux-user-mapping-ansible/) · [83c Verify](lab-83c-selinux-user-mapping-verify/) | `semanage login` — Map a Linux user account to a restricted SELinux user type such as `guest_u` or `staff_u` |
+| 84 | Troubleshooting SELinux Trilogy: [84a RHCSA](lab-84a-selinux-troubleshooting-rhcsa/) · [84b Ansible](lab-84b-selinux-troubleshooting-ansible/) · [84c Verify](lab-84c-selinux-troubleshooting-verify/) | `audit.log`, `sealert` — Trigger a policy violation, locate it in `audit.log`, and analyze using `sealert` |
 
 ---
 
@@ -345,11 +345,11 @@ Labs organized by official RHCSA EX200 exam objectives.
 
 | # | Lab | Key Commands |
 |---|-----|-------------|
-| 85 | [Modify GRUB Timeout](https://github.com/kelvintechnical/grub-timeout) | `/etc/default/grub`, `GRUB_TIMEOUT` — Edit `GRUB_TIMEOUT` in `/etc/default/grub` to adjust bootloader countdown |
-| 86 | [Enable Verbose Kernel Messages](https://github.com/kelvintechnical/verbose-kernel-messages) | `GRUB_CMDLINE_LINUX` — Remove the `quiet` keyword from `GRUB_CMDLINE_LINUX` to show verbose startup output |
-| 87 | [Generate New GRUB Config](https://github.com/kelvintechnical/grub-mkconfig) | `grub2-mkconfig -o /boot/grub2/grub.cfg` — Run `grub2-mkconfig` to apply changes persistently |
-| 88 | [Reset Root Password via Boot](https://github.com/kelvintechnical/reset-root-password-boot) | GRUB interrupt, `rd.break`, `chroot`, `passwd` — Append `rd.break` to interrupt boot before filesystem mount and reset root password |
-| 89 | [Chroot into Rescue Filesystem](https://github.com/kelvintechnical/chroot-rescue-filesystem) | `chroot /mnt/sysimage` — Use `chroot /mnt/sysimage` to change root and make repairs to the installed system |
+| 85 | Modify GRUB Timeout Trilogy: [85a RHCSA](lab-85a-grub-timeout-rhcsa/) · [85b Ansible](lab-85b-grub-timeout-ansible/) · [85c Verify](lab-85c-grub-timeout-verify/) | `/etc/default/grub`, `GRUB_TIMEOUT` — Edit `GRUB_TIMEOUT` in `/etc/default/grub` to adjust bootloader countdown |
+| 86 | Enable Verbose Kernel Messages Trilogy: [86a RHCSA](lab-86a-grub-verbose-kernel-rhcsa/) · [86b Ansible](lab-86b-grub-verbose-kernel-ansible/) · [86c Verify](lab-86c-grub-verbose-kernel-verify/) | `GRUB_CMDLINE_LINUX` — Remove the `quiet` keyword from `GRUB_CMDLINE_LINUX` to show verbose startup output |
+| 87 | Generate New GRUB Config Trilogy: [87a RHCSA](lab-87a-grub-mkconfig-rhcsa/) · [87b Ansible](lab-87b-grub-mkconfig-ansible/) · [87c Verify](lab-87c-grub-mkconfig-verify/) | `grub2-mkconfig -o /boot/grub2/grub.cfg` — Run `grub2-mkconfig` to apply changes persistently |
+| 88 | Reset Root Password via Boot Trilogy: [88a RHCSA](lab-88a-grub-reset-root-password-rhcsa/) · [88b Ansible](lab-88b-grub-reset-root-password-ansible/) · [88c Verify](lab-88c-grub-reset-root-password-verify/) | GRUB interrupt, `rd.break`, `chroot`, `passwd` — Append `rd.break` to interrupt boot before filesystem mount and reset root password |
+| 89 | Chroot into Rescue Filesystem Trilogy: [89a RHCSA](lab-89a-chroot-rescue-filesystem-rhcsa/) · [89b Ansible](lab-89b-chroot-rescue-filesystem-ansible/) · [89c Verify](lab-89c-chroot-rescue-filesystem-verify/) | `chroot /mnt/sysimage` — Use `chroot /mnt/sysimage` to change root and make repairs to the installed system |
 
 ---
 

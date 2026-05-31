@@ -212,13 +212,13 @@ Foundation → advanced. Each step locks in prerequisites for the next. Mirrors 
 | 25 | not completed | 58 | Adding Services to Zones | `firewall-cmd --add-service`, `--permanent` |
 | 26 | not completed | 59 | Opening Custom Ports | `firewall-cmd --add-port` — non-standard port to zone |
 | 27 | not completed | 60 | Inspect Active Firewall Zones | `firewall-cmd --get-default-zone`, `--list-all` |
-| 28 | not completed | 61 | Reassign Interfaces to Zones | `firewall-cmd --change-interface` — move interface zones |
-| 29 | not completed | 62 | Allow Services Through Firewall | `firewall-cmd --permanent --add-service` for web/FTP |
-| 30 | not completed | 63 | Configure IP Masquerading NAT | `firewall-cmd --add-masquerade` — outbound NAT |
-| 31 | not completed | 64 | Configure IP Forwarding | `/etc/sysctl.conf`, `net.ipv4.ip_forward=1`, `sysctl -p` |
-| 32 | not completed | 65 | Configure Rich Rules | `firewall-cmd --add-rich-rule` — deny specific host |
-| 33 | not completed | 66 | Setup Port Forwarding DNAT | `firewall-cmd` rich rules — redirect port 80→8008 |
-| 34 | not completed | 67 | Configure ICMP Filters | `firewall-cmd --add-icmp-block echo-request` — drop pings |
+| 28 | not completed | 61 | Reassign Interfaces to Zones | [61a RHCSA](lab-61a-firewalld-reassign-interfaces-rhcsa/) · [61b Ansible](lab-61b-firewalld-reassign-interfaces-ansible/) · [61c Verify](lab-61c-firewalld-reassign-interfaces-verify/) — `firewall-cmd --change-interface` |
+| 29 | not completed | 62 | Allow Services Through Firewall | [62a RHCSA](lab-62a-firewall-allow-services-rhcsa/) · [62b Ansible](lab-62b-firewall-allow-services-ansible/) · [62c Verify](lab-62c-firewall-allow-services-verify/) — `firewall-cmd --permanent --add-service` |
+| 30 | not completed | 63 | Configure IP Masquerading NAT | [63a RHCSA](lab-63a-ip-masquerading-nat-rhcsa/) · [63b Ansible](lab-63b-ip-masquerading-nat-ansible/) · [63c Verify](lab-63c-ip-masquerading-nat-verify/) — `firewall-cmd --add-masquerade` |
+| 31 | not completed | 64 | Configure IP Forwarding | [64a RHCSA](lab-64a-ip-forwarding-sysctl-rhcsa/) · [64b Ansible](lab-64b-ip-forwarding-sysctl-ansible/) · [64c Verify](lab-64c-ip-forwarding-sysctl-verify/) — `/etc/sysctl.conf, sysctl -p` |
+| 32 | not completed | 65 | Configure Rich Rules | [65a RHCSA](lab-65a-firewalld-rich-rules-rhcsa/) · [65b Ansible](lab-65b-firewalld-rich-rules-ansible/) · [65c Verify](lab-65c-firewalld-rich-rules-verify/) — `firewall-cmd --add-rich-rule` |
+| 33 | not completed | 66 | Setup Port Forwarding DNAT | [66a RHCSA](lab-66a-firewalld-port-forward-dnat-rhcsa/) · [66b Ansible](lab-66b-firewalld-port-forward-dnat-ansible/) · [66c Verify](lab-66c-firewalld-port-forward-dnat-verify/) — `firewall-cmd rich rules` |
+| 34 | not completed | 67 | Configure ICMP Filters | [67a RHCSA](lab-67a-firewalld-icmp-filters-rhcsa/) · [67b Ansible](lab-67b-firewalld-icmp-filters-ansible/) · [67c Verify](lab-67c-firewalld-icmp-filters-verify/) — `firewall-cmd --add-icmp-block` |
 | 35 | not completed | FW-F01 | Open Multiple Services at Once for Web Hosting | `--add-service={ssh,http,https}`, `--list-services` |
 | 36 | not completed | FW-F02 | Open a Non-Standard SSH Port + Move SSH There | `--add-port=88/tcp`, `sshd_config Port 88`, `semanage port` |
 
@@ -226,23 +226,23 @@ Foundation → advanced. Each step locks in prerequisites for the next. Mirrors 
 
 | # | Status | ID / # | Full Lab Name | Key Commands / Focus |
 |---|---|---|---|---|
-| 1 | not completed | 68 | Verify TCP Wrappers Support | `ldd /usr/sbin/sshd \| grep libwrap` |
-| 2 | not completed | 69 | Restrict Access via hosts.deny | `/etc/hosts.deny` `ALL : ALL` — default deny |
-| 3 | not completed | 70 | Allow Specific Access via hosts.allow | `/etc/hosts.allow` — explicit SSH allows |
-| 4 | not completed | 71 | Configure TCP Wrappers for FTP | `vsftpd`, `/etc/hosts.deny` — deny specific IP |
-| 5 | not completed | 72 | Explore PAM Config Files | `/etc/pam.d/` — types + control flags |
-| 6 | not completed | 73 | Read PAM Module Documentation | `/usr/share/doc/pam-*/txts/` — `pam_securetty.so` docs |
-| 7 | not completed | 74 | Implement Password Complexity | `pam_pwquality.so`, `system-auth` — enforce password rules |
-| 8 | not completed | 75 | Configure PAM to Limit root Access | `pam_securetty.so` — root only on tty6 |
-| 9 | not completed | 76 | Use PAM to Limit User Access | `/etc/nologin` — block regular users with custom message |
-| 10 | not completed | 77 | Restrict Service Access by User List | `pam_listfile.so` — deny per text-file user list |
-| 11 | not completed | 78 | Managing SELinux Modes | `sestatus`, `setenforce` — enforcing vs permissive |
-| 12 | not completed | 79 | Viewing SELinux Contexts | `ls -Z`, `ps -eZ` — file + process contexts |
-| 13 | not completed | 80 | Temporary Context Changes | `chcon` — non-persistent context change |
-| 14 | not completed | 81 | Persistent Context Restoration | `semanage fcontext`, `restorecon` — persistent rules + apply |
-| 15 | not completed | 82 | Toggling SELinux Booleans | `getsebool`, `setsebool -P` |
-| 16 | not completed | 83 | SELinux User Mapping | `semanage login` — map Linux user to `guest_u`/`staff_u` |
-| 17 | not completed | 84 | Troubleshooting SELinux | `audit.log`, `sealert` — diagnose denials |
+| 1 | not completed | 68 | Verify TCP Wrappers Support | [68a RHCSA](lab-68a-tcp-wrappers-support-rhcsa/) · [68b Ansible](lab-68b-tcp-wrappers-support-ansible/) · [68c Verify](lab-68c-tcp-wrappers-support-verify/) — `ldd /usr/sbin/sshd | grep libwrap` |
+| 2 | not completed | 69 | Restrict Access via hosts.deny | [69a RHCSA](lab-69a-hosts-deny-restrictions-rhcsa/) · [69b Ansible](lab-69b-hosts-deny-restrictions-ansible/) · [69c Verify](lab-69c-hosts-deny-restrictions-verify/) — `/etc/hosts.deny` |
+| 3 | not completed | 70 | Allow Specific Access via hosts.allow | [70a RHCSA](lab-70a-hosts-allow-access-rhcsa/) · [70b Ansible](lab-70b-hosts-allow-access-ansible/) · [70c Verify](lab-70c-hosts-allow-access-verify/) — `/etc/hosts.allow` |
+| 4 | not completed | 71 | Configure TCP Wrappers for FTP | [71a RHCSA](lab-71a-tcp-wrappers-ftp-rhcsa/) · [71b Ansible](lab-71b-tcp-wrappers-ftp-ansible/) · [71c Verify](lab-71c-tcp-wrappers-ftp-verify/) — `vsftpd, /etc/hosts.deny` |
+| 5 | not completed | 72 | Explore PAM Config Files | [72a RHCSA](lab-72a-pam-config-files-rhcsa/) · [72b Ansible](lab-72b-pam-config-files-ansible/) · [72c Verify](lab-72c-pam-config-files-verify/) — `/etc/pam.d/` |
+| 6 | not completed | 73 | Read PAM Module Documentation | [73a RHCSA](lab-73a-pam-module-docs-rhcsa/) · [73b Ansible](lab-73b-pam-module-docs-ansible/) · [73c Verify](lab-73c-pam-module-docs-verify/) — `/usr/share/doc/pam-*/txts/` |
+| 7 | not completed | 74 | Implement Password Complexity | [74a RHCSA](lab-74a-pam-password-complexity-rhcsa/) · [74b Ansible](lab-74b-pam-password-complexity-ansible/) · [74c Verify](lab-74c-pam-password-complexity-verify/) — `pam_pwquality.so, system-auth` |
+| 8 | not completed | 75 | Configure PAM to Limit root Access | [75a RHCSA](lab-75a-pam-securetty-root-access-rhcsa/) · [75b Ansible](lab-75b-pam-securetty-root-access-ansible/) · [75c Verify](lab-75c-pam-securetty-root-access-verify/) — `pam_securetty.so` |
+| 9 | not completed | 76 | Use PAM to Limit User Access | [76a RHCSA](lab-76a-pam-nologin-user-access-rhcsa/) · [76b Ansible](lab-76b-pam-nologin-user-access-ansible/) · [76c Verify](lab-76c-pam-nologin-user-access-verify/) — `/etc/nologin` |
+| 10 | not completed | 77 | Restrict Service Access by User List | [77a RHCSA](lab-77a-pam-listfile-user-restriction-rhcsa/) · [77b Ansible](lab-77b-pam-listfile-user-restriction-ansible/) · [77c Verify](lab-77c-pam-listfile-user-restriction-verify/) — `pam_listfile.so` |
+| 11 | not completed | 78 | Managing SELinux Modes | [78a RHCSA](lab-78a-selinux-modes-rhcsa/) · [78b Ansible](lab-78b-selinux-modes-ansible/) · [78c Verify](lab-78c-selinux-modes-verify/) — `sestatus, setenforce` |
+| 12 | not completed | 79 | Viewing SELinux Contexts | [79a RHCSA](lab-79a-selinux-contexts-rhcsa/) · [79b Ansible](lab-79b-selinux-contexts-ansible/) · [79c Verify](lab-79c-selinux-contexts-verify/) — `ls -Z, ps -eZ` |
+| 13 | not completed | 80 | Temporary Context Changes | [80a RHCSA](lab-80a-selinux-chcon-temporary-rhcsa/) · [80b Ansible](lab-80b-selinux-chcon-temporary-ansible/) · [80c Verify](lab-80c-selinux-chcon-temporary-verify/) — `chcon` |
+| 14 | not completed | 81 | Persistent Context Restoration | [81a RHCSA](lab-81a-selinux-fcontext-restorecon-rhcsa/) · [81b Ansible](lab-81b-selinux-fcontext-restorecon-ansible/) · [81c Verify](lab-81c-selinux-fcontext-restorecon-verify/) — `semanage fcontext, restorecon` |
+| 15 | not completed | 82 | Toggling SELinux Booleans | [82a RHCSA](lab-82a-selinux-booleans-rhcsa/) · [82b Ansible](lab-82b-selinux-booleans-ansible/) · [82c Verify](lab-82c-selinux-booleans-verify/) — `getsebool, setsebool -P` |
+| 16 | not completed | 83 | SELinux User Mapping | [83a RHCSA](lab-83a-selinux-user-mapping-rhcsa/) · [83b Ansible](lab-83b-selinux-user-mapping-ansible/) · [83c Verify](lab-83c-selinux-user-mapping-verify/) — `semanage login` |
+| 17 | not completed | 84 | Troubleshooting SELinux | [84a RHCSA](lab-84a-selinux-troubleshooting-rhcsa/) · [84b Ansible](lab-84b-selinux-troubleshooting-ansible/) · [84c Verify](lab-84c-selinux-troubleshooting-verify/) — `audit.log, sealert` |
 | 18 | not completed | in-repo | Apply Recursive SELinux Contexts to a New Directory | `semanage fcontext -a -e`, `restorecon -RFv` reference-dir contexts |
 | 19 | not completed | SEL-F02 | Add a Custom HTTP Port to the SELinux Policy Database | `semanage port -a -t http_port_t -p tcp 8300` |
 | 20 | not completed | SEL-F03 | Set SELinux to Permissive Mode Persistently | `/etc/selinux/config: SELINUX=permissive`, `setenforce 0` |
@@ -254,11 +254,11 @@ Foundation → advanced. Each step locks in prerequisites for the next. Mirrors 
 
 | # | Status | ID / # | Full Lab Name | Key Commands / Focus |
 |---|---|---|---|---|
-| 1 | not completed | 85 | Modify GRUB Timeout | `/etc/default/grub`, `GRUB_TIMEOUT` |
-| 2 | not completed | 86 | Enable Verbose Kernel Messages | `GRUB_CMDLINE_LINUX` — remove `quiet` keyword |
-| 3 | not completed | 87 | Generate New GRUB Config | `grub2-mkconfig -o /boot/grub2/grub.cfg` |
-| 4 | not completed | 88 | Reset Root Password via Boot | GRUB `rd.break`, `chroot`, `passwd`, `.autorelabel` |
-| 5 | not completed | 89 | Chroot into Rescue Filesystem | `chroot /mnt/sysimage` — repairs to installed system |
+| 1 | not completed | 85 | Modify GRUB Timeout | [85a RHCSA](lab-85a-grub-timeout-rhcsa/) · [85b Ansible](lab-85b-grub-timeout-ansible/) · [85c Verify](lab-85c-grub-timeout-verify/) — `GRUB_TIMEOUT in /etc/default/grub` |
+| 2 | not completed | 86 | Enable Verbose Kernel Messages | [86a RHCSA](lab-86a-grub-verbose-kernel-rhcsa/) · [86b Ansible](lab-86b-grub-verbose-kernel-ansible/) · [86c Verify](lab-86c-grub-verbose-kernel-verify/) — `GRUB_CMDLINE_LINUX` |
+| 3 | not completed | 87 | Generate New GRUB Config | [87a RHCSA](lab-87a-grub-mkconfig-rhcsa/) · [87b Ansible](lab-87b-grub-mkconfig-ansible/) · [87c Verify](lab-87c-grub-mkconfig-verify/) — `grub2-mkconfig -o /boot/grub2/grub.cfg` |
+| 4 | not completed | 88 | Reset Root Password via Boot | [88a RHCSA](lab-88a-grub-reset-root-password-rhcsa/) · [88b Ansible](lab-88b-grub-reset-root-password-ansible/) · [88c Verify](lab-88c-grub-reset-root-password-verify/) — `rd.break, chroot, passwd` |
+| 5 | not completed | 89 | Chroot into Rescue Filesystem | [89a RHCSA](lab-89a-chroot-rescue-filesystem-rhcsa/) · [89b Ansible](lab-89b-chroot-rescue-filesystem-ansible/) · [89c Verify](lab-89c-chroot-rescue-filesystem-verify/) — `chroot /mnt/sysimage` |
 | 6 | not completed | BOOT-F01 | Enable Verbose Boot by Removing `quiet` and `rhgb` | Edit `/etc/default/grub`, `grub2-mkconfig`, observe verbose boot |
 | 7 | not completed | 90 | Check Default Boot Target | `systemctl get-default` |
 | 8 | not completed | 91 | Change Default Boot Target | `systemctl set-default` — permanent text-mode boot |
@@ -1120,13 +1120,13 @@ Foundation → advanced. Each step locks in prerequisites for the next. Mirrors 
 | not completed | 58 | Adding Services to Zones | [58a RHCSA](lab-58a-firewalld-add-service-rhcsa/) · [58b Ansible](lab-58b-firewalld-add-service-ansible/) · [58c Verify](lab-58c-firewalld-add-service-verify/) |
 | not completed | 59 | Opening Custom Ports | [59a RHCSA](lab-59a-firewalld-add-port-rhcsa/) · [59b Ansible](lab-59b-firewalld-add-port-ansible/) · [59c Verify](lab-59c-firewalld-add-port-verify/) |
 | not completed | 60 | Inspect Active Firewall Zones | [60a RHCSA](lab-60a-firewalld-active-zones-rhcsa/) · [60b Ansible](lab-60b-firewalld-active-zones-ansible/) · [60c Verify](lab-60c-firewalld-active-zones-verify/) |
-| not completed | 61 | Reassign Interfaces to Zones | <https://github.com/kelvintechnical/reassign-interfaces-zones> |
-| not completed | 62 | Allow Services Through Firewall | <https://github.com/kelvintechnical/firewall-allow-services> |
-| not completed | 63 | Configure IP Masquerading NAT | <https://github.com/kelvintechnical/ip-masquerading-nat> |
-| not completed | 64 | Configure IP Forwarding | <https://github.com/kelvintechnical/ip-forwarding> |
-| not completed | 65 | Configure Rich Rules | <https://github.com/kelvintechnical/firewalld-rich-rules> |
-| not completed | 66 | Setup Port Forwarding DNAT | <https://github.com/kelvintechnical/port-forwarding-dnat> |
-| not completed | 67 | Configure ICMP Filters | <https://github.com/kelvintechnical/icmp-filters> |
+| not completed | 61 | Reassign Interfaces to Zones | [61a RHCSA](lab-61a-firewalld-reassign-interfaces-rhcsa/) · [61b Ansible](lab-61b-firewalld-reassign-interfaces-ansible/) · [61c Verify](lab-61c-firewalld-reassign-interfaces-verify/) |
+| not completed | 62 | Allow Services Through Firewall | [62a RHCSA](lab-62a-firewall-allow-services-rhcsa/) · [62b Ansible](lab-62b-firewall-allow-services-ansible/) · [62c Verify](lab-62c-firewall-allow-services-verify/) |
+| not completed | 63 | Configure IP Masquerading NAT | [63a RHCSA](lab-63a-ip-masquerading-nat-rhcsa/) · [63b Ansible](lab-63b-ip-masquerading-nat-ansible/) · [63c Verify](lab-63c-ip-masquerading-nat-verify/) |
+| not completed | 64 | Configure IP Forwarding | [64a RHCSA](lab-64a-ip-forwarding-sysctl-rhcsa/) · [64b Ansible](lab-64b-ip-forwarding-sysctl-ansible/) · [64c Verify](lab-64c-ip-forwarding-sysctl-verify/) |
+| not completed | 65 | Configure Rich Rules | [65a RHCSA](lab-65a-firewalld-rich-rules-rhcsa/) · [65b Ansible](lab-65b-firewalld-rich-rules-ansible/) · [65c Verify](lab-65c-firewalld-rich-rules-verify/) |
+| not completed | 66 | Setup Port Forwarding DNAT | [66a RHCSA](lab-66a-firewalld-port-forward-dnat-rhcsa/) · [66b Ansible](lab-66b-firewalld-port-forward-dnat-ansible/) · [66c Verify](lab-66c-firewalld-port-forward-dnat-verify/) |
+| not completed | 67 | Configure ICMP Filters | [67a RHCSA](lab-67a-firewalld-icmp-filters-rhcsa/) · [67b Ansible](lab-67b-firewalld-icmp-filters-ansible/) · [67c Verify](lab-67c-firewalld-icmp-filters-verify/) |
 
 **Future Labs (planned):**
 
@@ -1141,16 +1141,16 @@ Foundation → advanced. Each step locks in prerequisites for the next. Mirrors 
 
 | Status | # | Lab | Full Path |
 |---|---|---|---|
-| not completed | 68 | Verify TCP Wrappers Support | <https://github.com/kelvintechnical/tcp-wrappers-support> |
-| not completed | 69 | Restrict Access via hosts.deny | <https://github.com/kelvintechnical/hosts-deny-restrictions> |
-| not completed | 70 | Allow Specific Access via hosts.allow | <https://github.com/kelvintechnical/hosts-allow-access> |
-| not completed | 71 | Configure TCP Wrappers for FTP | <https://github.com/kelvintechnical/tcp-wrappers-ftp> |
-| not completed | 72 | Explore PAM Config Files | <https://github.com/kelvintechnical/pam-config-files> |
-| not completed | 73 | Read PAM Module Documentation | <https://github.com/kelvintechnical/pam-module-docs> |
-| not completed | 74 | Implement Password Complexity | <https://github.com/kelvintechnical/password-complexity-pam> |
-| not completed | 75 | Configure PAM to Limit root Access | <https://github.com/kelvintechnical/pam-limit-root-access> |
-| not completed | 76 | Use PAM to Limit User Access | <https://github.com/kelvintechnical/pam-limit-user-access> |
-| not completed | 77 | Restrict Service Access by User List | <https://github.com/kelvintechnical/pam-restrict-by-user-list> |
+| not completed | 68 | Verify TCP Wrappers Support | [68a RHCSA](lab-68a-tcp-wrappers-support-rhcsa/) · [68b Ansible](lab-68b-tcp-wrappers-support-ansible/) · [68c Verify](lab-68c-tcp-wrappers-support-verify/) |
+| not completed | 69 | Restrict Access via hosts.deny | [69a RHCSA](lab-69a-hosts-deny-restrictions-rhcsa/) · [69b Ansible](lab-69b-hosts-deny-restrictions-ansible/) · [69c Verify](lab-69c-hosts-deny-restrictions-verify/) |
+| not completed | 70 | Allow Specific Access via hosts.allow | [70a RHCSA](lab-70a-hosts-allow-access-rhcsa/) · [70b Ansible](lab-70b-hosts-allow-access-ansible/) · [70c Verify](lab-70c-hosts-allow-access-verify/) |
+| not completed | 71 | Configure TCP Wrappers for FTP | [71a RHCSA](lab-71a-tcp-wrappers-ftp-rhcsa/) · [71b Ansible](lab-71b-tcp-wrappers-ftp-ansible/) · [71c Verify](lab-71c-tcp-wrappers-ftp-verify/) |
+| not completed | 72 | Explore PAM Config Files | [72a RHCSA](lab-72a-pam-config-files-rhcsa/) · [72b Ansible](lab-72b-pam-config-files-ansible/) · [72c Verify](lab-72c-pam-config-files-verify/) |
+| not completed | 73 | Read PAM Module Documentation | [73a RHCSA](lab-73a-pam-module-docs-rhcsa/) · [73b Ansible](lab-73b-pam-module-docs-ansible/) · [73c Verify](lab-73c-pam-module-docs-verify/) |
+| not completed | 74 | Implement Password Complexity | [74a RHCSA](lab-74a-pam-password-complexity-rhcsa/) · [74b Ansible](lab-74b-pam-password-complexity-ansible/) · [74c Verify](lab-74c-pam-password-complexity-verify/) |
+| not completed | 75 | Configure PAM to Limit root Access | [75a RHCSA](lab-75a-pam-securetty-root-access-rhcsa/) · [75b Ansible](lab-75b-pam-securetty-root-access-ansible/) · [75c Verify](lab-75c-pam-securetty-root-access-verify/) |
+| not completed | 76 | Use PAM to Limit User Access | [76a RHCSA](lab-76a-pam-nologin-user-access-rhcsa/) · [76b Ansible](lab-76b-pam-nologin-user-access-ansible/) · [76c Verify](lab-76c-pam-nologin-user-access-verify/) |
+| not completed | 77 | Restrict Service Access by User List | [77a RHCSA](lab-77a-pam-listfile-user-restriction-rhcsa/) · [77b Ansible](lab-77b-pam-listfile-user-restriction-ansible/) · [77c Verify](lab-77c-pam-listfile-user-restriction-verify/) |
 
 ---
 
@@ -1158,13 +1158,13 @@ Foundation → advanced. Each step locks in prerequisites for the next. Mirrors 
 
 | Status | # | Lab | Full Path |
 |---|---|---|---|
-| not completed | 78 | Managing SELinux Modes | <https://github.com/kelvintechnical/selinux-modes-management> |
-| not completed | 79 | Viewing SELinux Contexts | <https://github.com/kelvintechnical/selinux-viewing-contexts> |
-| not completed | 80 | Temporary Context Changes | <https://github.com/kelvintechnical/selinux-temporary-contexts> |
-| not completed | 81 | Persistent Context Restoration | <https://github.com/kelvintechnical/selinux-persistent-contexts> |
-| not completed | 82 | Toggling SELinux Booleans | <https://github.com/kelvintechnical/selinux-booleans> |
-| not completed | 83 | SELinux User Mapping | <https://github.com/kelvintechnical/selinux-user-mapping> |
-| not completed | 84 | Troubleshooting SELinux | <https://github.com/kelvintechnical/selinux-troubleshooting> |
+| not completed | 78 | Managing SELinux Modes | [78a RHCSA](lab-78a-selinux-modes-rhcsa/) · [78b Ansible](lab-78b-selinux-modes-ansible/) · [78c Verify](lab-78c-selinux-modes-verify/) |
+| not completed | 79 | Viewing SELinux Contexts | [79a RHCSA](lab-79a-selinux-contexts-rhcsa/) · [79b Ansible](lab-79b-selinux-contexts-ansible/) · [79c Verify](lab-79c-selinux-contexts-verify/) |
+| not completed | 80 | Temporary Context Changes | [80a RHCSA](lab-80a-selinux-chcon-temporary-rhcsa/) · [80b Ansible](lab-80b-selinux-chcon-temporary-ansible/) · [80c Verify](lab-80c-selinux-chcon-temporary-verify/) |
+| not completed | 81 | Persistent Context Restoration | [81a RHCSA](lab-81a-selinux-fcontext-restorecon-rhcsa/) · [81b Ansible](lab-81b-selinux-fcontext-restorecon-ansible/) · [81c Verify](lab-81c-selinux-fcontext-restorecon-verify/) |
+| not completed | 82 | Toggling SELinux Booleans | [82a RHCSA](lab-82a-selinux-booleans-rhcsa/) · [82b Ansible](lab-82b-selinux-booleans-ansible/) · [82c Verify](lab-82c-selinux-booleans-verify/) |
+| not completed | 83 | SELinux User Mapping | [83a RHCSA](lab-83a-selinux-user-mapping-rhcsa/) · [83b Ansible](lab-83b-selinux-user-mapping-ansible/) · [83c Verify](lab-83c-selinux-user-mapping-verify/) |
+| not completed | 84 | Troubleshooting SELinux | [84a RHCSA](lab-84a-selinux-troubleshooting-rhcsa/) · [84b Ansible](lab-84b-selinux-troubleshooting-ansible/) · [84c Verify](lab-84c-selinux-troubleshooting-verify/) |
 | not completed | — | Apply Recursive SELinux Contexts to a New Directory (in-repo) | [`labs/selinux-recursive-contexts-direct01/`](labs/selinux-recursive-contexts-direct01/) |
 
 **Future Labs (planned):**
@@ -1183,11 +1183,11 @@ Foundation → advanced. Each step locks in prerequisites for the next. Mirrors 
 
 | Status | # | Lab | Full Path |
 |---|---|---|---|
-| not completed | 85 | Modify GRUB Timeout | <https://github.com/kelvintechnical/grub-timeout> |
-| not completed | 86 | Enable Verbose Kernel Messages | <https://github.com/kelvintechnical/verbose-kernel-messages> |
-| not completed | 87 | Generate New GRUB Config | <https://github.com/kelvintechnical/grub-mkconfig> |
-| not completed | 88 | Reset Root Password via Boot | <https://github.com/kelvintechnical/reset-root-password-boot> |
-| not completed | 89 | Chroot into Rescue Filesystem | <https://github.com/kelvintechnical/chroot-rescue-filesystem> |
+| not completed | 85 | Modify GRUB Timeout | [85a RHCSA](lab-85a-grub-timeout-rhcsa/) · [85b Ansible](lab-85b-grub-timeout-ansible/) · [85c Verify](lab-85c-grub-timeout-verify/) |
+| not completed | 86 | Enable Verbose Kernel Messages | [86a RHCSA](lab-86a-grub-verbose-kernel-rhcsa/) · [86b Ansible](lab-86b-grub-verbose-kernel-ansible/) · [86c Verify](lab-86c-grub-verbose-kernel-verify/) |
+| not completed | 87 | Generate New GRUB Config | [87a RHCSA](lab-87a-grub-mkconfig-rhcsa/) · [87b Ansible](lab-87b-grub-mkconfig-ansible/) · [87c Verify](lab-87c-grub-mkconfig-verify/) |
+| not completed | 88 | Reset Root Password via Boot | [88a RHCSA](lab-88a-grub-reset-root-password-rhcsa/) · [88b Ansible](lab-88b-grub-reset-root-password-ansible/) · [88c Verify](lab-88c-grub-reset-root-password-verify/) |
+| not completed | 89 | Chroot into Rescue Filesystem | [89a RHCSA](lab-89a-chroot-rescue-filesystem-rhcsa/) · [89b Ansible](lab-89b-chroot-rescue-filesystem-ansible/) · [89c Verify](lab-89c-chroot-rescue-filesystem-verify/) |
 
 **Future Labs (planned):**
 
