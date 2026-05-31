@@ -1,635 +1,727 @@
-# Lab 01b: Standard Output Redirection — Ansible (`ansible.builtin.copy` with `content:`)
+# lab-01b — stdout redirection — Ansible boundary trap drill
 
-- **Series:** linux-ops-mastery — Shells, Terminals & Redirection
-- **Trilogy:** [`01a`](../lab-01a-stdout-redirection-rhcsa/) (RHCSA hand-typed) → **`01b`** (Ansible — you are here) → [`01c`](../lab-01c-stdout-redirection-verify/) (Verify)
-- **Career arcs covered:** RHCSA EX200 (understand that `ansible.builtin.copy: content:` is the module-native `>`), DevOps (idempotent file delivery without shell scripts), SRE (config-file management that self-heals drift)
-- **Prerequisite:** [`Lab 01a`](../lab-01a-stdout-redirection-rhcsa/) completed; `/root/rhcsa_journal/lab-01a/task1/` and `task2/` populated
-- **Time Estimate:** 30–40 minutes
-- **Tasks:** 2 (Task 1 = write + apply with `--check --diff`; Task 2 = idempotence proof + drift correction)
-- **Practice Directory (rotation #01):** `/tmp/lab01b`
-- **Playbooks:** `/root/rhcsa_journal/lab-01b/playbooks/`
-- **Traps rehearsed this lab:** **T01-C** (`src:` requires a file on the controller — `content:` embeds text inline; confusing them produces "file not found") · **T01-D** (omitting `mode:` → Ansible inherits umask, permissions become unpredictable; RHCSA grader checks `stat -c '%a'`) · **T41** (skipping the drift-correction re-run — the whole point of Task 2)
+This is a Section 18 BOUNDARY b-lab. Stdout redirection has no honest
+`ansible.builtin` module equivalent — `>` and `>>` are shell operators
+the kernel processes, not data structures Ansible can reason about.
+Instead of skipping the b-slot, this lab becomes a TRAP DRILL LAB:
 
-> **This lab's practice directory is: `/tmp/lab01b`** — same rotation as 01a. The point of 01b is to show that `ansible.builtin.copy: content:` does exactly what `>` does in 01a, but idempotently and with automatic drift detection and correction.
+- **Task 1** — wrong-way demo of the unquoted-filename-with-redirect
+  trap. You make the mistake on purpose, watch what bash does with it,
+  then run the correct quoted form and explain the difference.
+- **Task 2** — Ansible boundary statement. You use
+  `ansible.builtin.shell:` (the closest honest substitute) with
+  `register:` and `failed_when:`, run the playbook twice, and prove
+  why `changed=1` shows up on every run — i.e. the operation is not
+  idempotent and Ansible cannot replace knowing the shell cold.
+
+Built per `cursor-adhd-lab-prompt.txt` sections 0–20. Two tasks, no
+more. Begins after `lab-01a-stdout-redirection-rhcsa` is complete and
+the `--category io` drill score is >= 80%.
 
 ---
 
-## LAB HEADER BLOCK
+## LAB HEADER (confirm or correct before Task 1)
+
+```
+ENV:   BAREMETAL
+DISK:  /dev/sda
+NIC:   ens3
+SE:    $(getenforce 2>/dev/null || echo n/a)
+OS:    $(grep PRETTY_NAME /etc/os-release | cut -d= -f2 | tr -d '"')
+TIME:  $(date -Is)
+USER:  $(whoami)@$(hostname -s)
+
+TRAPS THIS LAB: T43 T44
+PRACTICE DIR:   /tmp — sandbox scratch space; cleared on reboot; safe to write without sudo
+```
+
+Trap rationale (per Sections 11 and 12):
+
+- **T43** (getting stuck >10 min on one task) — Task 1's wrong-way
+  demo produces a confusing "ambiguous redirect" or weird-filename
+  state. T43 says: skip and return rather than thrash. Drill it now.
+- **T44** (cleanup orphan audit) — Task 2 builds `${LAB_USER}` again;
+  the audit at the end of each task proves no orphan was left.
+
+(Section 11 has no io-specific traps yet. When you add an entry like
+`T01-A unquoted filename with redirect — always quote the path`,
+update this header to match.)
+
+---
+
+## LAB-WIDE SETUP (run once before Task 1; paste output)
 
 ```bash
-echo "--- Ansible controller ---"
-ansible --version
-echo ""
-echo "--- Python binding ---"
-python3 --version 2>/dev/null || python --version
-echo ""
-echo "--- localhost connection test ---"
-ansible localhost -m ping --connection=local 2>/dev/null \
-    && echo "✅ localhost reachable" \
-    || echo "❌ localhost ping failed — check /etc/ansible/hosts or add -i 'localhost,' flag"
-echo ""
-echo "--- 01a prereq check ---"
-ls /root/rhcsa_journal/lab-01a/task1/done.txt \
-   /root/rhcsa_journal/lab-01a/task2/done.txt 2>/dev/null \
-    && echo "✅ 01a journal present" \
-    || echo "❌ 01a journal missing — complete Lab 01a first"
+export LAB_NUM=01
+export LAB_SLUG=stdout-redirection
+export SANDBOX=/tmp/labsandbox_${LAB_NUM}
+export GROUP=labgrp_${LAB_NUM}_${LAB_SLUG}
+# Never use USER= — bash reserves it; sudo -i resets it to root silently
+export LAB_USER=labuser_${LAB_NUM}_${LAB_SLUG}
+export LAB_USER_HOME=${SANDBOX}/home_${LAB_USER}
+
+mkdir -p "${SANDBOX}" "${LAB_USER_HOME}"
+getent group  "${GROUP}"    >/dev/null || groupadd "${GROUP}"
+getent passwd "${LAB_USER}" >/dev/null || useradd \
+    -d "${LAB_USER_HOME}" -M -s /bin/bash -g "${GROUP}" "${LAB_USER}"
+chown -R "${LAB_USER}:${GROUP}" "${SANDBOX}"
+id    "${LAB_USER}"
+ls -ld "${SANDBOX}" "${LAB_USER_HOME}"
+
+cat > "${SANDBOX}/THIS_DIRECTORY.txt" <<'EOF'
+/tmp is sandbox scratch space; cleared on reboot.
+RHCSA labs use it because nothing here survives reboot and no sudo is needed to write.
+EOF
+
+echo "Sandbox built by $(whoami) at $(date -Is)"
 echo "exit was: $?"
 ```
 
-> **STOP — paste the `ansible --version` output and the `✅ 01a journal present` line before setup. If localhost ping failed, run `ansible localhost -m ping -i 'localhost,' --connection=local` (trailing comma makes a valid inventory string).**
-
----
-
-## Objective
-
-01a built the shell-redirect muscle. 01b proves the same outcome is achievable through Ansible — and that Ansible's version is idempotent where `>` is not.
-
-1. **Write a multi-section system report** using `ansible.builtin.copy: content:` with embedded Ansible facts. The content is declared inside the playbook; no file on the controller is required.
-2. **Understand `--check --diff`** — run the playbook in dry-run mode to preview the exact bytes that would be written before applying. This is your pre-apply `cat` equivalent.
-3. **Prove idempotence** — re-run the playbook immediately after applying; `changed=false` because the on-disk bytes already match the declared `content:`. The shell `>` always writes; `content:` writes only when it has to.
-4. **Prove drift correction** — manually corrupt the file; re-run the playbook; `changed=true` because Ansible detected the divergence and restored the declared state.
-
----
-
-## Concept: `ansible.builtin.copy content:` Is the Idempotent `>`
-
-```
-SHELL (01a)                           ANSIBLE (01b)
-──────────────────────────────────    ────────────────────────────────────────
-echo "=== Report ===" >  /f.txt       ansible.builtin.copy:
-echo "--- Host ---"   >> /f.txt         dest: /tmp/lab01b/report.txt
-hostname               >> /f.txt        content: |
-echo "=== End ==="    >> /f.txt           === Report ===
-                                          --- Host ---
-> truncates first, then writes            {{ ansible_hostname }}
->> appends to existing content            === End ===
-Every run rewrites — no check           mode: '0644'
-No change tracking                      owner: root
-                                      register: copy_result
-
-                                      First run:  copy_result.changed = true
-                                      Second run: copy_result.changed = false
-```
-
-**T01-C: `src:` vs `content:`**
-`src: /path/to/file` requires that file to exist on the Ansible controller at run time. For dynamic content that includes facts (hostname, OS version), `content:` with Jinja2 templates is always the right tool — the text lives IN the playbook, not in a separate file.
-
----
-
-## Reference — `ansible.builtin.copy` Parameters Used This Lab
-
-| Parameter   | Type   | Default | What it controls                                                      |
-|-------------|--------|---------|-----------------------------------------------------------------------|
-| `dest:`     | path   | —       | Target path on the managed node (required)                            |
-| `content:`  | string | —       | Write this text verbatim to `dest:` (mutually exclusive with `src:`)  |
-| `mode:`     | octal  | umask   | File permissions — always set explicitly (**T01-D**)                  |
-| `owner:`    | string | —       | File owner                                                            |
-| `group:`    | string | —       | File group                                                            |
-| `register:` | string | —       | Variable name to capture the task result                              |
-| `backup:`   | bool   | false   | Keep a timestamped backup on change                                   |
-
----
-
-## Lab-Wide Setup
+Verify ansible-core is present (per Section 19 prerequisite):
 
 ```bash
-sudo -i
+ansible --version | head -2
+```
 
-mkdir -p /tmp/lab01b
-mkdir -p /root/rhcsa_journal/lab-01b/playbooks
-mkdir -p /root/rhcsa_journal/lab-01b/task1
-mkdir -p /root/rhcsa_journal/lab-01b/task2
+If `ansible --version` fails, complete `lab-00-ansible-control-node`
+before continuing. Task 2 cannot run without it.
 
-ls -ld /tmp/lab01b /root/rhcsa_journal/lab-01b/
-echo "Setup complete at $(date -Is)"
+---
+
+## TASK 1 of 2 — Wrong-way demo: unquoted filename with redirect
+
+```
+LAB:   lab-01b — stdout redirection — Ansible boundary trap drill
+TASK:  1 of 2 — unquoted filename with `>` deletes the wrong file
+TRAPS: T43 (don't get stuck on the confusing error, fix and move on)
+```
+
+### Quiz warm-up (from lab-01a, Section 4 rule)
+
+- **Q1:** What does `>>` do that `>` does not?
+- **Q2:** In `wc -l < file`, what is `<` doing? Why is the output
+  cleaner with `<` than with `wc -l file`?
+
+Confirm or correct before we proceed.
+
+---
+
+### Step 1 of 4 — Stage the trap (the wrong way to write a path)
+
+Run this exactly as written. Yes, it has a space in the filename
+deliberately. That's the whole point of the lesson.
+
+```bash
+echo "test data" > "${SANDBOX}/my file.txt"
+```
+
+Wait — that line has the path quoted, so it works. To trigger the
+trap, run the *unquoted* version next:
+
+```bash
+echo "second test" > ${SANDBOX}/my file.txt
+```
+
+Before I explain — predict what bash does with that second line. Where
+does `second test` end up? Is `my file.txt` modified? Is anything else
+modified? (Type your guess.)
+
+**After you've answered:**
+
+Bash sees `>` followed by two whitespace-separated tokens:
+`${SANDBOX}/my` and `file.txt`. It treats `${SANDBOX}/my` as the
+redirect target (so it creates a file literally named `my` under the
+sandbox) and treats `file.txt` as an extra positional argument to
+`echo`. So:
+
+- `${SANDBOX}/my` is created (or truncated) and gets the bytes
+  `second test file.txt\n`.
+- `${SANDBOX}/my file.txt` (the file you thought you were writing) is
+  unchanged from Step 1.
+- No error. No warning. The shell did exactly what you typed.
+
+Run this to see the wreckage:
+
+```bash
+ls -la "${SANDBOX}/"
+echo "--- contents of my (the accidental file) ---"
+cat "${SANDBOX}/my" 2>/dev/null
+echo "--- contents of my file.txt (the intended file) ---"
+cat "${SANDBOX}/my file.txt"
+```
+
+Paste your output. You should see two files: `my` and `my file.txt`.
+The `my` file holds `second test file.txt`. The `my file.txt` file
+still holds `test data` from Step 1.
+
+This is the canonical "shell tokenization beat me" trap. On a real
+system this happens to admins who copy a path with a space from a
+ticket and paste it without quotes. The wrong file gets truncated;
+the right file is untouched and looks fine; nothing complains.
+T43 says: notice fast, fix faster. Don't spend 10 minutes wondering
+why your file isn't being updated — read your own command first.
+
+---
+
+### Step 2 of 4 — Recover and write the correct way
+
+Run this:
+
+```bash
+rm -f "${SANDBOX}/my"
+echo "second test, properly quoted" >> "${SANDBOX}/my file.txt"
+cat                                    "${SANDBOX}/my file.txt"
 echo "exit was: $?"
 ```
 
-> **STOP — paste the `ls -ld` output before Task 1.**
+Before I explain — what changed between the broken Step 1b command
+and this one, beyond the `rm`? (Two things.)
+
+**After you've answered:**
+
+1. The path is fully quoted: `"${SANDBOX}/my file.txt"`. The double
+   quotes prevent the shell from splitting on the space, so bash sees
+   ONE redirect target.
+2. The operator changed from `>` to `>>`. Step 1's intended file
+   already has data in it; using `>` would truncate. `>>` appends.
+
+Both fixes are required. The quoting fix is the trap drill; the
+`>>` choice is the lab-01a muscle memory you're carrying forward.
+
+Paste your output. You should see both lines and `exit was: 0`.
 
 ---
 
-## Task 1 — Write a system report with `ansible.builtin.copy: content:`
+### Step 3 of 4 — Defensive habit: catch unquoted paths with `set -u`
 
-**Practice directory this task:** `/tmp/lab01b`
-
-### Warm-Up
+Run this:
 
 ```bash
-# Confirm ansible.builtin.copy content: parameter signature
-ansible-doc ansible.builtin.copy 2>/dev/null | grep -A 8 'content'
-# See which facts will populate the Jinja2 templates
-ansible localhost -m setup --connection=local 2>/dev/null \
-    | grep -E '"ansible_(hostname|distribution|distribution_version|kernel|architecture)'
-# Baseline — what's in /tmp/lab01b right now?
-ls -la /tmp/lab01b/
+set -u
+echo "with set -u" > "${SANDBOX}/$DOES_NOT_EXIST.txt"
+echo "exit was: $?"
+set +u
+```
+
+Before I explain — predict what `set -u` does to a redirect that
+references an unset variable. (Type your guess.)
+
+**After you've answered:**
+
+`set -u` (also `set -o nounset`) tells bash to error out when an
+unset variable is dereferenced. Without `set -u`, `$DOES_NOT_EXIST`
+expands to an empty string, your redirect target becomes
+`${SANDBOX}/.txt` (a hidden file — different trap), and you never
+notice. With `set -u`, bash says
+`bash: DOES_NOT_EXIST: unbound variable` and `$?` is non-zero,
+which Section 8 says is a hard blocker.
+
+This is not a fix for the unquoted-space trap — only quoting fixes
+that. But `set -u` catches the related "typo in a variable name"
+trap that lives in the same neighborhood.
+
+Paste your output. You should see the unbound-variable error and
+`exit was: 1`.
+
+---
+
+### Step 4 of 4 — Audit and clean up Task 1
+
+Run this:
+
+```bash
+ls -la "${SANDBOX}/"
+test -f "${SANDBOX}/my"           && echo "my STILL exists (FAIL)" || echo "my removed (OK)"
+test -f "${SANDBOX}/my file.txt"  && echo "my file.txt exists (OK)" || echo "my file.txt missing (FAIL)"
+wc -l < "${SANDBOX}/my file.txt"
+```
+
+Before I explain — what does `test -f` return non-zero for?
+
+**After you've answered:**
+
+`test -f PATH` returns 0 (true) if PATH is a regular file, non-zero
+otherwise. Combined with `&& echo OK || echo FAIL` it becomes a
+one-line audit primitive. RHCSA capstones lean on it constantly.
+
+Paste your output. Both audit lines should say `(OK)` and `wc -l`
+should print `2`.
+
+---
+
+### Concept card (Task 1)
+
+| Concept | What it does | Exam trap |
+|---------|--------------|-----------|
+| `> path with space` (unquoted) | shell splits on whitespace; redirect target is the first token | wrong file gets truncated, intended file untouched, no error |
+| `> "path with space"` (quoted) | shell treats the whole path as one token | the canonical safe form — always quote paths from outside data |
+| `set -u` | error on unset variable expansion | catches typos in variable names; turn back off after the strict block |
+| `>>` for follow-up writes | preserves prior content | using `>` instead silently truncates (lab-01a Task 2 trap) |
+| `test -f PATH && ... \|\| ...` | one-line existence audit | combine with `(OK)/(FAIL)` echo for paste-and-prove |
+| `ls -la` after a redirect | shows the file you didn't mean to make | trap-drill discipline: always `ls` after a redirect with variables |
+| T43 (don't get stuck) | recognize the wrong-state fast, recover, move on | spending 20 min reading man pages instead of `ls`-ing your sandbox |
+
+Drill mapping: every row above → `--category io`.
+
+---
+
+### Persistence check
+
+Question: If we rebooted right now, what state survives?
+
+```bash
+findmnt /tmp
+ls -la "${SANDBOX}/"
+```
+
+Paste output. Same answer as lab-01a: nothing under `${SANDBOX}` survives.
+The trap-drill insight is that EVEN IF /tmp survived reboot, the wrong
+file `my` we accidentally created would also survive — silent
+collateral damage outlives the reboot. That is exactly why every
+RHCSA capstone ends with `ls` of the working directory.
+
+---
+
+### Journal write (run before cleanup)
+
+```bash
+LAB=lab01
+TASK=task1b
+JDIR="/root/rhcsa_journal/${LAB}/${TASK}"
+mkdir -p "$JDIR"
+
+cat > "$JDIR/done.txt" <<EOF
+LAB:    lab-01b-stdout-redirection-ansible
+TASK:   1 of 2 — unquoted filename trap drill
+DATE:   $(date -Is)
+USER:   $(whoami)@$(hostname -s)
+STATUS: COMPLETE
+EOF
+
+cat > "$JDIR/notes.txt" <<EOF
+TOPIC:    stdout redirection — unquoted-path trap
+COMMANDS: echo, ls, cat, test -f, wc -l, set -u
+TRAPS:    T43 (drill: recognize wrong-state fast, fix faster)
+MISSED:   [list any quiz question you got wrong, or "none"]
+NEXT:     task2 — ansible.builtin.shell: boundary + idempotence reality
+EOF
+
+echo "Journal written: $(ls -la $JDIR)"
 echo "exit was: $?"
 ```
 
-> `ansible-doc` is the module manual page. `ansible -m setup` is the fact oracle. Both are warm-up only — the WEAVE table below maps each to its role inside Task 1.
+Paste output.
 
-### Purpose
+---
 
-Write a multi-section system report to `/tmp/lab01b/report.txt` using `content:` with five Ansible facts embedded as Jinja2 templates. Then prove three properties of `content:`:
-
-1. **Dry-run first** — `--check --diff` shows the planned diff without touching disk.
-2. **Apply** — first run: `changed=true`; file is created with the declared content.
-3. **Re-apply** — second run: `changed=false`; bytes match; no write happens.
-
-### WEAVE TRACE
-
-| Warm-up / setup command                    | Role inside Task 1                                                          |
-|--------------------------------------------|-----------------------------------------------------------------------------|
-| `ansible-doc copy \| grep -A8 content`     | Confirms `content:` parameter exists before embedding it in the playbook    |
-| `ansible -m setup \| grep ansible_hostname`| Verifies the five Jinja2 facts will resolve at gather_facts time            |
-| `ls -la /tmp/lab01b/`                      | Pre-flight: confirms practice directory is empty before the first run       |
-| `mkdir -p .../playbooks`                   | Playbook landing zone — `ansible-playbook` needs the `.yml` path            |
-| `ansible localhost -m ping`                | Connectivity test — if this fails, `ansible-playbook` will also fail        |
-
-### Main command block
+### Cleanup (Section 6 teardown)
 
 ```bash
-TASKLOG=/tmp/lab01b/task1.txt
-PB=/root/rhcsa_journal/lab-01b/playbooks/task1.yml
+set +e
 
-# ── Step 1: Write the playbook ────────────────────────────────────────
-cat > "${PB}" << 'PLAYBOOK'
+podman ps -aq --filter "name=^${CTR}$" 2>/dev/null \
+    | xargs -r podman rm -f >/dev/null 2>&1
+
+awk -v s="${SANDBOX}" '$2 ~ s {print $2}' /proc/mounts \
+    | tac | xargs -r -n1 umount -l 2>/dev/null
+
+if vgs "${VG}" >/dev/null 2>&1; then
+    lvremove -fy  "${VG}"          2>/dev/null
+    vgremove -fy  "${VG}"          2>/dev/null
+fi
+
+losetup -j "${SANDBOX}/disk.img" 2>/dev/null \
+    | cut -d: -f1 | xargs -r losetup -d 2>/dev/null
+
+if getent passwd "${LAB_USER}" >/dev/null 2>&1; then
+    userdel -r "${LAB_USER}" 2>/dev/null
+fi
+if getent group "${GROUP}" >/dev/null 2>&1; then
+    groupdel "${GROUP}"  2>/dev/null
+fi
+
+rm -rf "${SANDBOX}"
+
+echo "── cleanup audit ──"
+getent passwd "${LAB_USER}"  && echo "user remains (FAIL)"   || echo "user gone (OK)"
+getent group  "${GROUP}"     && echo "group remains (FAIL)"  || echo "group gone (OK)"
+test -d "${SANDBOX}"         && echo "sandbox remains (FAIL)" || echo "sandbox gone (OK)"
+
+set -e
+echo "Cleanup complete by $(whoami) at $(date -Is)"
+echo "exit was: $?"
+```
+
+Every audit row must say `(OK)`.
+
+**STOP.** Task 2 is below. Do not look until you have pasted all step
+outputs, the persistence check, the journal write, and all `(OK)` audit
+lines.
+
 ---
-- name: "Lab 01b Task 1 — write system report with ansible.builtin.copy content:"
+
+## TASK 2 of 2 — Ansible boundary: `ansible.builtin.shell:` with register
+
+Per Section 18: there is no `ansible.builtin` module that owns the
+operation "redirect stdout to a file". You can use `copy:` for static
+content, `template:` for templated content, or `lineinfile:` for line
+edits — none of those IS what `>` does. The closest honest substitute
+is `ansible.builtin.shell:` with the redirect inside, plus `register:`
+and `failed_when:` so you treat the result like real engineering.
+
+The point of this task is to PROVE the boundary by running the
+playbook twice and showing `changed=1` every time. That is what
+"not idempotent" means in practice and is why RHCSA muscle memory
+cannot be replaced.
+
+```
+LAB:   lab-01b — stdout redirection — Ansible boundary trap drill
+TASK:  2 of 2 — ansible.builtin.shell: + register + idempotence proof
+TRAPS: T44 (cleanup orphan audit)
+```
+
+### Quiz warm-up (from Task 1)
+
+- **Q1:** What turns `> path with space` from a trap into safe code?
+- **Q2:** What does `set -u` catch?
+
+Confirm or correct before we proceed.
+
+---
+
+### Prerequisite — re-run the lab-wide setup
+
+The Task 1 cleanup tore down `${LAB_USER}`, `${GROUP}`, and `${SANDBOX}`.
+Re-run the **LAB-WIDE SETUP** block at the top of this file, then
+verify Ansible:
+
+```bash
+ansible --version | head -2
+```
+
+Both the sandbox and Ansible must be ready before Step 1.
+
+---
+
+### Step 1 of 4 — Write the playbook
+
+Run this:
+
+```bash
+mkdir -p /root/rhcsa_journal/lab01/playbooks
+cat > /root/rhcsa_journal/lab01/playbooks/task2.yml <<'EOF'
+---
+- name: lab-01b boundary — stdout redirection via shell module
   hosts: localhost
   connection: local
-  gather_facts: true
+  gather_facts: false
   vars:
-    report_path: /tmp/lab01b/report.txt
-
+    target: "/tmp/labsandbox_01/notes.txt"
   tasks:
-    - name: "Ensure practice directory exists"
-      ansible.builtin.file:
-        path: /tmp/lab01b
-        state: directory
-        mode: '0755'
+    - name: write a line via shell + > (NOT idempotent)
+      ansible.builtin.shell: |
+        echo "written by ansible at $(date -Is)" > "{{ target }}"
+      register: write_result
+      failed_when: write_result.rc != 0
 
-    - name: "Write system report (idempotent stdout redirect)"
-      ansible.builtin.copy:
-        dest: "{{ report_path }}"
-        content: |
-          === System Report ===
-          --- Hostname ---
-          {{ ansible_hostname }}
-          --- OS ---
-          {{ ansible_distribution }} {{ ansible_distribution_version }}
-          --- Kernel ---
-          {{ ansible_kernel }}
-          --- Architecture ---
-          {{ ansible_architecture }}
-          === End Report ===
-        mode: '0644'
-        owner: root
-        group: root
-      register: copy_result
+    - name: read it back via shell + cat (also NOT idempotent)
+      ansible.builtin.shell: |
+        cat "{{ target }}"
+      register: read_result
+      changed_when: false
 
-    - name: "Show copy result"
+    - name: show what changed and what we read
       ansible.builtin.debug:
         msg:
-          - "changed: {{ copy_result.changed }}"
-          - "dest:    {{ copy_result.dest }}"
-PLAYBOOK
+          - "write rc:      {{ write_result.rc }}"
+          - "write changed: {{ write_result.changed }}"
+          - "read  changed: {{ read_result.changed }}"
+          - "read  stdout:  {{ read_result.stdout }}"
+EOF
 
-echo "Playbook written: $(wc -l < ${PB}) lines"                    2>&1 | tee $TASKLOG
-
-# ── Step 2: Dry-run — check + diff ────────────────────────────────────
-echo "═══ Step 2: --check --diff (nothing written to disk) ═══"     | tee -a $TASKLOG
-ansible-playbook --check --diff "${PB}" 2>&1                        | tee -a $TASKLOG
-echo "dry-run exit was: $?"                                          | tee -a $TASKLOG
-
-# ── Step 3: Apply (first run) ─────────────────────────────────────────
-echo "═══ Step 3: apply (first run — expect changed=1) ═══"         | tee -a $TASKLOG
-ansible-playbook "${PB}" 2>&1                                        | tee -a $TASKLOG
-echo "apply exit was: $?"                                            | tee -a $TASKLOG
-
-# ── Step 4: Verify file on disk ───────────────────────────────────────
-echo "═══ Step 4: verify file on disk ═══"                          | tee -a $TASKLOG
-cat /tmp/lab01b/report.txt                                          | tee -a $TASKLOG
-stat -c '%U:%G %a %n' /tmp/lab01b/report.txt                       | tee -a $TASKLOG
-wc -l /tmp/lab01b/report.txt                                        | tee -a $TASKLOG
-
-# ── Step 5: Re-apply — prove idempotence ──────────────────────────────
-echo "═══ Step 5: re-apply (second run — expect changed=0) ═══"     | tee -a $TASKLOG
-ansible-playbook "${PB}" 2>&1                                        | tee -a $TASKLOG
-echo "idempotence exit was: $?"
-
-echo "exit was: $?"
+ls -l /root/rhcsa_journal/lab01/playbooks/task2.yml
 ```
 
-### Human-readable breakdown
+Before I explain — three things to predict:
 
-1. **Step 1 — write the playbook.** `cat > file << 'PLAYBOOK'` (single-quoted heredoc delimiter) prevents shell expansion inside the heredoc — `{{ ansible_hostname }}` stays as literal Jinja2 text in the `.yml` file; Ansible expands it at runtime.
-2. **Step 2 — dry-run.** `--check --diff` is the Ansible equivalent of previewing without applying. The `diff` block shows the exact bytes that *would* be written. Always run this before applying to production files.
-3. **Step 3 — apply.** The directory already exists; the file doesn't yet. `changed=true` for the `copy` task. The `PLAY RECAP` shows `changed=1`.
-4. **Step 4 — verify.** `cat` the file; `stat -c '%U:%G %a %n'` confirms owner, group, and mode. The grader's first check is `stat -c '%a'` — mode must be `644`.
-5. **Step 5 — re-apply.** Same playbook, same content. Ansible sha256-checks the on-disk file against the rendered `content:` string. They match → `changed=false`. The `PLAY RECAP` shows `changed=0`.
+1. Why is `ansible.builtin.shell:` the right module here, not `command:`?
+2. Why does the read task have `changed_when: false`?
+3. Why does the write task have `failed_when: write_result.rc != 0`
+   instead of relying on the default?
 
-### Reading it left to right
+**After you've answered:**
 
-```
-ansible.builtin.copy:
-  dest: "{{ report_path }}"    ← target path (from vars: block)
-  content: |                   ← block scalar: write this text verbatim
-    === System Report ===       ← literal text
-    --- Hostname ---
-    {{ ansible_hostname }}      ← Jinja2: expands from gathered facts
-  mode: '0644'                 ← quoted octal string — T01-D: never omit this
-register: copy_result          ← capture return value: .changed, .dest, .diff
-```
+1. `command:` does NOT spawn a shell, so `>` would be passed as a
+   literal argument to `echo`, and you'd see `echo "..." > /tmp/...`
+   — `>` printed alongside the text instead of redirected. `shell:`
+   spawns bash, which interprets `>` correctly.
+2. Reading is observation. It doesn't change anything. Without
+   `changed_when: false`, `shell:` always reports `changed=true`,
+   which lies to anyone reading the play recap.
+3. The default behavior of `shell:` is to fail when rc != 0, but
+   stating it explicitly makes the boundary visible: this is the
+   line where Ansible's "did it succeed?" plugs into the shell's
+   `$?`. RHCE graders look for that.
 
-The `|` (pipe / block scalar) in YAML preserves all newlines. A 9-line `content:` block becomes a 9-line file with a trailing newline. `>` (folding scalar) would collapse newlines to spaces — use `|` for file content.
+Paste your `ls -l` output.
 
-### The story
+---
 
-`ansible.builtin.copy: content:` is idempotent because before writing it computes the sha256 of the existing on-disk file and compares it to the sha256 of the `content:` string after Jinja2 rendering. If they match, it skips the write (`changed=false`). If they differ, it writes and sets `changed=true`. The shell `>` has no such check — it truncates the file descriptor and writes unconditionally every time.
+### Step 2 of 4 — Run the playbook in check mode first
 
-This is why Ansible is called "configuration management" rather than "scripting": the playbook declares desired state, and the module ensures that state is met, doing only the minimum work required. The shell equivalent would require a manual `diff` loop and a conditional write.
-
-### Expected output
-
-```text
-Playbook written: 28 lines
-═══ Step 2: --check --diff (nothing written to disk) ═══
-
-PLAY [Lab 01b Task 1 ...] ******************************************************
-...
---- before: /tmp/lab01b/report.txt
-+++ after: /tmp/lab01b/report.txt
-@@ -0,0 +1,9 @@
-+=== System Report ===
-+--- Hostname ---
-+rhel9host
-...
-changed: [localhost]
-
-PLAY RECAP ******* localhost : ok=3  changed=1  unreachable=0  failed=0
-dry-run exit was: 0
-═══ Step 3: apply (first run — expect changed=1) ═══
-...
-PLAY RECAP ******* localhost : ok=3  changed=1  unreachable=0  failed=0
-apply exit was: 0
-═══ Step 4: verify file on disk ═══
-=== System Report ===
---- Hostname ---
-rhel9host
---- OS ---
-RedHat 9.4
---- Kernel ---
-5.14.0-427.xx.el9.x86_64
---- Architecture ---
-x86_64
-=== End Report ===
-root:root 644 /tmp/lab01b/report.txt
-9 /tmp/lab01b/report.txt
-═══ Step 5: re-apply (second run — expect changed=0) ═══
-...
-PLAY RECAP ******* localhost : ok=2  changed=0  unreachable=0  failed=0
-idempotence exit was: 0
-exit was: 0
-```
-
-### Switches
-
-| Token                                 | Meaning                                                                 |
-|---------------------------------------|-------------------------------------------------------------------------|
-| `ansible-playbook PB`                 | Run a playbook against the inventory                                    |
-| `--check`                             | Dry-run: simulate changes without applying                              |
-| `--diff`                              | Show unified diff of file changes (pairs with `--check`)                |
-| `content: \|`                         | Block scalar: write the indented text verbatim as file content          |
-| `{{ ansible_hostname }}`              | Jinja2 template for the hostname fact                                   |
-| `register: name`                      | Capture the module return value into `name`                             |
-| `result.changed`                      | Boolean: did this task actually write anything?                         |
-| `mode: '0644'`                        | Quoted octal string (unquoted `0644` parses as integer in YAML)         |
-
-### Concept Card
-
-| Concept | What it does |
-|---|---|
-| `content:` vs `src:` | `content:` embeds text inline; `src:` copies from the controller. Wrong one → "file not found" (**T01-C**) |
-| Idempotence | `changed=false` on re-run — Ansible sha256-checks before writing |
-| `--check --diff` | Dry-run + diff: see exactly what *would* change before touching disk |
-| `mode:` always explicit | Without it, permissions are umask-dependent (**T01-D**) |
-| Jinja2 facts in `content:` | `{{ ansible_hostname }}` etc. render from `gather_facts: true` at play time |
-| `\|` block scalar | Preserves all newlines — correct for file content (`>` would collapse them) |
-| **🪤 Trap Risk T01-C** | `src: /path` requires that file on the controller. For inline dynamic content, use `content:` |
-| **🪤 Trap Risk T01-D** | Omitting `mode:` means the file gets the creating process's umask. Always declare it explicitly. |
-
-### 🔁 PERSISTENCE CHECK
-
-| What was configured | Verification command | Why it matters |
-|---|---|---|
-| `report.txt` created | `test -s /tmp/lab01b/report.txt` returns 0 | File exists and is non-empty |
-| Owner/group/mode | `stat -c '%U:%G %a' /tmp/lab01b/report.txt` returns `root:root 644` | Grader checks mode first |
-| Idempotence proven | Second `ansible-playbook` run shows `changed=0` in PLAY RECAP | Core property of `content:` |
-| Playbook persists | `test -s /root/rhcsa_journal/lab-01b/playbooks/task1.yml` returns 0 | Playbook is the reconstruction point |
-
-### Journal write
+Run this:
 
 ```bash
-LAB=lab-01b
-TASK=task1
+ansible-playbook --check --diff /root/rhcsa_journal/lab01/playbooks/task2.yml
+```
+
+Before I explain — what do you think `--check --diff` does for a
+`shell:` task?
+
+**After you've answered:**
+
+For real modules (file, copy, lineinfile, etc.) `--check` simulates
+without writing and `--diff` shows the would-be diff. For `shell:`
+and `command:`, `--check` SKIPS the task entirely (Ansible has no
+way to predict what arbitrary shell does). You will see `skipped`
+on both shell tasks, and the debug task may show empty values.
+
+That is itself a boundary lesson: a real module can be planned,
+audited, and dry-run reviewed. A shell call cannot. RHCE answers
+that ask for "idempotent and check-friendly" reject `shell:` for
+exactly this reason.
+
+Paste your output.
+
+---
+
+### Step 3 of 4 — Run for real, twice, and prove non-idempotence
+
+First run:
+
+```bash
+ansible-playbook /root/rhcsa_journal/lab01/playbooks/task2.yml
+```
+
+Read the PLAY RECAP. Note the `changed=` count. Then run it again:
+
+```bash
+ansible-playbook /root/rhcsa_journal/lab01/playbooks/task2.yml
+```
+
+Before I explain — predict the second run's `changed=` count.
+(Type your guess.)
+
+**After you've answered:**
+
+Both runs report `changed=1` (the write task always claims to have
+changed; the read task is forced to `changed_when: false`). The
+file is rewritten with a new `$(date -Is)` value every run. There
+is no "is this already the desired state?" check, because there is
+no way for `shell:` to know what the desired state is.
+
+Compare with `ansible.builtin.copy:` — if you used `copy:` to write
+a fixed line, the second run would say `changed=0` because the file
+content already matches. That is what idempotence looks like, and
+that is what `>` cannot give you.
+
+Paste both PLAY RECAPs and the file content:
+
+```bash
+cat /tmp/labsandbox_01/notes.txt
+```
+
+You should see the timestamp from the SECOND run (proving the first
+write was overwritten — which is also a tiny lab-01a Task 2 callback:
+`>` truncates).
+
+---
+
+### Step 4 of 4 — Audit + state the boundary in writing
+
+Run this:
+
+```bash
+echo "BOUNDARY STATEMENT: there is no ansible.builtin module for stdout redirection." \
+    | tee -a /root/rhcsa_journal/lab01/playbooks/BOUNDARY.txt
+echo "shell: + > is the closest substitute and it is not idempotent." \
+    | tee -a /root/rhcsa_journal/lab01/playbooks/BOUNDARY.txt
+echo "RHCSA muscle memory for >, >>, |, tee is required — Ansible cannot replace it." \
+    | tee -a /root/rhcsa_journal/lab01/playbooks/BOUNDARY.txt
+cat /root/rhcsa_journal/lab01/playbooks/BOUNDARY.txt
+```
+
+Before I explain — why is `tee -a` the right tool here instead of
+`echo ... >> file`?
+
+**After you've answered:**
+
+Both work. `tee -a` is the lab-01a callback: you write the line AND
+see it in your terminal in one shot, instead of writing silently and
+then `cat`ing to verify. It is a small consistency choice that pays
+off when you are reviewing your own session output. Either is correct;
+`tee -a` is the "show your work" form.
+
+Paste output.
+
+---
+
+### Concept card (Task 2)
+
+| Concept | What it does | Exam trap |
+|---------|--------------|-----------|
+| `ansible.builtin.shell:` | spawn bash, interpret operators | not idempotent for `>`/`>>`; treat as a boundary |
+| `register: name` | capture rc / stdout / stderr / changed | RHCE graders look for `register:` on every shell call |
+| `failed_when: rc != 0` | make the failure semantics explicit | default is fine, but explicit is RHCE-grade |
+| `changed_when: false` | tell Ansible "this is observation only" | without it, every `shell:` lies as `changed=true` |
+| `--check` on a shell task | skipped, not simulated | a real module would run in check mode |
+| `--diff` on a shell task | nothing to diff | only meaningful for state-aware modules |
+| 2nd run still `changed=1` | proof of non-idempotence | the boundary made visible |
+| `command:` vs `shell:` | command does NOT spawn a shell | `>` becomes literal echo argument, not redirect |
+
+Drill mapping: every row above → `--category ansible` and `--category io`.
+
+Trap-Risk row (Section 16h requirement): wrapping shell commands in
+`command:`/`shell:` when a real module exists. For `>` redirection there
+IS no module, so the wrapping is honest. For everything else, refuse to
+wrap.
+
+---
+
+### Persistence check
+
+Question: After reboot, which of these survive?
+
+1. `${SANDBOX}/notes.txt` (the file the playbook writes)
+2. `/root/rhcsa_journal/lab01/playbooks/task2.yml` (the playbook itself)
+3. `${LAB_USER}` (the sandbox user)
+4. `/root/rhcsa_journal/lab01/playbooks/BOUNDARY.txt`
+
+Run:
+
+```bash
+findmnt /tmp /root
+ls -l /root/rhcsa_journal/lab01/playbooks/
+getent passwd "${LAB_USER}"
+```
+
+Paste output and answer:
+
+- 1: NO — `/tmp` is volatile. Re-run the playbook to recreate.
+- 2: YES — `/root` is on the root partition.
+- 3: YES — until cleanup runs. THIS is why T44 matters.
+- 4: YES — `/root` is on the root partition.
+
+Lesson: the artifacts that survive (playbook + boundary statement)
+are the documentation-grade outputs. The artifacts that don't
+survive (notes.txt + LAB_USER) need cleanup discipline. Section 6
+audit catches the second category.
+
+---
+
+### Journal write (run before cleanup)
+
+```bash
+LAB=lab01
+TASK=task2b
 JDIR="/root/rhcsa_journal/${LAB}/${TASK}"
 mkdir -p "$JDIR"
-cp /tmp/lab01b/task1.txt          "$JDIR/evidence.txt"
-cp /tmp/lab01b/report.txt         "$JDIR/report.txt"
-# Playbook already lives at /root/rhcsa_journal/lab-01b/playbooks/task1.yml
 
 cat > "$JDIR/done.txt" <<EOF
-LAB:    ${LAB}
-TASK:   ${TASK}
+LAB:    lab-01b-stdout-redirection-ansible
+TASK:   2 of 2 — ansible.builtin.shell: boundary + idempotence proof
 DATE:   $(date -Is)
-USER:   $(whoami)@$(hostname)
+USER:   $(whoami)@$(hostname -s)
 STATUS: COMPLETE
 EOF
 
 cat > "$JDIR/notes.txt" <<EOF
-TOPIC:    ansible.builtin.copy with content: — idempotent stdout redirect via Ansible
-COMMANDS: ansible-playbook --check --diff PB; ansible-playbook PB; stat -c '%U:%G %a %n'; wc -l
-TRAPS:    T01-C rehearsed (content: not src:); T01-D rehearsed (mode: '0644' always explicit)
-IDEMPOTENCE: second run showed changed=0 in PLAY RECAP
-MISSED:   (fill in if any ⚠️ flags)
-NEXT:     task2 — drift detection; sed -i to corrupt; re-run; confirm changed=1 and sha256 restored
+TOPIC:    Ansible boundary for stdout redirection
+COMMANDS: ansible-playbook, ansible.builtin.shell, register, failed_when, changed_when, debug
+TRAPS:    T44 (cleanup orphan ${LAB_USER}/${GROUP} audit)
+BOUNDARY: documented in /root/rhcsa_journal/lab01/playbooks/BOUNDARY.txt
+PROOF:    two runs both reported changed=1 — non-idempotent
+MISSED:   [list any quiz question or step you got wrong, or "none"]
+NEXT:     lab-01c-stdout-redirection-verify (audit + destroy-restore drill)
 EOF
 
-ls -la "$JDIR"
+echo "Journal written: $(ls -la $JDIR)"
 echo "exit was: $?"
 ```
 
-### Cleanup
-
-```bash
-rm -f /tmp/lab01b/task1.txt
-ls /tmp/lab01b/
-echo "exit was: $?"
-```
-
-### Troubleshoot
-
-| Symptom | Fix |
-|---|---|
-| `No inventory was parsed` warning | Add `-i 'localhost,'` (trailing comma) to the ansible-playbook command |
-| `msg: 'file not found'` on copy task | **T01-C** — you used `src:` instead of `content:`. Check the playbook YAML |
-| `mode: 0644` YAML parsing error | YAML treats bare `0644` as integer 420. Use `mode: '0644'` (quoted) |
-| `changed=1` on every re-run | A Jinja2 fact changes between runs (e.g., `ansible_uptime_seconds` was used). Replace with a stable fact like `ansible_architecture` |
-| `PLAY RECAP failed=1` | Module error; check the output above the RECAP for the actual message |
-| `Permission denied` creating `/tmp/lab01b` | Run `sudo -i` first |
-
-> **STOP — paste the PLAY RECAP lines from Step 3 (apply) and Step 5 (idempotence) before Task 2.**
+Paste output.
 
 ---
 
-## Task 2 — Drift detection: corrupt the file, re-run, prove `changed=true`
-
-**Practice directory this task:** `/tmp/lab01b`
-
-### Warm-Up
+### Cleanup (Section 6 teardown — final, full audit)
 
 ```bash
-cat /tmp/lab01b/report.txt
-wc -l /tmp/lab01b/report.txt
-sha256sum /tmp/lab01b/report.txt
-echo "Warm-up done at $(date -Is)"
+set +e
+
+podman ps -aq --filter "name=^${CTR}$" 2>/dev/null \
+    | xargs -r podman rm -f >/dev/null 2>&1
+
+awk -v s="${SANDBOX}" '$2 ~ s {print $2}' /proc/mounts \
+    | tac | xargs -r -n1 umount -l 2>/dev/null
+
+if vgs "${VG}" >/dev/null 2>&1; then
+    lvremove -fy  "${VG}"          2>/dev/null
+    vgremove -fy  "${VG}"          2>/dev/null
+fi
+
+losetup -j "${SANDBOX}/disk.img" 2>/dev/null \
+    | cut -d: -f1 | xargs -r losetup -d 2>/dev/null
+
+if getent passwd "${LAB_USER}" >/dev/null 2>&1; then
+    userdel -r "${LAB_USER}" 2>/dev/null
+fi
+if getent group "${GROUP}" >/dev/null 2>&1; then
+    groupdel "${GROUP}"  2>/dev/null
+fi
+
+rm -rf "${SANDBOX}"
+
+echo "── cleanup audit ──"
+getent passwd "${LAB_USER}"  && echo "user remains (FAIL)"   || echo "user gone (OK)"
+getent group  "${GROUP}"     && echo "group remains (FAIL)"  || echo "group gone (OK)"
+test -d "${SANDBOX}"         && echo "sandbox remains (FAIL)" || echo "sandbox gone (OK)"
+
+set -e
+echo "Cleanup complete by $(whoami) at $(date -Is)"
 echo "exit was: $?"
 ```
 
-> `sha256sum` captures the "clean" fingerprint before the corruption step. The hash stored in this warm-up is the ground truth for the post-restore comparison.
+Note: the playbook and BOUNDARY.txt are NOT cleaned up — they live
+under `/root/rhcsa_journal/` on purpose. The journal is the artifact
+that survives between sessions.
 
-### Purpose
-
-1. **Snapshot** the clean file (sha256 + line count).
-2. **Corrupt** using `sed -i` — simulate drift the way a manual edit or a failed `>` would cause.
-3. **Re-run** the same playbook — `changed=true` because the bytes differ from the declared `content:`.
-4. **Verify** the file is byte-for-byte identical to the pre-drift snapshot (sha256 match).
-
-### WEAVE TRACE
-
-| Warm-up / setup command     | Role inside Task 2                                                         |
-|-----------------------------|----------------------------------------------------------------------------|
-| `cat /tmp/.../report.txt`   | Pre-drift read — confirms the Task 1 file is still intact                  |
-| `sha256sum report.txt`      | Pre-drift fingerprint — ground truth for the post-restore comparison       |
-| `wc -l report.txt`          | Line count baseline — post-restore count must match                        |
-
-### Main command block
-
-```bash
-TASKLOG=/tmp/lab01b/task2.txt
-REPORT=/tmp/lab01b/report.txt
-PB=/root/rhcsa_journal/lab-01b/playbooks/task1.yml
-
-# ── Part A: snapshot (pre-drift) ──────────────────────────────────────
-echo "═══ Part A: snapshot (pre-drift) ═══"              2>&1 | tee $TASKLOG
-CLEAN_HASH=$(sha256sum "${REPORT}" | awk '{print $1}')
-CLEAN_LINES=$(wc -l < "${REPORT}")
-echo "pre-drift sha256: ${CLEAN_HASH}"                   | tee -a $TASKLOG
-echo "pre-drift lines:  ${CLEAN_LINES}"                  | tee -a $TASKLOG
-
-# ── Part B: corrupt (simulate drift) ──────────────────────────────────
-echo "═══ Part B: corrupt (simulate drift) ═══"          | tee -a $TASKLOG
-sed -i 's/=== System Report ===/=== DRIFTED REPORT ===/' "${REPORT}"
-echo "post-drift head -3:"                               | tee -a $TASKLOG
-head -3 "${REPORT}"                                      | tee -a $TASKLOG
-DRIFT_HASH=$(sha256sum "${REPORT}" | awk '{print $1}')
-echo "post-drift sha256: ${DRIFT_HASH}"                  | tee -a $TASKLOG
-test "${CLEAN_HASH}" != "${DRIFT_HASH}" \
-    && echo "✅ drift confirmed (hashes differ)"         | tee -a $TASKLOG \
-    || echo "❌ drift not detected (sed -i may not have run)" | tee -a $TASKLOG
-
-# ── Part C: re-run playbook — expect changed=true ─────────────────────
-echo "═══ Part C: re-run playbook (expect changed=1) ═══" | tee -a $TASKLOG
-ansible-playbook "${PB}" 2>&1                            | tee -a $TASKLOG
-echo "correction exit was: $?"                           | tee -a $TASKLOG
-
-# ── Part D: verify file restored ──────────────────────────────────────
-echo "═══ Part D: verify restored ═══"                   | tee -a $TASKLOG
-RESTORED_HASH=$(sha256sum "${REPORT}" | awk '{print $1}')
-RESTORED_LINES=$(wc -l < "${REPORT}")
-echo "restored sha256: ${RESTORED_HASH}"                 | tee -a $TASKLOG
-echo "restored lines:  ${RESTORED_LINES}"                | tee -a $TASKLOG
-test "${RESTORED_HASH}" = "${CLEAN_HASH}" \
-    && echo "✅ restored file is byte-identical to pre-drift" | tee -a $TASKLOG \
-    || echo "❌ restored file differs from pre-drift"         | tee -a $TASKLOG
-test "${RESTORED_LINES}" -eq "${CLEAN_LINES}" \
-    && echo "✅ line count matches"  | tee -a $TASKLOG \
-    || echo "❌ line count differs"  | tee -a $TASKLOG
-
-echo "exit was: $?"
-```
-
-### Human-readable breakdown
-
-1. **Part A — snapshot.** `sha256sum | awk '{print $1}'` extracts the hash only (drops the filename). Stored in `CLEAN_HASH` before any destructive step.
-2. **Part B — corrupt.** `sed -i` edits in-place — no backup unless you use `-i .bak`. The `s/.../.../` substitution is realistic drift: a mis-edit that changed the header text. Two different sha256 hashes prove the corruption actually happened.
-3. **Part C — re-run.** Same playbook, same `content:`. Ansible sha256-checks on-disk vs declared → they differ → `changed=true` → file overwritten with the correct content.
-4. **Part D — verify.** Compare post-restore hash against pre-drift hash. A match proves round-trip byte-fidelity.
-
-### Reading it left to right
-
-```
-test "${RESTORED_HASH}" = "${CLEAN_HASH}" && echo "✅ restored" || echo "❌ drifted"
-│    │                    │              │              │
-│    │                    │              │              └─ fires if hashes differ
-│    │                    │              └─ fires if hashes match
-│    │                    └─ post-restore sha256 variable
-│    └─ pre-drift sha256 variable
-└─ POSIX string equality test
-```
-
-### The story
-
-The drift-correction demo is the real exam-day skill. Exam tasks frequently say "a file was modified; restore its content." With a playbook using `content:`, the restoration is one command: `ansible-playbook task1.yml`. No manual editing. No diffing from memory. The declared `content:` block IS the backup.
-
-T01-C appears here too: if you had used `src: /path/to/template` and that source file was missing, the drift-correction re-run would fail with "file not found" — even though the target `/tmp/lab01b/report.txt` exists. `content:` has no such dependency on a separate source file.
-
-### Expected output
-
-```text
-═══ Part A: snapshot (pre-drift) ═══
-pre-drift sha256: 7d3a8f…
-pre-drift lines:  9
-═══ Part B: corrupt (simulate drift) ═══
-post-drift head -3:
-=== DRIFTED REPORT ===
---- Hostname ---
-rhel9host
-post-drift sha256: a1b2c3…
-✅ drift confirmed (hashes differ)
-═══ Part C: re-run playbook (expect changed=1) ═══
-...
-PLAY RECAP ******* localhost : ok=2  changed=1  unreachable=0  failed=0
-correction exit was: 0
-═══ Part D: verify restored ═══
-restored sha256: 7d3a8f…
-restored lines:  9
-✅ restored file is byte-identical to pre-drift
-✅ line count matches
-exit was: 0
-```
-
-### Switches
-
-| Token                                   | Meaning                                                            |
-|-----------------------------------------|--------------------------------------------------------------------|
-| `sha256sum FILE`                        | Print 256-bit hash + filename                                      |
-| `sha256sum FILE \| awk '{print $1}'`    | Print hash only (drop filename)                                    |
-| `sed -i 's/OLD/NEW/' FILE`              | In-place substitution — modifies the file on disk                  |
-| `test STR1 = STR2`                      | String equality                                                    |
-| `test STR1 != STR2`                     | String inequality                                                  |
-| `PLAY RECAP changed=N`                  | Ansible summary — N=1 means one task wrote to disk                 |
-
-### Concept Card
-
-| Concept | What it does |
-|---|---|
-| Sha256 fingerprint + restore | Pre-drift hash == post-restore hash proves byte-identical recovery |
-| Drift correction | Re-run same playbook; `content:` sha256-checks and overwrites the corrupted file |
-| `sed -i` drift simulation | Realistic in-place corruption without rewriting the whole file |
-| `changed=true` on drifted run | Fires only when on-disk bytes differ from declared content — confirms detection |
-| **🪤 Trap Risk T41** | Skipping the drift-correction re-run means you never tested the `changed=true` path. **Fix:** run both the clean re-run (Task 1 Step 5) and the drifted re-run (Task 2 Part C). |
-
-### 🔁 PERSISTENCE CHECK
-
-| What was configured | Verification command | Why it matters |
-|---|---|---|
-| Drift corrected | `sha256sum /tmp/lab01b/report.txt` matches pre-drift hash | Round-trip byte fidelity |
-| Playbook still present | `test -s /root/rhcsa_journal/lab-01b/playbooks/task1.yml` | Playbook is the reconstruction artifact |
-| `changed=1` on drifted run | PLAY RECAP in `task2.txt` evidence file | Drift detection works |
-| Task 2 journal written | `ls /root/rhcsa_journal/lab-01b/task2/` shows done.txt | Evidence chain complete |
-
-### Journal write
-
-```bash
-LAB=lab-01b
-TASK=task2
-JDIR="/root/rhcsa_journal/${LAB}/${TASK}"
-mkdir -p "$JDIR"
-cp /tmp/lab01b/task2.txt          "$JDIR/evidence.txt"
-cp /tmp/lab01b/report.txt         "$JDIR/report-restored.txt"
-
-cat > "$JDIR/done.txt" <<EOF
-LAB:    ${LAB}
-TASK:   ${TASK}
-DATE:   $(date -Is)
-USER:   $(whoami)@$(hostname)
-STATUS: COMPLETE
-EOF
-
-cat > "$JDIR/notes.txt" <<EOF
-TOPIC:    Drift detection and correction with ansible.builtin.copy content:
-COMMANDS: sha256sum | awk '{print $1}', sed -i 's/OLD/NEW/', ansible-playbook PB, test STR1 = STR2
-TRAPS:    T41 rehearsed (drift-correction re-run done); T01-C/D rehearsed in Task 1
-DRIFT:    sed -i changed header; ansible-playbook detected changed=true and restored
-FIDELITY: post-restore sha256 matches pre-drift sha256 (byte-identical)
-MISSED:   (fill in if any ⚠️ flags)
-NEXT:     lab-01c — Verify trilogy: audit 01a and 01b evidence, destroy-restore drill
-EOF
-
-ls -la "$JDIR"
-echo "exit was: $?"
-```
-
-### Cleanup
-
-```bash
-rm -f /tmp/lab01b/task2.txt
-ls /tmp/lab01b/
-echo "exit was: $?"
-```
-
-### Troubleshoot
-
-| Symptom | Fix |
-|---|---|
-| Part B: hash unchanged after `sed -i` | The sed pattern didn't match — `head -1 report.txt` still shows `=== System Report ===`. Check for extra spaces in the sed pattern |
-| Part D: `❌ restored file differs` | A Jinja2 fact changed between runs (e.g., `ansible_uptime_seconds` if you used it). Use stable facts only (hostname, distribution, kernel, architecture) |
-| Part C: `changed=0` despite corruption | Ansible used a cached copy — this shouldn't happen; re-check that `sed -i` actually modified the file with `sha256sum` |
-| `PLAY RECAP failed=1` | Ansible module error; read the output above the RECAP |
-
-> **STOP — paste the Part D `✅ restored file is byte-identical` and `✅ line count matches` lines before the Trilogy Completion Check.**
+Every audit row must say `(OK)`.
 
 ---
 
-## Trilogy Completion Check
+### Drill (run AFTER cleanup audit shows all OK)
 
 ```bash
-find /root/rhcsa_journal/lab-01{a,b,c} -name done.txt 2>/dev/null | sort
-# Expect 6 paths:
-# /root/rhcsa_journal/lab-01a/task1/done.txt
-# /root/rhcsa_journal/lab-01a/task2/done.txt
-# /root/rhcsa_journal/lab-01b/task1/done.txt
-# /root/rhcsa_journal/lab-01b/task2/done.txt
-# /root/rhcsa_journal/lab-01c/task1/done.txt
-# /root/rhcsa_journal/lab-01c/task2/done.txt
+python3 ~/scripts/rhcsa_drill.py --category io
+python3 ~/scripts/rhcsa_drill.py --category ansible
 ```
 
-> **6 paths = Lab 01 trilogy complete.** Fewer than 6 means at least one task's journal write was skipped — find the missing one and finish it before moving on.
+Paste both scores. If either is <80%, drill again before starting
+lab-01c.
 
 ---
 
-## Lab 01b Checklist (2 tasks)
+### Rotation tracker (no change for the b-lab)
 
-- [ ] Lab-Wide Setup — `/tmp/lab01b` and `/root/rhcsa_journal/lab-01b/playbooks/` created
-- [ ] Task 1 — Playbook written; `--check --diff` dry-run captured; apply `changed=1`; re-apply `changed=0`; `stat` shows `root:root 644`
-- [ ] Task 2 — Pre-drift sha256 captured; `sed -i` drift confirmed (hashes differ); re-run `changed=1`; post-restore sha256 matches pre-drift
+```bash
+cat /root/rhcsa_journal/dir_rotation.txt
+```
 
----
+The directory rotation only advances at the end of the c-lab (when
+the trilogy is complete). For now `last_used=01` should still be the
+last value.
 
-## Related Labs
-
-| Lab | Connection |
-|---|---|
-| **Lab 01a** — Stdout Redirection RHCSA | The shell-side task this mirrors in Ansible |
-| **Lab 01c** — Stdout Verify | Audits 01a + 01b evidence; runs the destroy-restore drill |
-| **Lab 02b** — Stderr Redirection Ansible | Next b-lab — `ansible.builtin.shell` with `register:` and `stderr_lines` |
-| **Lab 13b** — Aliases Ansible | Template b-lab — `ansible.builtin.blockinfile` vs `content:` |
-
----
-
-## Author
-
-**Kelvin R. Tobias**
-[kelvinintech.com](https://kelvinintech.com) · [GitHub](https://github.com/kelvintechnical) · [LinkedIn](https://www.linkedin.com/in/kelvin-r-tobias-211949219)
+**STOP — lab-01b complete.** Begin lab-01c only after both drill
+scores are pasted. lab-01c is the verification capstone: Task 1
+audits the artifacts the trilogy produced; Task 2 is the
+destroy-restore drill that proves persistence reasoning end-to-end.
