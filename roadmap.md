@@ -119,7 +119,7 @@ Foundation → advanced. Each step locks in prerequisites for the next. Mirrors 
 
 | # | Status | ID / # | Full Lab Name | Key Commands / Focus |
 |---|---|---|---|---|
-| 1 | not completed | 01 | Standard Output Redirection | `>`, `>>`, `cat` — direct stdout into a new file or append |
+| 1 | 01a: complete<br>01b: in progress<br>01c: not started | 01 | Standard Output Redirection | `>`, `>>`, `cat` — direct stdout into a new file or append |
 | 2 | not completed | 02 | Standard Error Redirection | `2>`, `2>/dev/null` — capture or discard the error stream |
 | 3 | not completed | 03 | Pipe Text Streams | `\|`, `less`, `grep`, `tee`, `wc -l` — chain commands stdout→stdin |
 | 4 | not completed | 04 | Capture Both Output and Error | `&>`, `2>&1` — combine stdout + stderr into one stream |
@@ -969,7 +969,7 @@ Foundation → advanced. Each step locks in prerequisites for the next. Mirrors 
 
 | Status | # | Lab | Full Path |
 |---|---|---|---|
-| not completed | 01 | Standard Output Redirection | [01a RHCSA](LABS/lab-01a-stdout-redirection-rhcsa/) · [01b Ansible](LABS/lab-01b-stdout-redirection-ansible/) · [01c Verify](LABS/lab-01c-stdout-redirection-verify/) |
+| 01a: complete<br>01b: in progress<br>01c: not started | 01 | Standard Output Redirection | [01a RHCSA](LABS/lab-01a-stdout-redirection-rhcsa/) · [01b Ansible](LABS/lab-01b-stdout-redirection-ansible/) · [01c Verify](LABS/lab-01c-stdout-redirection-verify/) |
 | not completed | 02 | Standard Error Redirection | [02a RHCSA](LABS/lab-02a-stderr-redirection-rhcsa/) · [02b Ansible](LABS/lab-02b-stderr-redirection-ansible/) · [02c Verify](LABS/lab-02c-stderr-redirection-verify/) |
 | not completed | 03 | Pipe Text Streams | [03a RHCSA](LABS/lab-03a-pipe-text-streams-rhcsa/) · [03b Ansible](LABS/lab-03b-pipe-text-streams-ansible/) · [03c Verify](LABS/lab-03c-pipe-text-streams-verify/) |
 | not completed | 04 | Capture Both Output and Error | [04a RHCSA](LABS/lab-04a-capture-both-output-error-rhcsa/) · [04b Ansible](LABS/lab-04b-capture-both-output-error-ansible/) · [04c Verify](LABS/lab-04c-capture-both-output-error-verify/) |
