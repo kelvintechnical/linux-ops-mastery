@@ -1,0 +1,36 @@
+---
+# Lab 18b Task 2 — capture package documentation
+#
+# Run (twice, to prove idempotence of the saved list):
+#   ansible-playbook /root/rhcsa_journal/lab-18b/playbooks/task2.yml
+#   ansible-playbook /root/rhcsa_journal/lab-18b/playbooks/task2.yml
+#
+# Expected: the rpm -qd command is read-only (changed_when: false); the saved
+# doc list converges to changed=0 on the second run.
+
+- name: "Lab 18b Task 2 — capture package documentation"
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars:
+    pkg: coreutils
+    out: /tmp/lab-18/coreutils-docs.txt
+
+  tasks:
+    - name: "List the package's documentation files (read-only)"
+      ansible.builtin.command: "rpm -qd {{ pkg }}"
+      register: docs
+      changed_when: false
+
+    - name: "Save the doc list"
+      ansible.builtin.copy:
+        dest: "{{ out }}"
+        content: "{{ docs.stdout }}\n"
+        mode: '0644'
+      register: save_result
+
+    - name: "Show count and changed"
+      ansible.builtin.debug:
+        msg:
+          - "doc files: {{ docs.stdout_lines | length }}"
+          - "changed: {{ save_result.changed }}"

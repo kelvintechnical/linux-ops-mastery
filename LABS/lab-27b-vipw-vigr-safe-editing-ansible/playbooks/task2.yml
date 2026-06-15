@@ -1,0 +1,37 @@
+---
+# Lab 27b Task 2 — manage a user
+#
+# Run (twice, to prove idempotence):
+#   ansible-playbook /root/rhcsa_journal/lab-27b/playbooks/task2.yml
+#   ansible-playbook /root/rhcsa_journal/lab-27b/playbooks/task2.yml
+#
+# SYSTEM-STATE: creates the labtest user in labtest99. The user module is the
+# automation equivalent of vipw/useradd: locked, shadow-synced, idempotent.
+# Run task1.yml first (the group must exist). Remove with Teardown (userdel).
+
+- name: "Lab 27b Task 2 — manage a user"
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  become: true
+
+  tasks:
+    - name: "Ensure the labtest user exists in labtest99"
+      ansible.builtin.user:
+        name: labtest
+        group: labtest99
+        shell: /sbin/nologin
+        create_home: false
+        state: present
+      register: usr_result
+
+    - name: "Verify the user via getent (read-only)"
+      ansible.builtin.command: "getent passwd labtest"
+      register: ent
+      changed_when: false
+
+    - name: "Show the account and change status"
+      ansible.builtin.debug:
+        msg:
+          - "changed: {{ usr_result.changed }}"
+          - "passwd entry: {{ ent.stdout }}"

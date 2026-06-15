@@ -1,0 +1,21 @@
+---
+- name: "Lab 38b Task 2 — verify generated resolv.conf"
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  tasks:
+    - name: "Read the generated resolver config"
+      ansible.builtin.command: "cat /etc/resolv.conf"
+      register: rc
+      changed_when: false
+
+    - name: "Show the resolver config"
+      ansible.builtin.debug:
+        var: rc.stdout_lines
+
+    - name: "Assert our DNS server is present"
+      ansible.builtin.assert:
+        that:
+          - "rc.stdout_lines | select('search', 'nameserver 10.88.88.53') | list | length > 0"
+        success_msg: "nameserver 10.88.88.53 present in resolv.conf"
+        fail_msg: "expected nameserver missing — did NM regenerate the file?"

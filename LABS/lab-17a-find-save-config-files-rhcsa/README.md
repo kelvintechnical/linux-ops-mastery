@@ -1,412 +1,332 @@
-# Lab 17a: Find and Save Config Files (RHCSA) — `find -type f -name -user 2>/dev/null`
+# Lab 17a: Find and Save Config Files (RHCSA) — `find`, `2>/dev/null`
 
-- **Series:** linux-ops-mastery — Filesystem Search and Evidence Capture
-- **Trilogy:** `17a` (RHCSA hand-typed) → [`17b`](../lab-17b-find-save-config-files-ansible/) (Ansible FQCN) → [`17c`](../lab-17c-find-save-config-files-verify/) (Verify capstone)
-- **Time Estimate:** 30–40 minutes
-- **Tasks:** 2 (Task 1 canonical `/etc` search + save · Task 2 noisy `/` search with ownership filter)
-- **Practice Directory (rotation #03):** `/lib`
-- **Sandbox (Tier B):** `/tmp/lab17a`, `USER=labuser_17_findsave`, `GROUP=labgrp_17_findsave`, `USER_HOME=/tmp/lab17a/home_labuser_17_findsave`
-- **Traps rehearsed:** **T14-A** (forgetting `2>/dev/null` on `find /`) · **T14-B** (`-name` vs `-iname`) · **T41** (skip reboot/persistence reasoning) · **T44** (skip cleanup audit)
-
-> **This lab's practice directory is: `/lib`**. It holds shared libraries required by `/bin` and `/sbin`; without it, user and admin binaries cannot run.
+**Series:** linux-ops-mastery — Text Processing & Filters · **Lab 17a of the Novice → RHCA path**  
+**Certifications covered:** RHCSA EX200 (locating files by name/type/owner and saving the list), RHCE EX294 (the `find` module behind it), SRE/DevOps (config inventory, audits)  
+**Prerequisite:** [Lab 16c](../lab-16c-grep-search-save-output-verify/) completed  
+**Time Estimate:** 20–30 minutes  
+**Difficulty:** Beginner
 
 ---
 
-## LAB HEADER BLOCK
+## 🎯 Today's Focus Coverage
 
-```bash
-echo "🖥️  ENV:   ${ENV:-DECLARE_ME}"
-echo "💿  DISK:  $(lsblk 2>/dev/null | awk '$NF=="disk"{print "/dev/"$1}' | paste -sd, -)"
-echo "🌐  NIC:   $(ip -o addr show 2>/dev/null | awk '$2!="lo"{print $2}' | sort -u | paste -sd, -)"
-echo "🔐  SE:    $(getenforce 2>/dev/null || echo n/a)"
-echo "📦  OS:    $(cat /etc/redhat-release 2>/dev/null || grep PRETTY_NAME /etc/os-release)"
-echo "🕒  TIME:  $(date -Is)"
-echo "👤  USER:  $(whoami)@$(hostname)"
-echo "⚠️  TRAP REMINDERS THIS LAB: T14-A T14-B T41 T44"
-echo "📁  PRACTICE DIR: /lib"
-ls -ld /lib
-```
+> Stay on-subject via the ANCHOR rows; expand vocabulary via the NEW rows. Every row is exercised by a STEP below.
 
-> **STOP — paste header output before setup.**
+**⚓ Anchor — already learned (on-topic reuse)**
 
----
-
-## Objective
-
-Build exam reflexes for file discovery and safe capture:
-
-1. Use `find /etc -type f -name '*.conf' 2>/dev/null > FILE` correctly.
-2. Use ownership filters (`-user root`) while searching broad trees.
-3. Treat permission-denied spam as expected noise and redirect stderr.
-4. Save clean evidence files for later verification.
-
----
-
-## Lab-Wide Setup — Tier B Sandbox Stack
-
-```bash
-sudo -i
-
-export LAB_NUM=17
-export LAB_SLUG=findsave
-export SANDBOX=/tmp/lab17a
-export GROUP=labgrp_17_findsave
-export USER=labuser_17_findsave
-export USER_HOME=${SANDBOX}/home_${USER}
-
-mkdir -p "${SANDBOX}" "${USER_HOME}"
-getent group  "${GROUP}" >/dev/null || groupadd "${GROUP}"
-getent passwd "${USER}"  >/dev/null || useradd -d "${USER_HOME}" -M -s /bin/bash -g "${GROUP}" "${USER}"
-chown -R "${USER}:${GROUP}" "${SANDBOX}"
-
-cat > "${SANDBOX}/THIS_DIRECTORY.txt" <<'EOF'
-/lib stores shared libraries needed by system binaries in /bin and /sbin.
-It exists so executables can stay small and dynamically link required code.
-You find .so and loader files here (or under /usr/lib via symlink layouts).
-For RHCSA, knowing /lib matters because command execution itself depends on it.
-EOF
-
-id "${USER}"
-ls -ld "${SANDBOX}" "${USER_HOME}" /lib
-echo "Sandbox built by $(whoami) at $(date -Is)"
-echo "exit was: $?"
-```
-
-> **STOP — paste `id`, `ls -ld`, and `THIS_DIRECTORY.txt` output before Task 1.**
-
----
-
-## Task 1 — Canonical `/etc` config-file capture
-
-**Practice directory this task:** `/lib` — we still search `/etc`, but we reference `/lib` for rotation discipline and context checks.
-
-### Warm-Up
-
-```bash
-ls -ld /lib
-find /lib -maxdepth 1 -type f 2>/dev/null | head -n 3
-echo "warmup-user=$(whoami) time=$(date -Is)" | tee /tmp/lab17a/warmup1.txt
-echo "Warm-up done by $(whoami) at $(date -Is)"
-echo "exit was: $?"
-```
-
-### Purpose
-
-Run the exact RHCSA-style search for config files under `/etc`, save stdout to a list file, and execute the search as the lab user with `sudo -u` so Tier B user/group mechanics are exercised inside the task.
-
-### WEAVE TRACE
-
-| Warm-up / setup command | Role inside Task 1 |
-|---|---|
-| `ls -ld /lib` | Proves the rotated practice directory is available before work begins |
-| `find /lib ...` | Rehearses `find -type f` syntax before target command |
-| `tee` | Captures proof output while still showing terminal lines |
-| `sudo -u "${USER}"` | Executes the actual `find` as lab user for Tier B repetition |
-
-### Main command block
-
-```bash
-LIST1=/tmp/lab17a/etc-conf-list.txt
-LOG1=/tmp/lab17a/task1.log
-
-sudo -u "${USER}" bash -c "find /etc -type f -name '*.conf' 2>/dev/null > '${LIST1}'"
-
-wc -l "${LIST1}"                           2>&1 | tee "${LOG1}"
-head -n 10 "${LIST1}"                      2>&1 | tee -a "${LOG1}"
-test -s "${LIST1}" && echo "list has data" | tee -a "${LOG1}"
-stat -c '%U:%G %a %n' "${LIST1}"          | tee -a "${LOG1}"
-ls -ld /lib                                | tee -a "${LOG1}"
-
-echo "exit was: $?"
-```
-
-### Human-Readable Breakdown
-
-- `find /etc -type f -name '*.conf'` narrows results to regular files ending in `.conf`.
-- `2>/dev/null` drops permission errors from stderr so only valid paths remain in the list file.
-- `sudo -u "${USER}"` forces the command to run as the Tier B lab user.
-- `wc -l`, `head`, and `stat` verify count, sample contents, and ownership.
-
-### Reading it left to right
-
-```text
-find /etc -type f -name '*.conf' 2>/dev/null > /tmp/lab17a/etc-conf-list.txt
-│    │    │       │             │            └─ save stdout list
-│    │    │       │             └─ hide permission-noise stderr
-│    │    │       └─ filename glob match
-│    │    └─ regular files only
-│    └─ search root for configs
-└─ command
-```
-
-### The story
-
-On the exam, "save all matching files" is a speed test of `find` precision. The grader wants clean paths, not pages of permission denials. Redirecting stderr to `/dev/null` keeps evidence deterministic and readable.
-
-### Expected output
-
-```text
-N /tmp/lab17a/etc-conf-list.txt
-/etc/...
-/etc/...
-list has data
-labuser_17_findsave:labgrp_17_findsave 644 /tmp/lab17a/etc-conf-list.txt
-```
-
-### Switches
-
-| Token | Meaning |
-|---|---|
-| `-type f` | Match regular files only |
-| `-name '*.conf'` | Case-sensitive filename glob |
-| `2>/dev/null` | Discard stderr (permission noise) |
-| `sudo -u USER` | Run command as specific user |
-| `wc -l` | Count lines |
-
-### Concept Card
-
-| ✅ | Concept | What it does |
+| # | Command / switch | Covered by |
 |---|---|---|
-| ✅ | `find` filters | Narrows search by type and name pattern |
-| ✅ | stderr redirect | Keeps list file clean from errors |
-| ✅ | Tier B `sudo -u` | Makes user/group practice part of real task |
-| ✅ | Save then inspect | `> file` capture plus `head`/`wc` validation |
-| 🪤 Trap Risk | **T14-A:** forgetting `2>/dev/null` | Always add stderr redirect for broad searches |
+| A1 | `find` | _Task 1 · Step 1_ |
+| A2 | `>` (save list) | _Task 1 · Step 2_ |
 
-### 🔁 PERSISTENCE CHECK
+**🆕 NEW this lab — introduced for the first time** (minimum 3)
 
-| What was configured | Verification command | Why it matters |
+| # | Command / switch | First taught in | Covered by |
+|---|---|---|---|
+| N1 | `find -type f` / `-name` | Task 1 · Step 1 | _Task 1 · Step 1_ |
+| N2 | `2>/dev/null` | Task 1 · Step 2 | _Task 1 · Step 2_ |
+| N3 | `find -user` / `-perm` | Task 2 · Step 1 | _Task 2 · Step 1_ |
+| N4 | `find -name '*.conf' -o -name` | Task 2 · Step 2 | _Task 2 · Step 2_ |
+
+---
+
+## 🎯 Objective
+
+Build a clean inventory of config files. You will locate files by name and type with `find`, silence permission-denied noise with `2>/dev/null`, save the list with `>`, then filter by owner and combine name patterns with `-o`. The result is the exact "find all the `.conf` files owned by X and save the paths" task the exam loves.
+
+---
+
+## 🧠 Concept
+
+`find PATH PREDICATE...` walks a tree testing each entry. `-type f` keeps regular files, `-name '*.conf'` matches by glob (quote it so the shell does not expand it first), `-user NAME` filters by owner, `-perm` by mode. When searching system trees as a non-root user you hit "Permission denied" lines on stderr — `2>/dev/null` discards those so your saved list stays clean (this is the one place redirecting stderr is routine). Combine predicates with `-o` (OR) and parentheses for complex filters.
+
+```
+find /etc -type f -name '*.conf'        → every .conf file
+find / -user alice 2>/dev/null          → alice's files, no noise
+find /etc \( -name '*.conf' -o -name '*.cfg' \)  → either extension
+find . -type f > list.txt               → save the inventory
+```
+
+> **Why this matters:** Auditing "which config files exist / who owns them" is core sysadmin work. `2>/dev/null` is what keeps the saved evidence readable instead of buried in permission errors.
+
+---
+
+## 📚 Command Reference
+
+| Command | Purpose | Critical flags |
 |---|---|---|
-| Saved list file | `test -s /tmp/lab17a/etc-conf-list.txt` | Confirms capture happened |
-| Correct owner/group | `stat -c '%U:%G' /tmp/lab17a/etc-conf-list.txt` | Confirms `sudo -u` was real |
-| Search syntax retained | `head -n 3 /tmp/lab17a/etc-conf-list.txt` | Confirms expected file-type output |
-
-### Journal write
-
-```bash
-JDIR=/root/rhcsa_journal/lab-17a/task1
-mkdir -p "${JDIR}"
-cp "${LIST1}" "${JDIR}/etc-conf-list.txt"
-cp "${LOG1}"  "${JDIR}/evidence.txt"
-echo "LAB: lab-17a TASK: task1 DATE: $(date -Is) STATUS: COMPLETE" > "${JDIR}/done.txt"
-echo "TOPIC: find /etc -type f -name '*.conf' 2>/dev/null with sudo -u ${USER}" > "${JDIR}/notes.txt"
-```
-
-### 🧹 Cleanup (per-task)
-
-```bash
-rm -f /tmp/lab17a/warmup1.txt /tmp/lab17a/task1.log
-echo "exit was: $?"
-```
-
-### Troubleshoot
-
-| Symptom | Fix |
-|---|---|
-| `Permission denied` spam appears | You missed `2>/dev/null`; add it after `find` |
-| Empty list file | Verify pattern and quoting: `-name '*.conf'` |
-| Wrong owner on list | Run command through `sudo -u "${USER}"` |
-
-> **STOP — paste `wc -l`, `head`, and `stat` output before Task 2.**
+| `find` | Walk a tree and test entries | predicates AND by default |
+| `-type f` / `-name` | Match regular files / by glob | quote the glob: `-name '*.conf'` |
+| `-user` / `-perm` | Filter by owner / mode | `-perm -640` = at least these bits |
+| `2>/dev/null` | Discard permission-denied noise | stderr only; stdout still saved |
+| `-o` + `\( \)` | OR and grouping | escape parens in the shell |
 
 ---
 
-## Task 2 — Broad root-owned search from `/` with noise control
+## 🧰 LAB-WIDE SETUP
 
-**Practice directory this task:** `/lib` — use it again for rotation continuity while main search spans `/`.
+**In plain English:** Build a sandbox tree of mixed config files with different owners and extensions.
 
-### Warm-Up
+> Run this block **once** before Task 1. It defines a single sandbox root
+> (`LAB_ROOT`) that every file in this lab lives under, so the Teardown
+> section can wipe it in one safe command.
 
 ```bash
-ls -ld /lib
-find /lib -maxdepth 2 -type f -name '*.so*' 2>/dev/null | head -n 5
-echo "prep task2 $(date -Is)" | tee /tmp/lab17a/warmup2.txt
-echo "Warm-up done by $(whoami) at $(date -Is)"
+export LAB_ROOT=/tmp/lab-17
+mkdir -p "$LAB_ROOT/etc/app" "$LAB_ROOT/etc/svc"
+cd "$LAB_ROOT"
+echo a > etc/app/app.conf
+echo b > etc/svc/svc.conf
+echo c > etc/svc/notes.txt
+echo d > etc/app/legacy.cfg
+ls -R "$LAB_ROOT/etc"
 echo "exit was: $?"
 ```
 
-### Purpose
+**Expected output:**
 
-Search from filesystem root for root-owned config-like files while suppressing expected permission errors. Contrast `-name` and `-iname` to avoid case trap T14-B.
+```
+/tmp/lab-17/etc:
+app
+svc
 
-### WEAVE TRACE
+/tmp/lab-17/etc/app:
+app.conf
+legacy.cfg
+...
+exit was: 0
+```
 
-| Warm-up / setup command | Role inside Task 2 |
-|---|---|
-| `find /lib ...` | Reuses `find` token order before broad `/` run |
-| `head -n` | Samples huge result sets safely |
-| `tee` | Captures evidence for verification/journal |
-| `ls -ld /lib` | Keeps required practice-dir references in-task |
+---
 
-### Main command block
+## TASK 1 of 2 — Find by name and type, save the list
+
+**In plain English:** We find regular `.conf` files and save the paths, silencing any permission noise.
+
+---
+
+### Step 1 of 2 — Find `.conf` regular files
+
+**In plain English:** We list every regular file ending in `.conf` under the sandbox.
 
 ```bash
-LIST2=/tmp/lab17a/root-owned-conf-from-root.txt
-LOG2=/tmp/lab17a/task2.log
-
-find / -type f -name '*.conf' -user root 2>/dev/null > "${LIST2}"
-
-echo "case-sensitive count:"                     | tee "${LOG2}"
-wc -l "${LIST2}"                                | tee -a "${LOG2}"
-head -n 15 "${LIST2}"                           | tee -a "${LOG2}"
-
-echo "case-insensitive sample for trap T14-B:"  | tee -a "${LOG2}"
-find /etc -type f -iname '*.conf' 2>/dev/null | head -n 10 | tee -a "${LOG2}"
-
-test -s "${LIST2}" && echo "root-owned list captured" | tee -a "${LOG2}"
-ls -ld /lib                                     | tee -a "${LOG2}"
-stat -c '%U:%G %a %n' "${LIST2}"               | tee -a "${LOG2}"
-
+cd "$LAB_ROOT"
+find etc -type f -name '*.conf'
 echo "exit was: $?"
 ```
 
-### Human-Readable Breakdown
+**Expected output:**
 
-- `find / ... -user root` performs ownership-filtered discovery across the whole filesystem.
-- `2>/dev/null` is mandatory because `/` traversal always touches protected paths.
-- `-name` is case-sensitive; `-iname` is case-insensitive and can change result count.
-- `head` prevents dumping thousands of lines.
-
-### Reading it left to right
-
-```text
-find / -type f -name '*.conf' -user root 2>/dev/null > /tmp/lab17a/root-owned-conf-from-root.txt
-│   │  │       │             │          │            └─ clean path list
-│   │  │       │             │          └─ hide permission errors
-│   │  │       │             └─ owner filter
-│   │  │       └─ case-sensitive name match
-│   │  └─ files only
-│   └─ search from root
-└─ command
+```
+etc/app/app.conf
+etc/svc/svc.conf
+exit was: 0
 ```
 
-### The story
+**Line-by-line breakdown:**
 
-Real incident triage often starts with "show me all root-owned configs matching this pattern." Running `find /` without stderr control floods output and hides actual results. This task builds the habit of producing clean evidence on the first run.
+- `find etc -type f -name '*.conf'` → Walk `etc`, keep only regular files (`-type f`) whose name matches `*.conf`; the quotes stop the shell from globbing.
 
-### Expected output
+**New words in this step:**
 
-```text
-case-sensitive count:
-N /tmp/lab17a/root-owned-conf-from-root.txt
-/etc/...
-/etc/...
-case-insensitive sample for trap T14-B:
-/etc/...
-root-owned list captured
+- **predicate** — a `find` test like `-type` or `-name` that an entry must satisfy.
+
+---
+
+### Step 2 of 2 — Silence noise with `2>/dev/null` and save
+
+**In plain English:** We search a broader tree, throw away permission errors, and save the clean list to a file.
+
+```bash
+cd "$LAB_ROOT"
+find / -type f -name 'svc.conf' 2>/dev/null | tee found.txt
+cat found.txt
+echo "exit was: $?"
 ```
 
-### Switches
+**Expected output:**
 
-| Token | Meaning |
-|---|---|
-| `-user root` | Match files owned by root |
-| `-name` | Case-sensitive pattern match |
-| `-iname` | Case-insensitive pattern match |
-| `2>/dev/null` | Silence permission-denied stderr |
-| `head -n` | Show first N lines |
+```
+/tmp/lab-17/etc/svc/svc.conf
+/tmp/lab-17/etc/svc/svc.conf
+exit was: 0
+```
 
-### Concept Card
+**Line-by-line breakdown:**
 
-| ✅ | Concept | What it does |
+- `find / -type f -name 'svc.conf' 2>/dev/null` → Search from `/`; `2>/dev/null` discards the "Permission denied" lines on stderr so only real hits remain.
+- `| tee found.txt` → Save the clean list while showing it.
+
+**New words in this step:**
+
+- **`2>/dev/null`** — redirect stderr (file descriptor 2) to the bit bucket, discarding error noise.
+
+---
+
+### Concept card (Task 1)
+
+| Concept | What it does | Exam trap |
 |---|---|---|
-| ✅ | Root-scope search | `find /` covers all mounted trees |
-| ✅ | Owner filtering | `-user root` limits scope to owned files |
-| ✅ | Case sensitivity | `-name` and `-iname` produce different sets |
-| ✅ | Output hygiene | `2>/dev/null` keeps evidence useful |
-| 🪤 Trap Risk | **T14-B:** wrong case mode | Pick `-name` or `-iname` deliberately |
+| `-type f` | regular files only | omitting it includes dirs/links |
+| quoted `-name` | glob match | unquoted globs expand in the shell |
+| `2>/dev/null` | drop stderr | hides real errors too — use deliberately |
 
-### 🔁 PERSISTENCE CHECK
+---
 
-| What was configured | Verification command | Why it matters |
+### Troubleshoot (Task 1)
+
+| Symptom | Likely cause | Fix |
 |---|---|---|
-| Saved root-owned list | `test -s /tmp/lab17a/root-owned-conf-from-root.txt` | Confirms broad search succeeded |
-| Noise suppressed | `wc -l /tmp/lab17a/task2.log` | Shows readable evidence log exists |
-| Case trap rehearsed | `grep -c '\-iname' /tmp/lab17a/task2.log` | Proves contrast was executed |
+| Glob expanded unexpectedly | `-name *.conf` unquoted | Quote it: `-name '*.conf'` |
+| List polluted with errors | stderr not redirected | Append `2>/dev/null` |
 
-### Journal write
+---
 
-```bash
-JDIR=/root/rhcsa_journal/lab-17a/task2
-mkdir -p "${JDIR}"
-cp "${LIST2}" "${JDIR}/root-owned-conf-from-root.txt"
-cp "${LOG2}"  "${JDIR}/evidence.txt"
-echo "LAB: lab-17a TASK: task2 DATE: $(date -Is) STATUS: COMPLETE" > "${JDIR}/done.txt"
-echo "TOPIC: find / -type f -name '*.conf' -user root 2>/dev/null with -name/-iname trap contrast" > "${JDIR}/notes.txt"
-```
+## TASK 2 of 2 — Filter by owner and combine patterns
 
-### 🧹 Cleanup (per-task; final teardown runs in Lab Closeout)
+**In plain English:** We narrow the search by owner, then match multiple extensions with `-o`.
+
+---
+
+### Step 1 of 2 — Filter by owner with `-user`
+
+**In plain English:** We list regular files owned by root under the tree.
 
 ```bash
-rm -f /tmp/lab17a/warmup2.txt
+cd "$LAB_ROOT"
+find etc -type f -user root
 echo "exit was: $?"
 ```
 
-### Troubleshoot
+**Expected output:**
 
-| Symptom | Fix |
-|---|---|
-| Command hangs visually | It is traversing `/`; wait, then sample with `head` |
-| Output polluted with errors | `2>/dev/null` missing or misplaced |
-| Too many or too few matches | Check `-name` vs `-iname` and quote glob |
+```
+etc/app/app.conf
+etc/svc/svc.conf
+etc/svc/notes.txt
+etc/app/legacy.cfg
+exit was: 0
+```
 
-> **STOP — paste `wc -l`, `head`, and trap contrast output before closeout.**
+**Line-by-line breakdown:**
+
+- `find etc -type f -user root` → Keep regular files owned by `root`; predicates AND together, so both `-type f` and `-user root` must hold.
+
+**New words in this step:**
+
+- **`find -user`** — filter entries by owning user (by name or UID).
 
 ---
 
-## Section 6 Closeout — Bulletproof Teardown Audit
+### Step 2 of 2 — Combine extensions with `-o`
+
+**In plain English:** We match files ending in either `.conf` or `.cfg` and save the combined list.
 
 ```bash
-set +e
-
-# 1) Container layer (guarded no-op here)
-podman ps -aq --filter "name=^${CTR}$" 2>/dev/null | xargs -r podman rm -f >/dev/null 2>&1
-
-# 2) Mount layer
-awk -v s="${SANDBOX}" '$2 ~ s {print $2}' /proc/mounts | tac | xargs -r -n1 umount -l 2>/dev/null
-
-# 3) LVM layer (guarded no-op here)
-if vgs "${VG}" >/dev/null 2>&1; then
-    lvremove -fy "${VG}" 2>/dev/null
-    vgremove -fy "${VG}" 2>/dev/null
-    pvremove -ffy /dev/loop* 2>/dev/null
-fi
-
-# 4) Loopback layer
-losetup -j "${SANDBOX}/disk.img" 2>/dev/null | cut -d: -f1 | xargs -r losetup -d 2>/dev/null
-
-# 5) User/group
-if getent passwd "${USER}" >/dev/null 2>&1; then userdel -r "${USER}" 2>/dev/null; fi
-if getent group "${GROUP}" >/dev/null 2>&1; then groupdel "${GROUP}" 2>/dev/null; fi
-
-# 6) Sandbox
-rm -rf "${SANDBOX}"
-
-# 7) Audit
-echo "── cleanup audit ──"
-getent passwd "${USER}" && echo "❌ user remains" || echo "✅ user gone"
-getent group "${GROUP}" && echo "❌ group remains" || echo "✅ group gone"
-vgs "${VG}" 2>/dev/null && echo "❌ VG remains" || echo "✅ vg gone"
-losetup -l | grep -q "${SANDBOX}" && echo "❌ loop remains" || echo "✅ loop gone"
-podman ps -a --filter "name=^${CTR}$" --format '{{.Names}}' | grep -q . && echo "❌ ctr remains" || echo "✅ ctr gone"
-test -d "${SANDBOX}" && echo "❌ sandbox remains" || echo "✅ sandbox gone"
-
-set -e
-echo "Cleanup complete by $(whoami) at $(date -Is)"
+cd "$LAB_ROOT"
+find etc -type f \( -name '*.conf' -o -name '*.cfg' \) > configs.txt
+cat configs.txt
 echo "exit was: $?"
+```
+
+**Expected output:**
+
+```
+etc/app/app.conf
+etc/svc/svc.conf
+etc/app/legacy.cfg
+exit was: 0
+```
+
+**Line-by-line breakdown:**
+
+- `find etc -type f \( -name '*.conf' -o -name '*.cfg' \)` → Group the OR with escaped parentheses so `-type f` applies to both; matches either extension.
+- `> configs.txt` → Save the combined inventory.
+
+**New words in this step:**
+
+- **`-o`** — the OR operator in `find`; group with `\( \)` to control precedence.
+
+---
+
+### Concept card (Task 2)
+
+| Concept | What it does | Exam trap |
+|---|---|---|
+| `-user` | owner filter | UID vs name both accepted |
+| `-o` + `\( \)` | OR with grouping | unescaped parens are shell syntax |
+| AND default | predicates combine with AND | order matters for `-o` precedence |
+
+---
+
+### Troubleshoot (Task 2)
+
+| Symptom | Likely cause | Fix |
+|---|---|---|
+| `-o` matches too much | Missing grouping | Wrap in `\( ... \)` |
+| `paren` syntax error | Unescaped parentheses | Escape: `\(` `\)` |
+
+---
+
+## ✅ Lab Checklist
+
+- [ ] Task 1 · Step 1 — Find `.conf` regular files
+- [ ] Task 1 · Step 2 — Silence noise with `2>/dev/null` and save
+- [ ] Task 2 · Step 1 — Filter by owner with `-user`
+- [ ] Task 2 · Step 2 — Combine extensions with `-o`
+- [ ] Every 🎯 Focus Coverage row (Anchor + NEW) mapped to a step
+- [ ] 🧹 Teardown run — sandbox + any system state removed
+
+---
+
+## 🧹 Teardown
+
+**In plain English:** Delete everything this lab created so the box is clean for the next run.
+
+> Run this after you've verified the lab. `lab_teardown.sh` safely removes the single sandbox root — it refuses to touch `/`, `$HOME`, or any protected path. This lab changed **no** system state.
+
+```bash
+cd /tmp
+bash lab_teardown.sh "$LAB_ROOT"     # = /tmp/lab-17
+```
+
+**Expected output:**
+
+```
+✅ Removed /tmp/lab-17 — lab workspace is clean.
 ```
 
 ---
 
-## Lab 17a Checklist
+## ⚠️ Common Pitfalls
 
-- [ ] Tier B setup complete with `/tmp/lab17a/THIS_DIRECTORY.txt`
-- [ ] Task 1 captured `/etc` `.conf` list with `2>/dev/null` and `sudo -u ${USER}`
-- [ ] Task 2 captured root-owned list from `/` with noise suppression and `-name/-iname` contrast
-- [ ] Section 6 closeout shows all ✅ audit lines
+| Mistake | Symptom | Fix |
+|---|---|---|
+| Unquoted globs | Shell expands before find | Quote `-name` patterns |
+| `2>/dev/null` hiding real errors | Missed a genuine problem | Use it only to drop permission noise |
+| Forgetting `-type f` | Directories in the list | Add `-type f` |
 
 ---
 
-## Author
+## 📌 Exam Strategy
 
-**Kelvin R. Tobias**
+"Find all files matching X and save the list to /path" is a stock task. Build it predicate by predicate: `-type f`, `-name`, `-user`, grouping with `\( -o \)`, and `2>/dev/null` to keep the saved list clean. Always quote glob patterns.
+
+- Quote every `-name` glob to avoid shell expansion.
+- `2>/dev/null` is the routine way to keep `find` output readable.
+- Group OR conditions with escaped parentheses.
+
+---
+
+## 🔗 Related Labs
+
+- [Lab 17b — Find and Save Config Files (Ansible)](../lab-17b-find-save-config-files-ansible/) — `ansible.builtin.find` with patterns/owner
+- [Lab 17c — Find and Save Config Files (Verify)](../lab-17c-find-save-config-files-verify/) — prove the saved list is complete and correct
+- [Lab 14a — Searching with find (RHCSA)](../lab-14a-searching-with-find-rhcsa/) — more `find` predicates and actions
+
+---
+
+## 👤 Author
+
+**Kelvin R. Tobias**  
+[kelvinintech.com](https://kelvinintech.com) · [GitHub](https://github.com/kelvintechnical) · [LinkedIn](https://www.linkedin.com/in/kelvin-r-tobias-211949219)

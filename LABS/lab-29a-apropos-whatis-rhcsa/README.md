@@ -1,262 +1,329 @@
 # Lab 29a: Searching Manuals by Keyword (RHCSA) — `whatis`, `apropos`, `mandb`
 
-- **Series:** linux-ops-mastery — Documentation Discovery and Command Fluency
-- **Trilogy:** **`29a`** (RHCSA hand-typed) → [`29b`](../lab-29b-apropos-whatis-ansible/) (Ansible trap practice across a Section 18 boundary) → [`29c`](../lab-29c-apropos-whatis-verify/) (Verify capstone: audit + destroy-restore)
-- **Time Estimate:** 30-40 minutes
-- **Tasks:** 2 (Task 1 = capture `whatis` and `apropos` evidence with `tee` · Task 2 = rebuild the man index with `sudo mandb -c` and prove before/after counts)
-- **Practice Directory (rotation #29):** `/proc`
-- **Sandbox (Tier B):** `/tmp/lab29a` with `USER=labuser_29_apropos`, `GROUP=labgrp_29_apropos`, `USER_HOME=/tmp/lab29a/home_labuser_29_apropos`
-- **Traps rehearsed:** **T29-A** (stale man cache means `whatis` may return nothing until `mandb` runs) · **T29-B** (regex vs literal matching in `apropos`) · **T41** · **T44**
-
-> **Focus:** build reflexes for keyword-first manual lookup and index repair when cache state drifts.
+**Series:** linux-ops-mastery — Documentation · **Lab 29a of the Novice → RHCA path**  
+**Certifications covered:** RHCSA EX200 (finding the right command when you don't know its name), SRE/DevOps (offline discovery)  
+**Prerequisite:** [Lab 28c](../lab-28c-man-pages-verify/) completed  
+**Time Estimate:** 20–30 minutes  
+**Difficulty:** Beginner
 
 ---
 
-## LAB HEADER BLOCK
+## 🎯 Today's Focus Coverage
 
-```bash
-echo "🖥️  ENV:   ${ENV:-DECLARE_ME}"
-echo "🕒  TIME:  $(date -Is)"
-echo "👤  USER:  $(whoami)@$(hostname)"
-echo "⚠️  TRAP REMINDERS THIS LAB: T29-A T29-B T41 T44"
-echo "📁  PRACTICE DIR: /proc"
-ls -ld /proc
-whatis --version 2>/dev/null | head -n 1 || echo "whatis version banner unavailable"
-apropos --version 2>/dev/null | head -n 1 || echo "apropos version banner unavailable"
+> Stay on-subject via the ANCHOR rows; expand vocabulary via the NEW rows. Every row is exercised by a STEP below.
+
+**⚓ Anchor — already learned (on-topic reuse)**
+
+| # | Command / switch | Covered by |
+|---|---|---|
+| A1 | `man -f` / `man -k` | _Task 1 · Step 1_ |
+| A2 | `grep` to filter | _Task 2 · Step 1_ |
+
+**🆕 NEW this lab — introduced for the first time** (minimum 3)
+
+| # | Command / switch | First taught in | Covered by |
+|---|---|---|---|
+| N1 | `whatis` | Task 1 · Step 1 | _Task 1 · Step 1_ |
+| N2 | `apropos` | Task 1 · Step 2 | _Task 1 · Step 2_ |
+| N3 | `apropos -s` section filter | Task 2 · Step 1 | _Task 2 · Step 1_ |
+| N4 | `mandb` (rebuild index) | Task 2 · Step 2 | _Task 2 · Step 2_ |
+
+---
+
+## 🎯 Objective
+
+Find the command you need when you only know *what it does*. You will get exact one-line descriptions with `whatis`, search all summaries by keyword with `apropos`, narrow results to a section (`apropos -s`), and rebuild the search index with `mandb` when results look stale. By the end, "I need something that does X" becomes a quick, offline lookup.
+
+---
+
+## 🧠 Concept
+
+`whatis NAME` prints the exact one-line summary of a command (it matches the *name*) — `whatis` is literally `man -f`. `apropos KEYWORD` searches the *descriptions* of all man pages for the keyword — it's `man -k` — and is what you use when you don't know the command's name ("apropos compression"). Both read a pre-built index (the `whatis` database) maintained by `mandb`; if you just installed software and `apropos` finds nothing, run `sudo mandb` to refresh the index. `apropos -s 1` (or `-s 8`) restricts results to a section, cutting noise. The mental model: `whatis` = exact name lookup, `apropos` = fuzzy "what does X" search.
+
+```
+whatis ls          → ls (1) - list directory contents
+apropos password   → every page whose summary mentions "password"
+apropos -s 1 copy  → only section-1 (command) pages about copying
+sudo mandb         → rebuild the whatis index after installs
 ```
 
-> **STOP — paste header output before setup.**
+> **Why this matters:** On the exam you can't Google "command to change file ownership." `apropos ownership` finds `chown` in seconds. `whatis` confirms you've got the right one.
 
 ---
 
-## Objective
+## 📚 Command Reference
 
-1. Use `whatis` for one-line command descriptions and `apropos` for keyword-driven discovery.
-2. Capture reproducible evidence using `tee`.
-3. Diagnose and fix stale man index behavior with `mandb -c`.
-4. Prove the cache-rebuild effect with before/after query counts.
-
----
-
-## Concept: `whatis` and `apropos` Read the Man-DB Index
-
-- `whatis <command>` queries short descriptions by command/topic name.
-- `apropos <keyword>` searches the whatis database by keyword pattern.
-- Both depend on the indexed database under `/var/cache/man`.
-- If the index is stale or missing, results can be incomplete or empty until `mandb` rebuilds it.
+| Command | Purpose | Notes |
+|---|---|---|
+| `whatis NAME` | Exact one-line summary | = `man -f` |
+| `apropos KEY` | Search descriptions | = `man -k` |
+| `apropos -s N` | Restrict to section | cut noise |
+| `apropos -a a b` | Match all keywords | AND search |
+| `mandb` | Rebuild index | after installs |
 
 ---
 
-## Lab-Wide Setup — Tier B Sandbox Stack (Section 1.5)
+## 🧰 LAB-WIDE SETUP
+
+**In plain English:** Make a sandbox for saved searches; data comes from the man index.
+
+> Run this block **once** before Task 1. `LAB_ROOT` holds any notes you save.
 
 ```bash
-sudo -i
-
-export LAB_NUM=29
-export LAB_SLUG=apropos
-export SANDBOX=/tmp/lab29a
-export GROUP=labgrp_${LAB_NUM}_${LAB_SLUG}
-export USER=labuser_${LAB_NUM}_${LAB_SLUG}
-export USER_HOME=${SANDBOX}/home_${USER}
-
-mkdir -p "${SANDBOX}" "${USER_HOME}"
-mkdir -p /root/rhcsa_journal/lab-29a/task1 /root/rhcsa_journal/lab-29a/task2
-
-getent group  "${GROUP}" >/dev/null || groupadd "${GROUP}"
-getent passwd "${USER}"  >/dev/null || useradd -d "${USER_HOME}" -M -s /bin/bash -g "${GROUP}" "${USER}"
-chown -R "${USER}:${GROUP}" "${SANDBOX}"
-
-id "${USER}"
-ls -ld "${SANDBOX}" "${USER_HOME}" /proc /var/cache/man
+export LAB_ROOT=/tmp/lab-29
+mkdir -p "$LAB_ROOT"
+cd "$LAB_ROOT"
+echo "ready"
+echo "exit was: $?"
 ```
 
-> **STOP — paste setup output before Task 1.**
+**Expected output:**
 
----
-
-## Task 1 — Capture `whatis` and `apropos` evidence with `tee`
-
-### Warm-Up
-
-```bash
-ls /proc | head -n 5
-man -k ls | head -n 5
-echo "Warm-up done by $(whoami) at $(date -Is)"
 ```
-
-### Purpose
-
-Produce the exact two core outputs for this lab, then add T29-B contrast evidence:
-
-1. `whatis grep | tee ...`
-2. `apropos 'list directory' | tee ...`
-
-### Main command block
-
-```bash
-TASKLOG=/tmp/lab29a/task1.txt
-
-echo "═══ Part A: exact required evidence commands ═══"            2>&1 | tee "$TASKLOG"
-whatis grep                                                      2>&1 | tee /tmp/lab29a/whatis-grep.txt | tee -a "$TASKLOG"
-apropos 'list directory'                                         2>&1 | tee /tmp/lab29a/apropos-list-directory.txt | tee -a "$TASKLOG"
-
-echo "═══ Part B: T29-B regex vs literal mode contrast ═══"       | tee -a "$TASKLOG"
-apropos 'list directory'                                          | tee -a "$TASKLOG"
-apropos -e 'list directory'                                       | tee -a "$TASKLOG"
-apropos 'list.*directory'                                         | tee -a "$TASKLOG"
-
-echo "═══ Part C: Tier B sudo -u query copy ═══"                  | tee -a "$TASKLOG"
-sudo -u "${USER}" bash -c \
-  "apropos 'list directory' > '${USER_HOME}/apropos-asuser.txt'"
-stat -c '%U:%G %a %n' "${USER_HOME}/apropos-asuser.txt"          | tee -a "$TASKLOG"
-wc -l "${USER_HOME}/apropos-asuser.txt"                          | tee -a "$TASKLOG"
-
-echo "exit was: $?"                                              | tee -a "$TASKLOG"
-```
-
-### Concept Card
-
-| Concept | What it does |
-|---|---|
-| `whatis grep` | One-line definition lookup for the exact topic name |
-| `apropos 'list directory'` | Keyword pattern search across whatis index |
-| `apropos -e PATTERN` | Exact (literal) topic matching, not regex pattern scan |
-| `tee FILE` | Preserve terminal output as evidence |
-| **🪤 Trap Risk T29-B** | Assuming `apropos` is always literal; default matching is pattern-driven. Use `-e` when exact literal behavior is required. |
-
-### Journal write
-
-```bash
-LAB=lab-29a
-TASK=task1
-JDIR="/root/rhcsa_journal/${LAB}/${TASK}"
-mkdir -p "$JDIR"
-
-cp /tmp/lab29a/task1.txt "$JDIR/evidence.txt"
-cp /tmp/lab29a/whatis-grep.txt "$JDIR/whatis-grep.txt"
-cp /tmp/lab29a/apropos-list-directory.txt "$JDIR/apropos-list-directory.txt"
-cp "${USER_HOME}/apropos-asuser.txt" "$JDIR/apropos-asuser.txt"
-
-cat > "$JDIR/notes.txt" <<EOF
-TOPIC:    whatis and apropos keyword/manual index lookup
-COMMANDS: whatis grep, apropos 'list directory', apropos -e, tee, sudo -u ${USER}
-TRAPS:    T29-B rehearsed (pattern vs literal)
-NEXT:     task2 — rebuild cache with mandb -c and compare counts
-EOF
+ready
+exit was: 0
 ```
 
 ---
 
-## Task 2 — Rebuild index with `sudo mandb -c` and verify before/after counts
+## TASK 1 of 2 — Exact and keyword lookups
 
-### Warm-Up
+**In plain English:** We get an exact summary, then search by what a tool does.
+
+---
+
+### Step 1 of 2 — Exact summary with `whatis`
+
+**In plain English:** We look up the precise one-line description of a couple of commands.
 
 ```bash
-whatis grep 2>/dev/null | wc -l
-ls -ld /var/cache/man
-echo "Warm-up done by $(whoami) at $(date -Is)"
+whatis chmod
+whatis chown grep
+echo "exit was: $?"
 ```
 
-### Purpose
+**Expected output:**
 
-Rehearse **T29-A** by proving cache rebuild impact with measured counts.
-
-### Main command block
-
-```bash
-TASKLOG=/tmp/lab29a/task2.txt
-
-echo "═══ Part A: before counts ═══"                               2>&1 | tee "$TASKLOG"
-BEFORE_WHATIS=$(whatis grep 2>/dev/null | wc -l)
-BEFORE_APROPOS=$(apropos 'list directory' 2>/dev/null | wc -l)
-echo "before whatis grep count: ${BEFORE_WHATIS}"                  | tee -a "$TASKLOG"
-echo "before apropos count:     ${BEFORE_APROPOS}"                 | tee -a "$TASKLOG"
-
-echo "═══ Part B: rebuild man index with sudo mandb -c ═══"        | tee -a "$TASKLOG"
-sudo mandb -c                                                      2>&1 | tee /tmp/lab29a/mandb-rebuild.txt | tee -a "$TASKLOG"
-
-echo "═══ Part C: after counts ═══"                                | tee -a "$TASKLOG"
-AFTER_WHATIS=$(whatis grep 2>/dev/null | wc -l)
-AFTER_APROPOS=$(apropos 'list directory' 2>/dev/null | wc -l)
-echo "after whatis grep count: ${AFTER_WHATIS}"                    | tee -a "$TASKLOG"
-echo "after apropos count:     ${AFTER_APROPOS}"                   | tee -a "$TASKLOG"
-
-test "${AFTER_WHATIS}" -ge "${BEFORE_WHATIS}" \
-  && echo "✅ whatis count did not regress after mandb -c" \
-  || echo "❌ whatis count regressed unexpectedly"                  | tee -a "$TASKLOG"
-
-test "${AFTER_APROPOS}" -gt 0 \
-  && echo "✅ apropos returns >0 entries after rebuild (T29-A covered)" \
-  || echo "❌ apropos still empty; inspect mandb output and man-pages install" | tee -a "$TASKLOG"
-
-echo "exit was: $?"                                                | tee -a "$TASKLOG"
+```
+chmod (1)            - change file mode bits
+chown (1)            - change file owner and group
+grep (1)             - print lines that match patterns
+exit was: 0
 ```
 
-### Concept Card
+**Line-by-line breakdown:**
 
-| Concept | What it does |
-|---|---|
-| `mandb -c` | Rebuilds the whatis database from scratch |
-| Before/after counts | Quantifies cache repair effect |
-| `/var/cache/man` | Location of generated manual index data |
-| **🪤 Trap Risk T29-A** | Fresh man pages but stale index causes empty/partial `whatis`/`apropos` results until `mandb` runs |
+- `whatis chmod` → Exact-name lookup of the one-line summary and section.
+- `whatis chown grep` → `whatis` accepts multiple names at once.
 
-### Journal write
+**New words in this step:**
+
+- **`whatis`** — exact one-line summary by command name (same as `man -f`).
+
+---
+
+### Step 2 of 2 — Keyword search with `apropos`
+
+**In plain English:** We find commands related to a concept without knowing their names.
 
 ```bash
-LAB=lab-29a
-TASK=task2
-JDIR="/root/rhcsa_journal/${LAB}/${TASK}"
-mkdir -p "$JDIR"
+apropos "owner" | head -5
+echo "---"
+apropos compression | head -5
+echo "exit was: $?"
+```
 
-cp /tmp/lab29a/task2.txt "$JDIR/evidence.txt"
-cp /tmp/lab29a/mandb-rebuild.txt "$JDIR/mandb-rebuild.txt"
+**Expected output:**
 
-cat > "$JDIR/done.txt" <<EOF
-LAB:    ${LAB}
-TASK:   ${TASK}
-DATE:   $(date -Is)
-USER:   $(whoami)@$(hostname)
-LAB_USER: ${USER}
-LAB_GROUP: ${GROUP}
-STATUS: COMPLETE
-EOF
+```
+chown (1)            - change file owner and group
+chgrp (1)            - change group ownership
+...
+gzip (1)             - compress or expand files
+bzip2 (1)            - a block-sorting file compressor
+...
+exit was: 0
+```
+
+**Line-by-line breakdown:**
+
+- `apropos "owner"` → Search all summaries for "owner" — finds `chown`, `chgrp`, etc., even though you didn't know the names.
+- `apropos compression` → Discover compression tools the same way.
+
+**New words in this step:**
+
+- **`apropos`** — keyword search across all man-page descriptions (same as `man -k`).
+
+---
+
+### Concept card (Task 1)
+
+| Concept | What it does | Exam trap |
+|---|---|---|
+| `whatis` | exact name | not a keyword search |
+| `apropos` | description search | needs the index |
+| both = `man -f`/`-k` | aliases | same data |
+
+---
+
+### Troubleshoot (Task 1)
+
+| Symptom | Likely cause | Fix |
+|---|---|---|
+| `whatis` "nothing appropriate" | Wrong name / no index | Check spelling; `mandb` |
+| `apropos` empty | Stale index | Run `sudo mandb` |
+
+---
+
+## TASK 2 of 2 — Narrowing and indexing
+
+**In plain English:** We restrict searches to a section, then rebuild the index.
+
+---
+
+### Step 1 of 2 — Restrict to a section with `-s`
+
+**In plain English:** We search only command (section 1) pages, then only config-file (section 5) pages.
+
+```bash
+apropos -s 1 "directory" | head -3
+echo "---"
+apropos -s 5 "password" | head -3
+echo "exit was: $?"
+```
+
+**Expected output:**
+
+```
+ls (1)               - list directory contents
+mkdir (1)            - make directories
+rmdir (1)            - remove empty directories
+---
+passwd (5)           - the password file
+shadow (5)           - shadowed password file
+...
+exit was: 0
+```
+
+**Line-by-line breakdown:**
+
+- `apropos -s 1 "directory"` → Restrict to section 1 (commands) — no config-file or syscall noise.
+- `apropos -s 5 "password"` → Restrict to section 5 — finds the config-file formats `passwd(5)`, `shadow(5)`.
+
+**New words in this step:**
+
+- **`apropos -s N`** — restrict keyword results to a manual section.
+
+---
+
+### Step 2 of 2 — Rebuild the index with `mandb`
+
+**In plain English:** We refresh the whatis database so searches reflect installed packages.
+
+```bash
+sudo mandb 2>&1 | tail -3
+whatis ls
+echo "exit was: $?"
+```
+
+**Expected output:**
+
+```
+... manual page(s) added ...
+... whatis entries updated ...
+ls (1)               - list directory contents
+exit was: 0
+```
+
+**Line-by-line breakdown:**
+
+- `sudo mandb` → Rebuild the whatis/apropos index from the installed man pages.
+- `whatis ls` → Confirms lookups work after the rebuild.
+
+**New words in this step:**
+
+- **`mandb`** — rebuilds the index that `whatis`/`apropos` read.
+
+---
+
+### Concept card (Task 2)
+
+| Concept | What it does | Exam trap |
+|---|---|---|
+| `-s 1` / `-s 5` | section filter | cuts noise |
+| `mandb` | rebuild index | needed after installs |
+| index-backed | not live scan | stale until rebuilt |
+
+---
+
+### Troubleshoot (Task 2)
+
+| Symptom | Likely cause | Fix |
+|---|---|---|
+| New tool not found | Index stale | `sudo mandb` |
+| Too many results | No section filter | Add `-s N` |
+
+---
+
+## ✅ Lab Checklist
+
+- [ ] Task 1 · Step 1 — Exact summary with `whatis`
+- [ ] Task 1 · Step 2 — Keyword search with `apropos`
+- [ ] Task 2 · Step 1 — Restrict to a section with `-s`
+- [ ] Task 2 · Step 2 — Rebuild the index with `mandb`
+- [ ] Every 🎯 Focus Coverage row (Anchor + NEW) mapped to a step
+- [ ] 🧹 Teardown run — sandbox + any system state removed
+
+---
+
+## 🧹 Teardown
+
+**In plain English:** Delete everything this lab created so the box is clean for the next run.
+
+> Run this after you've verified the lab. `lab_teardown.sh` safely removes the single sandbox root — it refuses to touch `/`, `$HOME`, or any protected path. This lab only rebuilt the man index (harmless) and changed **no** other system state.
+
+```bash
+cd /tmp
+bash lab_teardown.sh "$LAB_ROOT"     # = /tmp/lab-29
+```
+
+**Expected output:**
+
+```
+✅ Removed /tmp/lab-29 — lab workspace is clean.
 ```
 
 ---
 
-## Lab Closeout — Bulletproof Teardown (Section 6)
+## ⚠️ Common Pitfalls
 
-```bash
-set +e
-
-awk -v s="${SANDBOX}" '$2 ~ s {print $2}' /proc/mounts | tac | xargs -r -n1 umount -l 2>/dev/null
-
-if getent passwd "${USER}" >/dev/null 2>&1; then userdel -r "${USER}" 2>/dev/null; fi
-if getent group "${GROUP}" >/dev/null 2>&1; then groupdel "${GROUP}" 2>/dev/null; fi
-rm -rf "${SANDBOX}"
-
-echo "── Lab 29a cleanup audit ──"
-getent passwd "${USER}" >/dev/null && echo "❌ user remains"   || echo "✅ user gone"
-getent group  "${GROUP}" >/dev/null && echo "❌ group remains" || echo "✅ group gone"
-test -d "${SANDBOX}"               && echo "❌ sandbox remains"|| echo "✅ sandbox gone"
-test -d "${USER_HOME}"             && echo "❌ home remains"   || echo "✅ home gone"
-
-set -e
-```
+| Mistake | Symptom | Fix |
+|---|---|---|
+| Using `whatis` as search | "nothing appropriate" | Use `apropos` for keywords |
+| Stale index | New tools missing | `sudo mandb` |
+| Result overload | Too broad | Filter with `-s` |
 
 ---
 
-## Lab 29a Checklist (2 tasks + closeout)
+## 📌 Exam Strategy
 
-- [ ] Task 1 captured exact required commands: `whatis grep | tee ...` and `apropos 'list directory' | tee ...`
-- [ ] Task 2 ran `sudo mandb -c` and recorded before/after whatis + apropos counts
-- [ ] T29-A and T29-B evidence captured in journal
-- [ ] Section 6 closeout ended with four `✅` audit lines
+When you don't know the command, `apropos KEYWORD` finds it; `whatis NAME` confirms it. Filter with `-s` to cut noise, and remember `mandb` if a freshly installed tool isn't showing up.
+
+- `apropos` for "what does X" discovery.
+- `whatis` to verify the exact command.
+- `-s 5` finds config-file formats fast.
 
 ---
 
-## Author
+## 🔗 Related Labs
+
+- [Lab 29b — Searching Manuals by Keyword (Ansible)](../lab-29b-apropos-whatis-ansible/) — keyword discovery in a play
+- [Lab 29c — Searching Manuals by Keyword (Verify)](../lab-29c-apropos-whatis-verify/) — prove searches return the right tools
+- [Lab 28a — Exploring Manual Pages (RHCSA)](../lab-28a-man-pages-rhcsa/) — reading the pages you discover
+
+---
+
+## 👤 Author
 
 **Kelvin R. Tobias**  
 [kelvinintech.com](https://kelvinintech.com) · [GitHub](https://github.com/kelvintechnical) · [LinkedIn](https://www.linkedin.com/in/kelvin-r-tobias-211949219)

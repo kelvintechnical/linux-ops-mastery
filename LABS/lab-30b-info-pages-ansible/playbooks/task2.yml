@@ -1,0 +1,36 @@
+---
+# Lab 30b Task 2 — save and assert an info node
+#
+# Run:
+#   ansible-playbook /root/rhcsa_journal/lab-30b/playbooks/task2.yml
+#
+# Render the node with --output=-, persist it as a documentation artifact with
+# copy, and assert it documents the option a role relies on. Only the file
+# write is "changed".
+
+- name: "Lab 30b Task 2 — save and assert an info node"
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars:
+    out: /tmp/lab-30/ls-node.txt
+
+  tasks:
+    - name: "Render the ls node"
+      ansible.builtin.command: "info --output=- coreutils 'ls invocation'"
+      register: node
+      changed_when: false
+
+    - name: "Save the node as a documentation artifact"
+      ansible.builtin.copy:
+        dest: "{{ out }}"
+        content: "{{ node.stdout }}\n"
+        mode: '0644'
+      register: saved
+
+    - name: "Assert the node documents --human-readable"
+      ansible.builtin.assert:
+        that:
+          - "'--human-readable' in node.stdout"
+        success_msg: "node documents --human-readable"
+        fail_msg: "expected option not documented"

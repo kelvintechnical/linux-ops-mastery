@@ -1,352 +1,364 @@
-# Lab 32b: Check Network Connectivity (Ansible) — `ansible.builtin.shell`, `wait_for`, `uri`
+# Lab 32b: Check Network Connectivity (Ansible) — reachability in plays
 
-- **Series:** linux-ops-mastery — Networking Diagnostics
-- **Trilogy:** `32a` (RHCSA) → `32b` (Ansible) → `32c` (Verify)
-- **Time Estimate:** 25-35 minutes
-- **Tasks:** 2 (Task 1 playbook + native probe, Task 2 failure criteria trap-proofing)
-- **Practice Directory (rotation #18):** `/media`
-- **Sandbox (Tier B):** `/tmp/lab32b` with `USER=labuser_32_ping`, `GROUP=labgrp_32_ping`, `USER_HOME=/tmp/lab32b/home_labuser_32_ping`
-- **Traps rehearsed this lab:** `T32-A`, `T32-B`, `T41`, `T44`
-
-> **Section 18 boundary note (important):** There is no dedicated Ansible `ping(8)` ICMP module for host reachability tests. This lab uses `ansible.builtin.shell` for exact `ping -c` behavior and pairs it with Ansible-native probes (`ansible.builtin.wait_for` or `ansible.builtin.uri`) for idempotent connectivity checks.
+**Series:** linux-ops-mastery — Networking · **Lab 32b of the Novice → RHCA path**  
+**Certifications covered:** RHCE EX294 (connectivity gates and waits), RHCSA EX200 (the `ping` behavior underneath), SRE (pre-flight reachability checks)  
+**Prerequisite:** [Lab 32a](../lab-32a-ping-traceroute-rhcsa/) completed and a working control node  
+**Time Estimate:** 25–35 minutes  
+**Difficulty:** Beginner → Intermediate
 
 ---
 
-## LAB HEADER BLOCK
+## 🎯 Today's Focus Coverage
+
+> Stay on-subject via the ANCHOR rows; expand vocabulary via the NEW rows. Every row is exercised by a STEP below.
+
+**⚓ Anchor — already learned (on-topic reuse)**
+
+| # | Command / switch | Covered by |
+|---|---|---|
+| A1 | `ping -c` reachability | _Task 1 · Step 1_ |
+| A2 | `changed_when: false` for checks | _Task 1 · Step 1_ |
+
+**🆕 NEW this lab — introduced for the first time** (minimum 3)
+
+| # | Command / switch | First taught in | Covered by |
+|---|---|---|---|
+| N1 | `ansible.builtin.ping` (control check) | Task 1 · Step 1 | _Task 1 · Step 1_ |
+| N2 | `command: ping -c` (ICMP check) | Task 1 · Step 2 | _Task 1 · Step 2_ |
+| N3 | `ansible.builtin.wait_for` (port) | Task 2 · Step 1 | _Task 2 · Step 1_ |
+| N4 | `ansible.builtin.uri` (HTTP check) | Task 2 · Step 2 | _Task 2 · Step 2_ |
+
+---
+
+## 🎯 Objective
+
+Gate plays on connectivity. You'll learn the crucial distinction between `ansible.builtin.ping` (which tests the *Ansible* connection, not ICMP) and a real ICMP `command: ping -c`, then use `wait_for` to block until a TCP port is open and `uri` to confirm an HTTP endpoint answers. These are the reachability checks that make automation robust.
+
+---
+
+## 🧠 Concept
+
+A common trap: `ansible.builtin.ping` does **not** send ICMP — it verifies Ansible can reach and run Python on the host (a connection test). To test actual ICMP reachability of *another* address, shell out: `command: ping -c2 -W2 TARGET` with `changed_when: false` and exit-code handling. For service-level readiness, `ansible.builtin.wait_for` blocks until a TCP `port` is accepting connections (or a timeout), and `ansible.builtin.uri` performs an HTTP request and can assert on `status`. The right tool depends on the layer: connection (`ping` module), ICMP (`command: ping`), TCP (`wait_for`), HTTP (`uri`).
+
+```
+ansible.builtin.ping              → "can Ansible run on this host?" (NOT ICMP)
+command: ping -c2 -W2 127.0.0.1   → real ICMP reachability (changed_when:false)
+wait_for: port=22 timeout=10      → block until TCP port is open
+uri: url=http://127.0.0.1 status_code=200 → HTTP endpoint check
+```
+
+> **Why this matters:** Plays that assume a host/service is up before configuring it fail messily. The right reachability gate at the right layer — and knowing the `ping` module isn't ICMP — prevents flaky automation.
+
+---
+
+## 📚 Command Reference
+
+| Command | Purpose | Critical flags |
+|---|---|---|
+| `ansible.builtin.ping` | Connection (not ICMP) | reachability of the node |
+| `command: ping -c` | ICMP to a target | `changed_when: false` |
+| `ansible.builtin.wait_for` | Block on TCP port | `port:`, `timeout:` |
+| `ansible.builtin.uri` | HTTP check | `status_code:` |
+| `failed_when:` | Handle ping rc | `rc not in [0,1]` |
+
+---
+
+## 🧰 LAB-WIDE SETUP
+
+**In plain English:** Build the sandbox and playbook folder for connectivity checks.
+
+> Run this block **once** before Task 1. It builds the clean, private workspace that both tasks depend on.
 
 ```bash
-echo "🖥️  ENV:   ${ENV:-DECLARE_ME}"
-echo "🌐  NIC:   $(ip -o addr show 2>/dev/null | awk '$2!="lo"{print $2}' | sort -u | paste -sd, -)"
-echo "📁  PRACTICE DIR: /media"
-ls -la /media 2>/dev/null || stat /media
-ansible --version | head -n 1
+export LAB_ROOT=/tmp/lab-32
+mkdir -p "$LAB_ROOT"
+mkdir -p /root/rhcsa_journal/lab-32b/playbooks
+echo "ready"
 echo "exit was: $?"
+```
+
+**Expected output:**
+
+```
+ready
+exit was: 0
 ```
 
 ---
 
-## Lab-Wide Setup — Tier B Sandbox + Playbook Path
+## TASK 1 of 2 — Connection vs ICMP
 
-```bash
-sudo -i
+**In plain English:** We confirm the node is manageable, then test real ICMP reachability.
 
-export LAB_NUM=32
-export LAB_SLUG=ping
-export SANDBOX=/tmp/lab32b
-export GROUP=labgrp_32_ping
-export USER=labuser_32_ping
-export USER_HOME=${SANDBOX}/home_${USER}
-export PB_DIR=/root/rhcsa_journal/lab-32b/playbooks
-
-mkdir -p "${SANDBOX}" "${USER_HOME}" "${PB_DIR}" /root/rhcsa_journal/lab-32b/task1 /root/rhcsa_journal/lab-32b/task2
-getent group  "${GROUP}" >/dev/null || groupadd "${GROUP}"
-getent passwd "${USER}"  >/dev/null || useradd -d "${USER_HOME}" -M -s /bin/bash -g "${GROUP}" "${USER}"
-chown -R "${USER}:${GROUP}" "${SANDBOX}"
-
-cat > "${PB_DIR}/task1.yml" <<'EOF'
 ---
-- name: Lab 32b Task 1 connectivity probe
+
+### Step 1 of 2 — Write the connectivity playbook
+
+**In plain English:** We create `task1.yml`, which uses the `ping` module (connection) and a real ICMP `command: ping`.
+
+```yaml
+---
+- name: "Lab 32b Task 1 — connection vs ICMP"
   hosts: localhost
   connection: local
   gather_facts: false
   tasks:
-    - name: Run bounded ICMP probe with shell
-      ansible.builtin.shell: ping -c 3 -W 2 127.0.0.1
-      register: ping_probe
+    - name: "Connection check (NOT ICMP)"
+      ansible.builtin.ping:
+      register: conn
+
+    - name: "Real ICMP reachability to loopback"
+      ansible.builtin.command: "ping -c2 -W2 127.0.0.1"
+      register: icmp
       changed_when: false
+      failed_when: icmp.rc != 0
 
-    - name: Show ping output
+    - name: "Report both checks"
       ansible.builtin.debug:
-        var: ping_probe.stdout_lines
+        msg:
+          - "ansible ping: {{ conn.ping | default('n/a') }}"
+          - "icmp loss line: {{ icmp.stdout_lines | select('search','packet loss') | first }}"
+```
 
-    - name: Native idempotent TCP probe (Ansible equivalent pattern)
+**Expected output:**
+
+```
+(this is the saved playbook file — no output until you run it in Step 2)
+```
+
+**Line-by-line breakdown:**
+
+- `ansible.builtin.ping:` → Returns `pong` if Ansible can run on the host — a *connection* test, not ICMP.
+- `command: ping -c2 -W2 127.0.0.1` → Real ICMP check; `failed_when: rc != 0` makes unreachable a failure.
+- `select('search','packet loss') | first` → Pull the loss summary line.
+
+**New words in this step:**
+
+- **`ansible.builtin.ping`** — verifies the Ansible connection (not ICMP).
+
+---
+
+### Step 2 of 2 — Run it and read both checks
+
+**In plain English:** We run the play and confirm connection + ICMP both pass.
+
+```bash
+ansible-playbook /root/rhcsa_journal/lab-32b/playbooks/task1.yml
+echo "exit was: $?"
+```
+
+**Expected output:**
+
+```
+TASK [Report both checks] ***********************************************
+ok: [localhost] => {
+    "msg": ["ansible ping: pong",
+            "icmp loss line: 2 packets transmitted, 2 received, 0% packet loss, ..."]
+}
+PLAY RECAP **********************************************************
+localhost                  : ok=3    changed=0    unreachable=0    failed=0
+exit was: 0
+```
+
+**Line-by-line breakdown:**
+
+- `ansible-playbook ...` → `pong` proves manageability; the loss line proves ICMP works; `changed=0` since both are checks.
+
+**New words in this step:**
+
+- **layered check** — testing connection and ICMP separately.
+
+---
+
+### Concept card (Task 1)
+
+| Concept | What it does | Exam trap |
+|---|---|---|
+| `ping` module | connection test | NOT ICMP |
+| `command: ping` | real ICMP | `changed_when: false` |
+| `failed_when` | gate on rc | unreachable = fail |
+
+---
+
+### Troubleshoot (Task 1)
+
+| Symptom | Likely cause | Fix |
+|---|---|---|
+| Expected ICMP from module | Misunderstanding | Use `command: ping` |
+| Task fails | Target unreachable | Check the address/firewall |
+
+---
+
+## TASK 2 of 2 — Port and HTTP readiness
+
+**In plain English:** We block until a port is open, then check an HTTP endpoint.
+
+---
+
+### Step 1 of 2 — Write the readiness playbook
+
+**In plain English:** We create `task2.yml`, which waits for the SSH port and checks an HTTP URL (gracefully).
+
+```yaml
+---
+- name: "Lab 32b Task 2 — port and HTTP readiness"
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  tasks:
+    - name: "Wait for the SSH port to be open"
       ansible.builtin.wait_for:
         host: 127.0.0.1
         port: 22
-        timeout: 2
-      register: wait_probe
-      ignore_errors: true
-      changed_when: false
+        timeout: 5
+        state: started
+      register: portcheck
+      failed_when: false
 
-    - name: Show wait_for result
+    - name: "Report the port result"
       ansible.builtin.debug:
-        var: wait_probe
-EOF
+        msg: "port 22 reachable: {{ portcheck is succeeded }}"
 
-cat > "${PB_DIR}/task2.yml" <<'EOF'
----
-- name: Lab 32b Task 2 trap-proof assertions
-  hosts: localhost
-  connection: local
-  gather_facts: false
-  tasks:
-    - name: Run bounded ping with strict pass/fail
-      ansible.builtin.shell: ping -c 3 -W 2 127.0.0.1
-      register: ping_guard
-      changed_when: false
-      failed_when:
-        - ping_guard.rc != 0
-        - "'0% packet loss' not in ping_guard.stdout"
+    - name: "Check an HTTP endpoint (if a server is running)"
+      ansible.builtin.uri:
+        url: "http://127.0.0.1/"
+        status_code: 200
+        timeout: 3
+      register: web
+      failed_when: false
 
-    - name: IPv6 contrast (non-fatal)
-      ansible.builtin.shell: ping -6 -c 3 -W 2 ::1
-      register: ping6_guard
-      changed_when: false
-      ignore_errors: true
-
-    - name: Assert IPv4 probe succeeded exactly as expected
-      ansible.builtin.assert:
-        that:
-          - ping_guard.rc == 0
-          - "'0% packet loss' in ping_guard.stdout"
-        fail_msg: "Ping validation failed. Re-check T32-A/T32-B conditions."
-        success_msg: "Ping validation passed with bounded safe flags."
-
-    - name: Show outputs for journal evidence
+    - name: "Report the HTTP result"
       ansible.builtin.debug:
-        msg:
-          - "IPv4 rc={{ ping_guard.rc }}"
-          - "IPv6 rc={{ ping6_guard.rc | default('n/a') }}"
-EOF
-
-id "${USER}"
-ls -ld "${SANDBOX}" "${USER_HOME}" "${PB_DIR}" /media
-echo "Sandbox built by $(whoami) at $(date -Is)"
-echo "exit was: $?"
+        msg: "http status: {{ web.status | default('no server') }}"
 ```
+
+**Expected output:**
+
+```
+(this is the saved playbook file — no output until you run it in Step 2)
+```
+
+**Line-by-line breakdown:**
+
+- `wait_for: port: 22 timeout: 5` → Block up to 5s until TCP port 22 accepts connections.
+- `uri: url: ... status_code: 200` → HTTP request; `failed_when: false` keeps the play green whether or not a web server is up.
+
+**New words in this step:**
+
+- **`wait_for`** — block until a TCP port (or file/condition) is ready.
+- **`uri`** — make an HTTP request and check the status.
 
 ---
 
-## Task 1 — shell ping + Ansible-native probe
+### Step 2 of 2 — Run it and read readiness
 
-**Practice directory this task:** `/media`
-
-### 🔁 Warm-Up
+**In plain English:** We run the play and read the port and HTTP results.
 
 ```bash
-ls -la /media 2>/dev/null || stat /media
-hostname -I | tee /tmp/lab32b/warmup1.txt
-ansible localhost -m ansible.builtin.ping
-echo "Warm-up done by $(whoami) at $(date -Is)"
+ansible-playbook /root/rhcsa_journal/lab-32b/playbooks/task2.yml
 echo "exit was: $?"
 ```
 
-### Purpose
+**Expected output:**
 
-Run exact ICMP command behavior through Ansible (`shell` + `register`) while also using a native idempotent probe (`wait_for`/`uri`) to stay aligned with RHCE module habits.
-
-### 🧵 WEAVE TRACE
-
-| Re-used command | Role in task |
-|---|---|
-| `hostname -I` | context captured before playbook run |
-| `ansible ... ping` | control-node sanity check |
-| `tee` | evidence capture |
-| `sudo -u "${USER}"` | writes task evidence as lab user |
-
-### Main command block
-
-```bash
-TASKLOG=/tmp/lab32b/task1.txt
-PLAY=/root/rhcsa_journal/lab-32b/playbooks/task1.yml
-
-ansible-playbook --check --diff "${PLAY}" 2>&1 | tee "${TASKLOG}" || true
-ansible-playbook "${PLAY}" 2>&1 | tee -a "${TASKLOG}"
-ansible-playbook "${PLAY}" 2>&1 | tee -a "${TASKLOG}"   # idempotence rerun target
-
-sudo -u "${USER}" bash -c 'echo "task1 ansible evidence $(date -Is)" > '"${USER_HOME}"'/task1-user-note.txt'
-stat -c '%U:%G %a %n' "${USER_HOME}/task1-user-note.txt" | tee -a "${TASKLOG}"
-grep -n "packet loss" "${TASKLOG}" | tee -a "${TASKLOG}" || true
-
-echo "exit was: $?"
+```
+TASK [Report the port result] *******************************************
+ok: [localhost] => {"msg": "port 22 reachable: True"}
+TASK [Report the HTTP result] *******************************************
+ok: [localhost] => {"msg": "http status: no server"}
+PLAY RECAP **********************************************************
+localhost                  : ok=4    changed=0    unreachable=0    failed=0
+exit was: 0
 ```
 
-### Human-Readable Breakdown
+**Line-by-line breakdown:**
 
-- First run in `--check --diff` previews behavior.
-- Applied run should execute bounded `ping -c 3 -W 2`.
-- Third run verifies idempotent style expectations (`changed=0` for our probe tasks).
+- `ansible-playbook ...` → Reports port reachability and HTTP status; both gracefully handled, `changed=0`.
 
-### Reading it left to right
+**New words in this step:**
 
-`ansible-playbook --check --diff "${PLAY}"`
+- **readiness gate** — waiting for a service to be up before proceeding.
 
-- `ansible-playbook` runs YAML task list
-- `--check` simulates
-- `--diff` shows intended differences
-- `"${PLAY}"` points to persistent playbook path under journal tree
+---
 
-### The story
+### Concept card (Task 2)
 
-Connectivity automation often starts with shell parity (`ping`) but matures into declarative probes (`wait_for`/`uri`). This task teaches both without pretending there is a true ICMP Ansible module.
-
-### Expected output
-
-- `ping` output contains `0% packet loss` for IPv4 loopback
-- `wait_for` may pass or fail depending on local SSH service state (non-fatal in this lab)
-- idempotence rerun should keep changes minimal
-
-### Switches
-
-| Token | Meaning |
-|---|---|
-| `--check` | simulate without applying |
-| `--diff` | show changes |
-| `-c 3 -W 2` | bounded ICMP probe |
-| `register` | capture task output for assertions |
-| `changed_when: false` | mark probe as observational, not configuration change |
-
-### 🧠 Concept Card
-
-| ✅ | Concept | What it does |
+| Concept | What it does | Exam trap |
 |---|---|---|
-| ✅ | shell + register | captures exact ping output in Ansible |
-| ✅ | wait_for/uri probe | Ansible-native network check pattern |
-| ✅ | idempotence rerun | validates repeat-safe automation behavior |
-| 🪤 | Trap risk: `T32-A` | unbounded ping causes hanging jobs |
-| 🪤 | Trap risk: `T32-B` | IPv4 success does not prove IPv6 success |
-
-### 🧹 Cleanup (task-level)
-
-```bash
-rm -f /tmp/lab32b/warmup1.txt /tmp/lab32b/task1.txt "${USER_HOME}/task1-user-note.txt"
-echo "exit was: $?"
-```
-
-### Troubleshoot
-
-| Symptom | Fix |
-|---|---|
-| play hangs | ensure all ping commands include `-c` and `-W` |
-| no packet-loss line | inspect registered stdout via debug output |
-
-> **STOP — paste Task 1 play recap before Task 2.**
+| `wait_for` | TCP/port wait | set a `timeout:` |
+| `uri` | HTTP check | `status_code:` |
+| `failed_when: false` | graceful | check, don't abort |
 
 ---
 
-## Task 2 — `failed_when` trap-proof assertion
+### Troubleshoot (Task 2)
 
-**Practice directory this task:** `/media`
-
-### 🔁 Warm-Up
-
-```bash
-ls -la /media 2>/dev/null || stat /media
-hostname -I | tee /tmp/lab32b/warmup2.txt
-echo "Warm-up done by $(whoami) at $(date -Is)"
-echo "exit was: $?"
-```
-
-### Purpose
-
-Encode strict pass/fail criteria so the play fails unless ping exits cleanly and reports `0% packet loss`.
-
-### Main command block
-
-```bash
-TASKLOG=/tmp/lab32b/task2.txt
-PLAY=/root/rhcsa_journal/lab-32b/playbooks/task2.yml
-
-ansible-playbook --check --diff "${PLAY}" 2>&1 | tee "${TASKLOG}" || true
-ansible-playbook "${PLAY}" 2>&1 | tee -a "${TASKLOG}"
-
-grep -n "0% packet loss" "${TASKLOG}" | tee -a "${TASKLOG}"
-grep -n "failed_when" "${PLAY}" | tee -a "${TASKLOG}"
-
-sudo -u "${USER}" bash -c 'echo "task2 assertion evidence $(date -Is)" > '"${USER_HOME}"'/task2-user-note.txt'
-stat -c '%U:%G %a %n' "${USER_HOME}/task2-user-note.txt" | tee -a "${TASKLOG}"
-
-echo "exit was: $?"
-```
-
-### Human-Readable Breakdown
-
-- `failed_when` enforces two conditions: `rc == 0` and output must include `0% packet loss`.
-- `assert` restates these checks clearly for audit-friendly output.
-- IPv6 probe remains non-fatal contrast to avoid false negatives on hosts without IPv6.
-
-### Reading it left to right
-
-`failed_when: [ ping_guard.rc != 0, '0% packet loss' not in ping_guard.stdout ]`
-
-- any listed condition true => task fails
-- this prevents “false green” success when ping output is degraded
-
-### The story
-
-Reliable automation is explicit about what success means. `rc` alone is not enough; text output checks catch partial failures and flaky diagnostics.
-
-### Expected output
-
-- play recap with task success on IPv4 checks
-- assertion success message
-- evidence lines containing `0% packet loss`
-
-### Switches
-
-| Token | Meaning |
-|---|---|
-| `failed_when` | custom failure logic |
-| `ansible.builtin.assert` | explicit condition enforcement |
-| `ignore_errors: true` | keep contrast checks from aborting the play |
-
-### 🧠 Concept Card
-
-| ✅ | Concept | What it does |
+| Symptom | Likely cause | Fix |
 |---|---|---|
-| ✅ | custom failure guards | blocks silent pass conditions |
-| ✅ | output-content validation | checks semantic success, not just exit code |
-| ✅ | Tier B user artifact | continues user/group/file discipline |
-| 🪤 | Trap risk: `T41` | always verify persisted evidence after run |
-| 🪤 | Trap risk: `T44` | always perform full teardown audit |
+| `wait_for` times out | Port closed/firewalled | Open the port / check service |
+| `uri` fails | No web server | Expected; `failed_when: false` |
 
-### 🔁 PERSISTENCE CHECK
+---
 
-| What was configured | Verification command | Why it matters |
+## ✅ Lab Checklist
+
+- [ ] Task 1 · Step 1 — Write the connectivity playbook
+- [ ] Task 1 · Step 2 — Run it and read both checks
+- [ ] Task 2 · Step 1 — Write the readiness playbook
+- [ ] Task 2 · Step 2 — Run it and read readiness
+- [ ] Every 🎯 Focus Coverage row (Anchor + NEW) mapped to a step
+- [ ] 🧹 Teardown run — sandbox + any system state removed
+
+---
+
+## 🧹 Teardown
+
+**In plain English:** Delete everything this lab created so the box is clean for the next run.
+
+> Run this after you've verified the lab. `lab_teardown.sh` safely removes the single sandbox root — it refuses to touch `/`, `$HOME`, or any protected path. This lab changed **no** system state.
+
+```bash
+bash lab_teardown.sh "$LAB_ROOT"     # = /tmp/lab-32
+rm -rf /root/rhcsa_journal/lab-32b
+```
+
+**Expected output:**
+
+```
+✅ Removed /tmp/lab-32 — lab workspace is clean.
+```
+
+---
+
+## ⚠️ Common Pitfalls
+
+| Mistake | Symptom | Fix |
 |---|---|---|
-| Playbooks persisted | `ls -l /root/rhcsa_journal/lab-32b/playbooks/` | survives reboot for resume |
-| Assertion evidence exists | `grep -n '0% packet loss' /tmp/lab32b/task2.txt` | confirms criteria were evaluated |
-
-### 🧹 Cleanup (task-level)
-
-```bash
-rm -f /tmp/lab32b/warmup2.txt /tmp/lab32b/task2.txt "${USER_HOME}/task2-user-note.txt"
-echo "exit was: $?"
-```
-
-### Troubleshoot
-
-| Symptom | Fix |
-|---|---|
-| assertion fails | inspect `ping_guard.stdout` and verify loopback/network stack |
-| check mode noisy | expected for shell probes; use apply run for final proof |
+| Thinking `ping` module = ICMP | Wrong check | Use `command: ping` for ICMP |
+| `wait_for` with no timeout | Play hangs | Always set `timeout:` |
+| `uri` aborts the play | No server | `failed_when: false` to probe |
 
 ---
 
-## Section 6 Lab Closeout — Bulletproof Teardown + Audit
+## 📌 Exam Strategy
 
-```bash
-set +e
+Pick the reachability tool by layer: `ping` module for manageability, `command: ping` for ICMP, `wait_for` for TCP ports, `uri` for HTTP. The classic trap is expecting ICMP from `ansible.builtin.ping` — it's a connection test.
 
-awk -v s="${SANDBOX}" '$2 ~ s {print $2}' /proc/mounts | tac | xargs -r -n1 umount -l 2>/dev/null
-
-if getent passwd "${USER}" >/dev/null 2>&1; then userdel -r "${USER}" 2>/dev/null; fi
-if getent group "${GROUP}" >/dev/null 2>&1; then groupdel "${GROUP}" 2>/dev/null; fi
-
-rm -rf "${SANDBOX}"
-
-echo "── cleanup audit ──"
-getent passwd "${USER}" && echo "❌ user remains" || echo "✅ user gone"
-getent group  "${GROUP}" && echo "❌ group remains" || echo "✅ group gone"
-test -d "${SANDBOX}" && echo "❌ sandbox remains" || echo "✅ sandbox gone"
-
-set -e
-echo "Cleanup complete by $(whoami) at $(date -Is)"
-echo "exit was: $?"
-```
+- `ansible.builtin.ping` ≠ ICMP.
+- `wait_for` to gate on a service port (always with `timeout:`).
+- `uri` + `status_code` for HTTP health.
 
 ---
 
-## Author
+## 🔗 Related Labs
 
-**Kelvin R. Tobias**
+- [Lab 32a — Check Network Connectivity (RHCSA)](../lab-32a-ping-traceroute-rhcsa/) — the `ping`/`traceroute` this builds on
+- [Lab 32c — Check Network Connectivity (Verify)](../lab-32c-ping-traceroute-verify/) — prove loss/latency thresholds
+- [Lab 34b — Inspecting Listening Sockets (Ansible)](../lab-34b-ss-listening-sockets-ansible/) — port-state checks
+
+---
+
+## 👤 Author
+
+**Kelvin R. Tobias**  
+[kelvinintech.com](https://kelvinintech.com) · [GitHub](https://github.com/kelvintechnical) · [LinkedIn](https://www.linkedin.com/in/kelvin-r-tobias-211949219)

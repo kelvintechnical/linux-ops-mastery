@@ -1,317 +1,324 @@
-# Lab 32a: Check Network Connectivity (RHCSA) — `ping`, `traceroute`, `mtr`, `hostname -I`
+# Lab 32a: Check Network Connectivity (RHCSA) — `ping`, `traceroute`, `ss`
 
-- **Series:** linux-ops-mastery — Networking Diagnostics
-- **Trilogy:** `32a` (RHCSA hand-typed) → `32b` (Ansible) → `32c` (Verify capstone)
-- **Time Estimate:** 25-35 minutes
-- **Tasks:** 2 (Task 1 canonical ping workflow, Task 2 traceroute contrast with timeout wrapper)
-- **Practice Directory (rotation #18):** `/media`
-- **Sandbox (Tier B):** `/tmp/lab32a` with `USER=labuser_32_ping`, `GROUP=labgrp_32_ping`, `USER_HOME=/tmp/lab32a/home_labuser_32_ping`
-- **Traps rehearsed this lab:** `T32-A` (running `ping` without `-c` hangs scripts), `T32-B` (`ping` vs `ping -6`/`ping6` IPv6 mismatch), `T41`, `T44`
-
-> **This lab's practice directory is: `/media`** — on hosts where `/media` is empty, use `stat /media` as the context proof and continue.
+**Series:** linux-ops-mastery — Networking · **Lab 32a of the Novice → RHCA path**  
+**Certifications covered:** RHCSA EX200 (diagnosing connectivity), SRE/DevOps (incident triage, path analysis)  
+**Prerequisite:** [Lab 31c](../lab-31c-static-ip-nmcli-verify/) completed  
+**Time Estimate:** 20–30 minutes  
+**Difficulty:** Beginner
 
 ---
 
-## LAB HEADER BLOCK
+## 🎯 Today's Focus Coverage
 
-```bash
-echo "🖥️  ENV:   ${ENV:-DECLARE_ME}"
-echo "💿  DISK:  $(lsblk 2>/dev/null | awk '$NF=="disk"{print "/dev/"$1}' | paste -sd, -)"
-echo "🌐  NIC:   $(ip -o addr show 2>/dev/null | awk '$2!="lo"{print $2}' | sort -u | paste -sd, -)"
-echo "🔐  SE:    $(getenforce 2>/dev/null || echo n/a)"
-echo "📦  OS:    $(cat /etc/redhat-release 2>/dev/null || grep PRETTY_NAME /etc/os-release)"
-echo "🕒  TIME:  $(date -Is)"
-echo "👤  USER:  $(whoami)@$(hostname)"
-echo "⚠️  TRAP REMINDERS THIS LAB: T32-A T32-B T41 T44"
-echo "📁  PRACTICE DIR: /media"
-ls -la /media 2>/dev/null || stat /media
-echo "exit was: $?"
-```
+> Stay on-subject via the ANCHOR rows; expand vocabulary via the NEW rows. Every row is exercised by a STEP below.
 
----
+**⚓ Anchor — already learned (on-topic reuse)**
 
-## Lab-Wide Setup — Tier B Sandbox Stack
-
-```bash
-sudo -i
-
-export LAB_NUM=32
-export LAB_SLUG=ping
-export SANDBOX=/tmp/lab32a
-export GROUP=labgrp_32_ping
-export USER=labuser_32_ping
-export USER_HOME=${SANDBOX}/home_${USER}
-
-mkdir -p "${SANDBOX}" "${USER_HOME}" /root/rhcsa_journal/lab-32a/task1 /root/rhcsa_journal/lab-32a/task2
-getent group  "${GROUP}" >/dev/null || groupadd "${GROUP}"
-getent passwd "${USER}"  >/dev/null || useradd -d "${USER_HOME}" -M -s /bin/bash -g "${GROUP}" "${USER}"
-chown -R "${USER}:${GROUP}" "${SANDBOX}"
-id "${USER}"
-ls -ld "${SANDBOX}" "${USER_HOME}" /media
-echo "Sandbox built by $(whoami) at $(date -Is)"
-echo "exit was: $?"
-```
-
----
-
-## Task 1 — `ping -c -W` loopback + IPv6 contrast
-
-**Practice directory this task:** `/media` — use it for context checks even though diagnostics are network-focused.
-
-### 🔁 Warm-Up
-
-```bash
-ls -la /media 2>/dev/null || stat /media
-hostname -I | tee /tmp/lab32a/warmup-ip.txt
-ip -o -4 addr show | tee -a /tmp/lab32a/warmup-ip.txt
-echo "Warm-up done by $(whoami) at $(date -Is)"
-echo "exit was: $?"
-```
-
-### Purpose
-
-Practice safe, bounded ICMP checks for scripts: fixed packet count (`-c`) plus deadline/wait (`-W`) and explicit IPv4/IPv6 contrast so silent IPv6 failures are visible.
-
-### 🧵 WEAVE TRACE
-
-| Re-used command | Role in this task |
-|---|---|
-| `hostname -I` | Captures local addressing context into evidence |
-| `tee` | Saves command transcript while still showing terminal output |
-| `ls`/`stat /media` | Confirms rotation directory requirement before diagnostics |
-| `sudo -u "${USER}"` | Executes one evidence write as Tier B lab user |
-
-### Main command block
-
-```bash
-TASKLOG=/tmp/lab32a/task1.txt
-
-echo "== context ==" | tee "${TASKLOG}"
-hostname -I | tee -a "${TASKLOG}"
-
-echo "== ipv4 loopback ==" | tee -a "${TASKLOG}"
-ping -c 3 -W 2 127.0.0.1 | tee -a "${TASKLOG}"
-
-echo "== ipv6 loopback contrast ==" | tee -a "${TASKLOG}"
-ping -c 3 ::1 | tee -a "${TASKLOG}" || true
-ping -6 -c 3 -W 2 ::1 | tee -a "${TASKLOG}" || true
-
-sudo -u "${USER}" bash -c 'echo "task1 evidence by $(whoami) $(date -Is)" > '"${USER_HOME}"'/task1-user-note.txt'
-stat -c '%U:%G %a %n' "${USER_HOME}/task1-user-note.txt" | tee -a "${TASKLOG}"
-
-echo "exit was: $?"
-```
-
-### Human-Readable Breakdown
-
-- `ping -c 3 -W 2 127.0.0.1` sends exactly 3 packets and waits only 2 seconds per reply.
-- `ping -c 3 ::1` and `ping -6 -c 3 -W 2 ::1` force the IPv6 path and show whether IPv6 is operational.
-- `|| true` allows labs to continue on hosts where IPv6 loopback policy differs.
-
-### Reading it left to right
-
-`ping -c 3 -W 2 127.0.0.1`
-
-- `ping` = ICMP echo tool
-- `-c 3` = stop after 3 probes (prevents hang trap)
-- `-W 2` = wait 2 seconds for each reply
-- `127.0.0.1` = local IPv4 loopback target
-
-### The story
-
-On real incidents, unbounded `ping` creates stuck automation and misleading success criteria. Script-safe checks always set count/time limits and explicitly distinguish IPv4 from IPv6 behavior.
-
-### Expected output
-
-- `3 packets transmitted, 3 received, 0% packet loss` for `127.0.0.1`
-- IPv6 line may show success or failure depending on host config
-- `stat` line should show `labuser_32_ping:labgrp_32_ping`
-
-### Switches
-
-| Token | Meaning |
-|---|---|
-| `-c 3` | send three packets then stop |
-| `-W 2` | per-packet reply timeout |
-| `-6` | force IPv6 route family |
-| `tee -a` | append transcript evidence |
-
-### 🧠 Concept Card
-
-| ✅ | Concept | What it does |
+| # | Command / switch | Covered by |
 |---|---|---|
-| ✅ | bounded ping | prevents infinite run in scripts |
-| ✅ | IPv4 vs IPv6 split | surfaces family-specific failures |
-| ✅ | Tier B user/group write | keeps user/group/file reflex active |
-| 🪤 | Trap risk: `T32-A` | never run scripted ping without `-c` |
-| 🪤 | Trap risk: `T32-B` | test both `ping` and `ping -6` paths explicitly |
+| A1 | `ping -c` | _Task 1 · Step 1_ |
+| A2 | exit codes for scripting | _Task 1 · Step 2_ |
 
-### 🔁 PERSISTENCE CHECK
+**🆕 NEW this lab — introduced for the first time** (minimum 3)
 
-| What was configured | Verification command | Why it matters |
-|---|---|---|
-| Evidence file as lab user | `stat -c '%U:%G %n' "${USER_HOME}/task1-user-note.txt"` | proves Tier B ownership |
-| Packet-loss evidence captured | `grep -n 'packet loss' "${TASKLOG}"` | confirms reproducible results |
-
-### 🧹 Cleanup (task-level)
-
-```bash
-rm -f /tmp/lab32a/warmup-ip.txt /tmp/lab32a/task1.txt "${USER_HOME}/task1-user-note.txt"
-echo "exit was: $?"
-```
-
-### Troubleshoot
-
-| Symptom | Fix |
-|---|---|
-| Command never returns | add `-c` and `-W` (T32-A) |
-| IPv6 line always fails | use `ping -6` explicitly and treat as contrast signal (T32-B) |
-
-> **STOP — paste Task 1 output before Task 2.**
+| # | Command / switch | First taught in | Covered by |
+|---|---|---|---|
+| N1 | `ping -c -W` (count/timeout) | Task 1 · Step 1 | _Task 1 · Step 1_ |
+| N2 | `ping` stats (loss / rtt) | Task 1 · Step 2 | _Task 1 · Step 2_ |
+| N3 | `traceroute` / `-n` | Task 2 · Step 1 | _Task 2 · Step 1_ |
+| N4 | `ping -s` packet size | Task 2 · Step 2 | _Task 2 · Step 2_ |
 
 ---
 
-## Task 2 — `traceroute` bounded probes with offline-safe timeout wrapper
+## 🎯 Objective
 
-**Practice directory this task:** `/media` (repeat rotation check).
+Diagnose "is it reachable, and where does it break?" You will send bounded pings (`-c`, `-W`), read packet loss and round-trip time, trace the network path with `traceroute` (`-n` to skip DNS), and test with larger packets (`-s`) to surface MTU issues. By the end you can triage connectivity methodically instead of guessing.
 
-### 🔁 Warm-Up
-
-```bash
-ls -la /media 2>/dev/null || stat /media
-hostname -I | tee /tmp/lab32a/warmup2.txt
-echo "Warm-up done by $(whoami) at $(date -Is)"
-echo "exit was: $?"
-```
-
-### Purpose
-
-Use numeric traceroute and limited hops to get route evidence quickly, while tolerating offline lab hosts by wrapping internet probe in a hard timeout.
-
-### 🧵 WEAVE TRACE
-
-| Re-used command | Role in this task |
-|---|---|
-| `hostname -I` | context lines at top of route log |
-| `tee` | dual output + artifact capture |
-| `ls/stat /media` | keeps directory rotation active |
-| `sudo -u "${USER}"` | writes secondary evidence as Tier B user |
-
-### Main command block
-
-```bash
-TASKLOG=/tmp/lab32a/task2.txt
-
-echo "== context ==" | tee "${TASKLOG}"
-hostname -I | tee -a "${TASKLOG}"
-
-echo "== local traceroute ==" | tee -a "${TASKLOG}"
-traceroute -n -w 2 127.0.0.1 | tee -a "${TASKLOG}"
-
-echo "== internet traceroute bounded ==" | tee -a "${TASKLOG}"
-timeout 10s traceroute -m 5 8.8.8.8 | tee -a "${TASKLOG}" || true
-
-echo "== mtr snapshot ==" | tee -a "${TASKLOG}"
-timeout 10s mtr -r -c 3 127.0.0.1 | tee -a "${TASKLOG}" || true
-
-sudo -u "${USER}" bash -c 'echo "task2 traceroute note $(date -Is)" > '"${USER_HOME}"'/task2-user-note.txt'
-stat -c '%U:%G %a %n' "${USER_HOME}/task2-user-note.txt" | tee -a "${TASKLOG}"
-
-echo "exit was: $?"
-```
-
-### Human-Readable Breakdown
-
-- `traceroute -n -w 2 127.0.0.1` verifies local stack with numeric output and short waits.
-- `timeout 10s traceroute -m 5 8.8.8.8` limits hop count and total runtime for offline-safe behavior.
-- `mtr -r -c 3` gives a compact report mode sample.
-
-### Reading it left to right
-
-`timeout 10s traceroute -m 5 8.8.8.8`
-
-- `timeout 10s` hard-stop wrapper for slow/unreachable routes
-- `traceroute` path probe utility
-- `-m 5` max five hops
-- target `8.8.8.8` as external contrast
-
-### The story
-
-Routing checks are evidence-gathering tools, not long-running commands. Bounded probes keep troubleshooting fast and script-friendly even on disconnected training boxes.
-
-### Expected output
-
-- A short local route to `127.0.0.1`
-- External probe may succeed or timeout/fail (acceptable in this lab)
-- Tier B `stat` ownership line for task2 note
-
-### Switches
-
-| Token | Meaning |
-|---|---|
-| `-n` | show numeric hops, skip DNS lookup |
-| `-w 2` | wait 2s per probe reply |
-| `-m 5` | cap max hops |
-| `timeout 10s` | hard stop the whole command |
-| `mtr -r -c 3` | report mode with 3 cycles |
-
-### 🧠 Concept Card
-
-| ✅ | Concept | What it does |
-|---|---|---|
-| ✅ | numeric traceroute | faster, deterministic output |
-| ✅ | timeout wrappers | prevents hanging diagnostics |
-| ✅ | mtr report snapshot | quick packet-loss/latency summary |
-| 🪤 | Trap risk: `T41` | verify persistence evidence before moving on |
-| 🪤 | Trap risk: `T44` | complete cleanup audit to avoid residue |
-
-### 🔁 PERSISTENCE CHECK
-
-| What was configured | Verification command | Why it matters |
-|---|---|---|
-| traceroute evidence saved | `test -s /tmp/lab32a/task2.txt && wc -l /tmp/lab32a/task2.txt` | confirms artifact exists |
-| user note ownership | `stat -c '%U:%G %n' "${USER_HOME}/task2-user-note.txt"` | confirms Tier B ownership path |
-
-### 🧹 Cleanup (task-level)
-
-```bash
-rm -f /tmp/lab32a/warmup2.txt /tmp/lab32a/task2.txt "${USER_HOME}/task2-user-note.txt"
-echo "exit was: $?"
-```
-
-### Troubleshoot
-
-| Symptom | Fix |
-|---|---|
-| traceroute too slow | add `-n`, reduce `-m`, keep `timeout 10s` wrapper |
-| `mtr` missing | install package or keep this step as optional contrast |
+> **Note:** Examples target `127.0.0.1`/`localhost` so they work on any box, online or not. Substitute a real host/gateway when triaging for real.
 
 ---
 
-## Section 6 Lab Closeout — Bulletproof Teardown + Audit
+## 🧠 Concept
+
+`ping` sends ICMP echo requests and times the replies; **always bound it** with `-c COUNT` (so it stops) and `-W SECONDS` (per-packet timeout) in scripts. Its summary is the diagnosis: **packet loss** (0% good, >0% trouble) and **round-trip time** (min/avg/max). `ping`'s exit code is scriptable: 0 = at least one reply, non-zero = no replies. `traceroute` reveals the *path* hop by hop, showing where latency spikes or packets die; `-n` skips reverse-DNS for speed. `ping -s SIZE` sends larger payloads to expose MTU/fragmentation problems that small pings miss. The triage ladder: ping the loopback (stack OK?), the gateway (LAN OK?), then a remote host (routing/DNS OK?).
+
+```
+ping -c4 -W2 127.0.0.1   → 4 packets, 2s timeout, then summary
+ping -c2 host | grep loss → packet loss %
+traceroute -n 127.0.0.1  → path, numeric (no DNS)
+ping -c2 -s 1400 host    → larger packets (MTU test)
+echo $?                  → 0 reachable, non-zero not
+```
+
+> **Why this matters:** Connectivity triage is a core admin reflex. Knowing loss vs latency, where `traceroute` shows the break, and bounding `ping` so scripts don't hang are everyday and exam-relevant skills.
+
+---
+
+## 📚 Command Reference
+
+| Command | Purpose | Notes |
+|---|---|---|
+| `ping -c N` | Send N packets | always bound count |
+| `ping -W S` | Per-packet timeout | seconds |
+| `ping -s SIZE` | Payload size | MTU testing |
+| `traceroute` | Trace the path | hop by hop |
+| `traceroute -n` | No DNS | faster |
+| `$?` | Reachability | 0 = reply |
+
+---
+
+## 🧰 LAB-WIDE SETUP
+
+**In plain English:** Make a sandbox for saved results; targets are loopback/local.
+
+> Run this block **once** before Task 1. `LAB_ROOT` holds any saved output.
 
 ```bash
-set +e
-
-awk -v s="${SANDBOX}" '$2 ~ s {print $2}' /proc/mounts | tac | xargs -r -n1 umount -l 2>/dev/null
-
-if getent passwd "${USER}" >/dev/null 2>&1; then userdel -r "${USER}" 2>/dev/null; fi
-if getent group "${GROUP}" >/dev/null 2>&1; then groupdel "${GROUP}" 2>/dev/null; fi
-
-rm -rf "${SANDBOX}"
-
-echo "── cleanup audit ──"
-getent passwd "${USER}" && echo "❌ user remains" || echo "✅ user gone"
-getent group  "${GROUP}" && echo "❌ group remains" || echo "✅ group gone"
-test -d "${SANDBOX}" && echo "❌ sandbox remains" || echo "✅ sandbox gone"
-
-set -e
-echo "Cleanup complete by $(whoami) at $(date -Is)"
+export LAB_ROOT=/tmp/lab-32
+mkdir -p "$LAB_ROOT"
+cd "$LAB_ROOT"
+command -v traceroute >/dev/null || echo "note: install traceroute (dnf install -y traceroute)"
+echo "ready"
 echo "exit was: $?"
+```
+
+**Expected output:**
+
+```
+ready
+exit was: 0
 ```
 
 ---
 
-## Author
+## TASK 1 of 2 — Ping and read the stats
 
-**Kelvin R. Tobias**
+**In plain English:** We send bounded pings and interpret loss and latency.
+
+---
+
+### Step 1 of 2 — Bounded ping with `-c` and `-W`
+
+**In plain English:** We ping the loopback a fixed number of times with a timeout.
+
+```bash
+ping -c4 -W2 127.0.0.1
+echo "ping rc: $?"
+```
+
+**Expected output:**
+
+```
+PING 127.0.0.1 (127.0.0.1) 56(84) bytes of data.
+64 bytes from 127.0.0.1: icmp_seq=1 ttl=64 time=0.0xx ms
+... (4 replies) ...
+--- 127.0.0.1 ping statistics ---
+4 packets transmitted, 4 received, 0% packet loss, time ...
+ping rc: 0
+```
+
+**Line-by-line breakdown:**
+
+- `ping -c4 -W2 127.0.0.1` → Send exactly 4 packets, each with a 2-second timeout, then stop.
+- `ping rc: 0` → Exit 0 means at least one reply — reachable.
+
+**New words in this step:**
+
+- **`-c` / `-W`** — packet count and per-packet timeout (bound the command).
+
+---
+
+### Step 2 of 2 — Read loss and round-trip time
+
+**In plain English:** We extract the packet-loss and latency lines for a clean diagnosis.
+
+```bash
+ping -c3 127.0.0.1 | grep -E 'packet loss|rtt|round-trip'
+LOSS=$(ping -c3 -W2 127.0.0.1 | grep -oP '\d+(?=% packet loss)')
+echo "loss%: $LOSS"
+[ "$LOSS" -eq 0 ] && echo "NO LOSS (OK)" || echo "LOSS DETECTED"
+```
+
+**Expected output:**
+
+```
+3 packets transmitted, 3 received, 0% packet loss, time ...
+rtt min/avg/max/mdev = 0.0xx/0.0xx/0.0xx/0.0xx ms
+loss%: 0
+NO LOSS (OK)
+```
+
+**Line-by-line breakdown:**
+
+- `grep -E 'packet loss|rtt'` → Pull the two summary lines that matter: loss and round-trip time.
+- `grep -oP '\d+(?=% packet loss)'` → Extract just the loss percentage for a script.
+
+**New words in this step:**
+
+- **packet loss / rtt** — the percentage of dropped packets and the round-trip latency.
+
+---
+
+### Concept card (Task 1)
+
+| Concept | What it does | Exam trap |
+|---|---|---|
+| `-c`/`-W` | bound ping | unbounded hangs |
+| loss % | reliability | >0 = problem |
+| rtt | latency | high avg = slow path |
+
+---
+
+### Troubleshoot (Task 1)
+
+| Symptom | Likely cause | Fix |
+|---|---|---|
+| ping hangs | No `-c` | Always set `-c` |
+| 100% loss | Host/firewall down | Try gateway first |
+
+---
+
+## TASK 2 of 2 — Trace the path and test MTU
+
+**In plain English:** We trace the route to a target, then test with larger packets.
+
+---
+
+### Step 1 of 2 — Trace with `traceroute -n`
+
+**In plain English:** We map the hops to the loopback (one hop) numerically.
+
+```bash
+traceroute -n -m 5 127.0.0.1
+echo "exit was: $?"
+```
+
+**Expected output:**
+
+```
+traceroute to 127.0.0.1 (127.0.0.1), 5 hops max, 60 byte packets
+ 1  127.0.0.1  0.0xx ms  0.0xx ms  0.0xx ms
+exit was: 0
+```
+
+**Line-by-line breakdown:**
+
+- `traceroute -n -m 5 127.0.0.1` → Trace the path; `-n` skips reverse-DNS, `-m 5` caps hops. Loopback is a single hop.
+- For a real host, each line is a router on the path with its latency — where the line stops is where the break is.
+
+**New words in this step:**
+
+- **`traceroute`** — show the hop-by-hop network path to a target.
+- **`-n`** — numeric output (no DNS lookups).
+
+---
+
+### Step 2 of 2 — Larger packets with `ping -s`
+
+**In plain English:** We send bigger payloads to probe for MTU/fragmentation issues.
+
+```bash
+ping -c2 -s 1400 127.0.0.1 | grep -E 'bytes from|packet loss'
+echo "exit was: $?"
+```
+
+**Expected output:**
+
+```
+1408 bytes from 127.0.0.1: icmp_seq=1 ttl=64 time=0.0xx ms
+2 packets transmitted, 2 received, 0% packet loss, ...
+exit was: 0
+```
+
+**Line-by-line breakdown:**
+
+- `ping -c2 -s 1400 127.0.0.1` → 1400-byte payloads; on a real path, loss only with large packets points to an MTU problem.
+- `grep 'packet loss'` → Confirm large packets also get through.
+
+**New words in this step:**
+
+- **`-s SIZE`** — set the ICMP payload size to test MTU handling.
+
+---
+
+### Concept card (Task 2)
+
+| Concept | What it does | Exam trap |
+|---|---|---|
+| `traceroute -n` | path map | where it stops = break |
+| `-m` | max hops | cap long traces |
+| `-s` | packet size | MTU diagnosis |
+
+---
+
+### Troubleshoot (Task 2)
+
+| Symptom | Likely cause | Fix |
+|---|---|---|
+| `traceroute` not found | Not installed | `dnf install traceroute` |
+| Large ping fails only | MTU/fragmentation | Test `-M do -s` sizes |
+
+---
+
+## ✅ Lab Checklist
+
+- [ ] Task 1 · Step 1 — Bounded ping with `-c` and `-W`
+- [ ] Task 1 · Step 2 — Read loss and round-trip time
+- [ ] Task 2 · Step 1 — Trace with `traceroute -n`
+- [ ] Task 2 · Step 2 — Larger packets with `ping -s`
+- [ ] Every 🎯 Focus Coverage row (Anchor + NEW) mapped to a step
+- [ ] 🧹 Teardown run — sandbox + any system state removed
+
+---
+
+## 🧹 Teardown
+
+**In plain English:** Delete everything this lab created so the box is clean for the next run.
+
+> Run this after you've verified the lab. `lab_teardown.sh` safely removes the single sandbox root — it refuses to touch `/`, `$HOME`, or any protected path. This lab changed **no** system state.
+
+```bash
+cd /tmp
+bash lab_teardown.sh "$LAB_ROOT"     # = /tmp/lab-32
+```
+
+**Expected output:**
+
+```
+✅ Removed /tmp/lab-32 — lab workspace is clean.
+```
+
+---
+
+## ⚠️ Common Pitfalls
+
+| Mistake | Symptom | Fix |
+|---|---|---|
+| Unbounded `ping` | Runs forever | Always `-c` |
+| Confusing loss vs latency | Wrong diagnosis | Read both summary lines |
+| Forgetting `-n` | Slow traceroute | Skip DNS with `-n` |
+
+---
+
+## 📌 Exam Strategy
+
+Triage with the ladder: ping loopback, gateway, then remote. Bound `ping` with `-c`/`-W`, read loss vs rtt, and use `traceroute -n` to locate the break. Use `ping -s` only when you suspect MTU.
+
+- Always `-c` so ping (and scripts) terminate.
+- Loss = reliability, rtt = latency — diagnose differently.
+- `traceroute` shows *where* it breaks, not just *that* it broke.
+
+---
+
+## 🔗 Related Labs
+
+- [Lab 32b — Check Network Connectivity (Ansible)](../lab-32b-ping-traceroute-ansible/) — reachability checks in plays
+- [Lab 32c — Check Network Connectivity (Verify)](../lab-32c-ping-traceroute-verify/) — prove loss/latency thresholds
+- [Lab 34a — Inspecting Listening Sockets (RHCSA)](../lab-34a-ss-listening-sockets-rhcsa/) — checking which ports are open
+
+---
+
+## 👤 Author
+
+**Kelvin R. Tobias**  
+[kelvinintech.com](https://kelvinintech.com) · [GitHub](https://github.com/kelvintechnical) · [LinkedIn](https://www.linkedin.com/in/kelvin-r-tobias-211949219)

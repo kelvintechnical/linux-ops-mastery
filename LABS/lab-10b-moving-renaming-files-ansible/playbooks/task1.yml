@@ -1,17 +1,30 @@
 ---
-- name: "Lab 10b Task 1 — guarded mv boundary"
+# Lab 10b Task 1 — idempotent move
+#
+# Run (twice, to prove idempotence):
+#   ansible-playbook /root/rhcsa_journal/lab-10b/playbooks/task1.yml
+#   ansible-playbook /root/rhcsa_journal/lab-10b/playbooks/task1.yml
+#
+# Expected: changed=1 on the first run, changed=0 on the second. There is no
+# mv module, so command: mv is guarded with BOTH creates (destination) and
+# removes (source) so the re-run is a clean skip, not a failure.
+
+- name: "Lab 10b Task 1 — idempotent move"
   hosts: localhost
   connection: local
   gather_facts: false
+  vars:
+    src: /tmp/lab-10/report.txt
+    dst: /tmp/lab-10/archive/report.txt
 
   tasks:
-    - name: "Move app.log to dst with idempotent guards"
-      ansible.builtin.command:
-        cmd: mv /tmp/mv-ansible-lab/src/app.log /tmp/mv-ansible-lab/dst/app.log
-        creates: /tmp/mv-ansible-lab/dst/app.log
-        removes: /tmp/mv-ansible-lab/src/app.log
-      register: mv_result
+    - name: "Move the file (idempotent via creates + removes)"
+      ansible.builtin.command: "mv {{ src }} {{ dst }}"
+      args:
+        creates: "{{ dst }}"
+        removes: "{{ src }}"
+      register: move_result
 
-    - name: "Per-task result"
+    - name: "Show whether the move ran"
       ansible.builtin.debug:
-        msg: "changed={{ mv_result.changed }} rc={{ mv_result.rc }}"
+        msg: "changed: {{ move_result.changed }}"

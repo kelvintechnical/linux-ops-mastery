@@ -1,463 +1,368 @@
-# Lab 16b: Search for a String and Save Output (Ansible) — `ansible.builtin.shell`, `register`, `failed_when`
+# Lab 16b: Search for a String and Save Output (Ansible) — `command: grep`, `ansible.builtin.lineinfile`
 
-- **Series:** linux-ops-mastery — Search and Capture
-- **Trilogy:** [`16a`](../lab-16a-grep-search-save-output-rhcsa/) (RHCSA) → **`16b`** (Ansible) → [`16c`](../lab-16c-grep-search-save-output-verify/) (Verify)
-- **Tasks:** 2 (Task 1 = `ansible.builtin.shell: "grep ... | tee ..."` with `register` + `changed_when: false`; Task 2 = fail on empty stdout with `failed_when`)
-- **Practice Directory:** `/sbin`
-- **Sandbox (Tier B):** `/tmp/lab16b`, `USER=labuser_16_grepsave`, `GROUP=labgrp_16_grepsave`
-- **Traps rehearsed:** `T16-A` · `T16-B` · `T41` · `T44`
-
-> **This lab's practice directory is: `/sbin`** — Ansible shell tasks read command names from `/sbin` while journal and task artifacts land in `/tmp/lab16b` and `/root/rhcsa_journal/lab-16b/`.
+**Series:** linux-ops-mastery — Text Processing & Filters · **Lab 16b of the Novice → RHCA path**  
+**Certifications covered:** RHCE EX294 (capturing command output and editing config lines idempotently), RHCSA EX200 (the `grep` behavior underneath), DevOps (config assertions)  
+**Prerequisite:** [Lab 16a](../lab-16a-grep-search-save-output-rhcsa/) completed and a working control node  
+**Time Estimate:** 25–35 minutes  
+**Difficulty:** Beginner → Intermediate
 
 ---
 
-## LAB HEADER BLOCK
+## 🎯 Today's Focus Coverage
 
-```bash
-echo "🖥️  ENV:   ${ENV:-DECLARE_ME}"
-echo "💿  DISK:  $(lsblk 2>/dev/null | awk '$NF=="disk"{print "/dev/"$1}' | paste -sd, -)"
-echo "🌐  NIC:   $(ip -o addr show 2>/dev/null | awk '$2!="lo"{print $2}' | sort -u | paste -sd, -)"
-echo "🔐  SE:    $(getenforce 2>/dev/null || echo n/a)"
-echo "📦  OS:    $(cat /etc/redhat-release 2>/dev/null || grep PRETTY_NAME /etc/os-release)"
-echo "🕒  TIME:  $(date -Is)"
-echo "👤  USER:  $(whoami)@$(hostname)"
-echo "⚠️  TRAP REMINDERS THIS LAB: T16-A T16-B T41 T44"
-echo "📁  PRACTICE DIR: /sbin"
-ansible --version
-ansible localhost -m ping --connection=local
+> Stay on-subject via the ANCHOR rows; expand vocabulary via the NEW rows. Every row is exercised by a STEP below.
+
+**⚓ Anchor — already learned (on-topic reuse)**
+
+| # | Command / switch | Covered by |
+|---|---|---|
+| A1 | `grep` (via command) | _Task 1 · Step 1_ |
+| A2 | `ansible.builtin.copy` | _Task 1 · Step 1_ |
+
+**🆕 NEW this lab — introduced for the first time** (minimum 3)
+
+| # | Command / switch | First taught in | Covered by |
+|---|---|---|---|
+| N1 | `command:` + `register` + `changed_when: false` | Task 1 · Step 1 | _Task 1 · Step 1_ |
+| N2 | `stdout_lines` | Task 1 · Step 2 | _Task 1 · Step 2_ |
+| N3 | `ansible.builtin.lineinfile` | Task 2 · Step 1 | _Task 2 · Step 1_ |
+| N4 | `failed_when:` (grep rc) | Task 1 · Step 1 | _Task 1 · Step 1_ |
+
+---
+
+## 🎯 Objective
+
+Search and capture the Ansible way. You will run `grep` through `command:` as a read-only check (registering its output and taming its exit codes), save the matches with `ansible.builtin.copy`, then switch to the *right* tool for editing a config — `ansible.builtin.lineinfile`, which idempotently ensures a setting exists. Run twice to prove `changed=0`.
+
+---
+
+## 🧠 Concept
+
+`grep` is a read-only filter, so when you run it via `command:` you set `changed_when: false`. But `grep` returns exit code `1` when it finds nothing — which Ansible treats as failure — so you guard with `failed_when:` to accept rc 0 or 1. To persist results, feed the registered `stdout` into `ansible.builtin.copy`. For *changing* a config, do not shell out — `ansible.builtin.lineinfile` ensures a single line matches a regex idempotently, the declarative replacement for `grep`-then-`sed`.
+
+```
+SHELL (16a)                          ANSIBLE (16b)
+─────────────────────────────       ──────────────────────────────────────
+grep -i error app.log > out          command: grep ... (register, changed_when:false)
+                                       copy: content="{{ result.stdout }}"
+grep + sed to set a line             lineinfile: regexp=... line=... (idempotent)
 ```
 
-> **STOP — paste output before setup.**
+> **Why this matters:** Running `grep` in a play without `changed_when:`/`failed_when:` produces noisy recaps and spurious failures. Knowing when to *read* (command + grep) versus *change* (lineinfile) is the core exam judgment.
 
 ---
 
-## Lab-Wide Setup — Tier B Sandbox Stack
+## 📚 Command Reference
+
+| Command | Purpose | Critical flags |
+|---|---|---|
+| `ansible.builtin.command` | Run `grep` (read-only) | pair with `changed_when:`/`failed_when:` |
+| `changed_when: false` | Mark a read-only task | keeps the recap honest |
+| `failed_when:` | Accept grep rc 0 or 1 | `result.rc not in [0,1]` |
+| `ansible.builtin.copy` | Save registered output | `content: "{{ result.stdout }}"` |
+| `ansible.builtin.lineinfile` | Idempotently ensure a line | `regexp:` + `line:` |
+
+---
+
+## 🧰 LAB-WIDE SETUP
+
+**In plain English:** Build the sandbox and playbook folder, and seed a log and a config to search and edit.
+
+> Run this block **once** before Task 1. It builds the clean, private workspace that both tasks depend on.
 
 ```bash
-sudo -i
-
-export LAB_NUM=16
-export LAB_SLUG=grepsave
-export SANDBOX=/tmp/lab16b
-export GROUP=labgrp_16_grepsave
-export USER=labuser_16_grepsave
-export USER_HOME=${SANDBOX}/home_${USER}
-
-mkdir -p "${SANDBOX}" "${USER_HOME}"
+export LAB_ROOT=/tmp/lab-16
+mkdir -p "$LAB_ROOT/conf"
 mkdir -p /root/rhcsa_journal/lab-16b/playbooks
-mkdir -p /root/rhcsa_journal/lab-16b/task1
-mkdir -p /root/rhcsa_journal/lab-16b/task2
-
-getent group  "${GROUP}" >/dev/null || groupadd "${GROUP}"
-getent passwd "${USER}"  >/dev/null || useradd -d "${USER_HOME}" -M -s /bin/bash -g "${GROUP}" "${USER}"
-chown -R "${USER}:${GROUP}" "${SANDBOX}"
-
-cat > "${SANDBOX}/THIS_DIRECTORY.txt" <<'EOF'
-/sbin is the admin command path used for this rotation.
-This lab reads /sbin names via ansible.builtin.shell and persists outputs in /tmp and /root journal.
-EOF
-
-id "${USER}"
-ls -ld /sbin "${SANDBOX}" "${USER_HOME}"
-echo "Setup complete at $(date -Is)"
+printf 'INFO start\nERROR disk full\ninfo retry\nERROR timeout\n' > "$LAB_ROOT/app.log"
+printf 'Port 22\n' > "$LAB_ROOT/conf/sshd_config"
+ls -l "$LAB_ROOT"
 echo "exit was: $?"
 ```
 
-> **STOP — paste setup proof before Task 1.**
+**Expected output:**
 
----
-
-## Task 1 — Ansible shell grep pipeline with `register:` and `changed_when: false`
-
-**Practice directory this task:** `/sbin` — shell pipeline searches `/sbin` command names and saves to `/tmp/lab16b/result.txt`.
-
-### Warm-Up
-
-```bash
-ls -ld /sbin
-ls -1 /sbin 2>/dev/null | head -10
-grep -E 'sh$|ctl$' /tmp/lab16b/THIS_DIRECTORY.txt || true
-echo "Warm-up done by $(whoami) at $(date -Is)"
-echo "exit was: $?"
+```
+-rw-r--r--. 1 root root 41 ... app.log
+drwxr-xr-x. 2 root root 24 ... conf
+exit was: 0
 ```
 
-### Purpose
-
-Run a grep-and-tee pipeline via `ansible.builtin.shell`, capture output with `register: result`, keep task read-only with `changed_when: false`, and copy stdout to journal evidence.
-
-### WEAVE TRACE
-
-| Warm-up / setup command | Role inside Task 1 |
-|---|---|
-| `ls -ld /sbin` | Confirms search root before playbook |
-| `ls -1 /sbin` | Mirrors command used inside shell task |
-| `grep -E` | Reused in pipeline filter criteria |
-| `id "${USER}"` | Tier B identity audit in post-check |
-
-### Main Command Block
-
-```bash
-TASKLOG=/tmp/lab16b/task1.txt
-PB=/root/rhcsa_journal/lab-16b/playbooks/task1.yml
-
-cat > "${PB}" <<'PLAYBOOK'
 ---
-- name: Lab 16b Task 1 grep tee capture
+
+## TASK 1 of 2 — Capture grep output safely
+
+**In plain English:** We run `grep` as a read-only check, guard its exit code, and save the matches with `copy`.
+
+---
+
+### Step 1 of 2 — Write the grep-and-capture playbook
+
+**In plain English:** We create `task1.yml`, which greps for errors, accepts the "no match" exit code, and writes the hits to a results file.
+
+```yaml
+---
+- name: "Lab 16b Task 1 — capture grep output"
   hosts: localhost
   connection: local
   gather_facts: false
+  vars:
+    log: /tmp/lab-16/app.log
+    out: /tmp/lab-16/errors.txt
   tasks:
-    - name: Search /sbin names and save through tee
-      ansible.builtin.shell: "ls -1 /sbin 2>/dev/null | grep -E 'sh$|ctl$' | tee /tmp/lab16b/result.txt"
-      register: result
+    - name: "Search for ERROR lines (read-only)"
+      ansible.builtin.command: "grep -in error {{ log }}"
+      register: grep_result
       changed_when: false
-      failed_when: false
+      failed_when: "grep_result.rc not in [0, 1]"
 
-    - name: Show result lengths
+    - name: "Save the matches to a results file"
+      ansible.builtin.copy:
+        dest: "{{ out }}"
+        content: "{{ grep_result.stdout }}\n"
+        mode: '0644'
+      register: save_result
+
+    - name: "Show counts"
       ansible.builtin.debug:
         msg:
-          - "rc={{ result.rc }}"
-          - "stdout_lines={{ result.stdout_lines | length }}"
-          - "stderr_lines={{ result.stderr_lines | length }}"
-
-    - name: Copy stdout into journal evidence
-      ansible.builtin.copy:
-        dest: /root/rhcsa_journal/lab-16b/task1/result-stdout.txt
-        content: "{{ result.stdout }}\n"
-        mode: '0644'
-PLAYBOOK
-
-ansible-playbook "${PB}" 2>&1 | tee "${TASKLOG}"
-echo "play exit was: $?" | tee -a "${TASKLOG}"
-wc -l /tmp/lab16b/result.txt | tee -a "${TASKLOG}"
-echo "exit was: $?"
+          - "matches: {{ grep_result.stdout_lines | length }}"
+          - "saved changed: {{ save_result.changed }}"
 ```
 
-### Human-Readable Breakdown
+**Expected output:**
 
-- `ansible.builtin.shell` runs the exact shell pipeline with `grep ... | tee`.
-- `register: result` stores `rc`, `stdout`, `stdout_lines`, `stderr_lines`.
-- `changed_when: false` keeps read-only search tasks idempotent in recap.
-- `copy` writes captured stdout into persistent journal location.
-
-### Reading It Left to Right
-
-```text
-ansible.builtin.shell: "ls -1 /sbin | grep -E 'sh$|ctl$' | tee /tmp/lab16b/result.txt"
-│                      │             │                   │
-│                      │             │                   └─ persist and display matches
-│                      │             └─ regex filter
-│                      └─ enumerate commands in /sbin
-└─ execute literal shell pipeline
+```
+(this is the saved playbook file — no output until you run it in Step 2)
 ```
 
-### The Story
+**Line-by-line breakdown:**
 
-Ansible does not replace shell literacy; it operationalizes it. When you do need shell, make state reporting honest (`changed_when: false`) and capture outputs intentionally (`register` + journal copy). That is the RHCE habit this task drills.
+- `command: grep ...` + `changed_when: false` → Run grep as a read-only search; it never "changes" the host.
+- `failed_when: "grep_result.rc not in [0, 1]"` → Treat rc 1 (no match) as success, failing only on real errors (rc ≥ 2).
+- `copy: content: "{{ grep_result.stdout }}\n"` → Persist the captured matches idempotently.
 
-### Expected Output
+**New words in this step:**
 
-```text
-TASK [Show result lengths] ...
-rc=0
-stdout_lines=<n>
-stderr_lines=0
-```
-
-### Switches
-
-| Token | Meaning |
-|---|---|
-| `ansible.builtin.shell` | Run shell command |
-| `register: result` | Capture command output data |
-| `changed_when: false` | Prevent false-positive change |
-| `failed_when: false` | Continue for evidence collection |
-| `grep -E` | Extended regex matching |
-
-### Concept Card
-
-| ✅ | Concept | What it does |
-|---|---|---|
-| ✅ | Shell pipeline in Ansible | Preserves familiar grep/tee behavior |
-| ✅ | `register` output object | Gives structured stdout/stderr access |
-| ✅ | `changed_when: false` | Keeps read-only tasks truly idempotent |
-| ✅ | Journal copy | Makes evidence persistent beyond `/tmp` |
-| 🪤 Trap Risk | What goes wrong | How to avoid |
-| ⚠️ `T16-A` | Greedy regex captures unintended command names | Use end anchors and explicit alternatives |
-
-### 🔁 PERSISTENCE CHECK
-
-| What was configured | Verification command | Why it matters |
-|---|---|---|
-| Result file exists | `test -s /tmp/lab16b/result.txt && wc -l /tmp/lab16b/result.txt` | Confirms pipeline output saved |
-| Journal evidence exists | `test -s /root/rhcsa_journal/lab-16b/task1/result-stdout.txt` | Confirms persistent capture |
-| Idempotent reporting | `grep -c "changed=0" /tmp/lab16b/task1.txt` | Ensures read-only task not marked changed |
-
-### Journal Write
-
-```bash
-LAB=lab-16b
-TASK=task1
-JDIR="/root/rhcsa_journal/${LAB}/${TASK}"
-mkdir -p "$JDIR"
-
-cp /tmp/lab16b/task1.txt "$JDIR/evidence.txt"
-cp /tmp/lab16b/result.txt "$JDIR/result.txt"
-
-cat > "$JDIR/done.txt" <<EOF
-LAB:    ${LAB}
-TASK:   ${TASK}
-DATE:   $(date -Is)
-USER:   $(whoami)@$(hostname)
-STATUS: COMPLETE
-EOF
-
-cat > "$JDIR/notes.txt" <<EOF
-TOPIC:    ansible shell grep|tee with register and changed_when false
-COMMANDS: ansible.builtin.shell, register, changed_when:false, grep -E, tee
-TRAPS:    T16-A rehearsed
-NEXT:     task2 failed_when on empty stdout
-EOF
-
-echo "Journal written: $(ls -la "$JDIR")"
-echo "exit was: $?"
-```
-
-### Cleanup
-
-```bash
-rm -f /tmp/lab16b/task1.txt /tmp/lab16b/result.txt
-echo "exit was: $?"
-```
-
-### Troubleshoot
-
-| Symptom | Fix |
-|---|---|
-| `stdout_lines` is zero | Recheck regex and source list from `/sbin` |
-| Play shows changed=1 | Confirm `changed_when: false` present |
-| Result file missing | Ensure `tee /tmp/lab16b/result.txt` is in shell string |
-
-> **STOP — paste play recap and result count before Task 2.**
+- **`failed_when:`** — override what counts as task failure, here accepting grep's "no match" code.
 
 ---
 
-## Task 2 — `failed_when: result.stdout|length == 0` trap guard
+### Step 2 of 2 — Run it twice and watch the capture converge
 
-**Practice directory this task:** `/sbin` — search remains anchored to `/sbin` so empty-result detection is meaningful.
-
-### Warm-Up
+**In plain English:** We run the play twice; the search never changes, and the save converges to `changed=0` once the results file matches.
 
 ```bash
-ls -ld /sbin
-ls -1 /sbin 2>/dev/null | grep -E 'sh$|ctl$' | head -5
-echo "Warm-up done by $(whoami) at $(date -Is)"
+ansible-playbook /root/rhcsa_journal/lab-16b/playbooks/task1.yml
+ansible-playbook /root/rhcsa_journal/lab-16b/playbooks/task1.yml
+cat /tmp/lab-16/errors.txt
 echo "exit was: $?"
 ```
 
-### Purpose
+**Expected output:**
 
-Prevent silent success when grep returns no matches by failing explicitly on empty stdout (`failed_when: result.stdout|length == 0`), then record both pass and fail behavior.
+```
+PLAY RECAP ********************************************************************
+localhost                  : ok=3    changed=1    unreachable=0    failed=0
+PLAY RECAP ********************************************************************
+localhost                  : ok=3    changed=0    unreachable=0    failed=0
+2:ERROR disk full
+4:ERROR timeout
+exit was: 0
+```
 
-### WEAVE TRACE
+**Line-by-line breakdown:**
 
-| Warm-up / setup command | Role inside Task 2 |
-|---|---|
-| `ls -ld /sbin` | Confirms expected search source |
-| `grep -E ...` | Validates known-good matching baseline |
-| Prior `register` habit | Reused for stdout-length guard |
+- two runs → The grep stays `changed=0`; the copy is `changed=1` then `changed=0` once the file matches.
+- `cat errors.txt` → Confirm the saved matches.
 
-### Main Command Block
+**New words in this step:**
 
-```bash
-TASKLOG=/tmp/lab16b/task2.txt
-PB=/root/rhcsa_journal/lab-16b/playbooks/task2.yml
+- **`stdout_lines`** — the registered stdout split into a list, handy for counting.
 
-cat > "${PB}" <<'PLAYBOOK'
 ---
-- name: Lab 16b Task 2 empty-stdout failed_when
+
+### Concept card (Task 1)
+
+| Concept | What it does | Exam trap |
+|---|---|---|
+| `changed_when: false` | read-only honesty | grep via command is "changed" by default |
+| `failed_when:` rc | accept no-match | grep rc 1 ≠ failure |
+| `copy` of stdout | persist results | idempotent on re-run |
+
+---
+
+### Troubleshoot (Task 1)
+
+| Symptom | Likely cause | Fix |
+|---|---|---|
+| Play fails on no match | grep rc 1 unhandled | Add `failed_when:` accepting rc 1 |
+| Results task always changed | trailing newline drift | Keep `content:` stable |
+
+---
+
+## TASK 2 of 2 — Edit a config idempotently with `lineinfile`
+
+**In plain English:** We ensure a setting exists in a config file using the right module, then prove it converges.
+
+---
+
+### Step 1 of 2 — Write the lineinfile playbook
+
+**In plain English:** We create `task2.yml`, which ensures `PermitRootLogin no` is present, replacing any existing `PermitRootLogin` line.
+
+```yaml
+---
+- name: "Lab 16b Task 2 — ensure a config setting"
   hosts: localhost
   connection: local
   gather_facts: false
+  vars:
+    cfg: /tmp/lab-16/conf/sshd_config
   tasks:
-    - name: Good search expected to match
-      ansible.builtin.shell: "ls -1 /sbin 2>/dev/null | grep -E 'sh$|ctl$' | tee /tmp/lab16b/good.txt"
-      register: result
-      changed_when: false
-      failed_when: result.stdout | length == 0
-
-    - name: Bad search intentionally empty (trap demo)
-      ansible.builtin.shell: "ls -1 /sbin 2>/dev/null | grep -E 'ZZZ_NO_MATCH_PATTERN' | tee /tmp/lab16b/empty.txt"
-      register: empty_result
-      changed_when: false
-      failed_when: empty_result.stdout | length == 0
-      ignore_errors: true
-
-    - name: Show guard behavior
-      ansible.builtin.debug:
-        msg:
-          - "good_len={{ result.stdout | length }}"
-          - "empty_len={{ empty_result.stdout | length }}"
-          - "empty_guard_triggered={{ empty_result.failed | default(false) }}"
-
-    - name: Copy task2 summary to journal
-      ansible.builtin.copy:
-        dest: /root/rhcsa_journal/lab-16b/task2/guard-summary.txt
-        content: |
-          good_len={{ result.stdout | length }}
-          empty_len={{ empty_result.stdout | length }}
-          empty_guard_triggered={{ empty_result.failed | default(false) }}
+    - name: "Ensure PermitRootLogin is set to no"
+      ansible.builtin.lineinfile:
+        path: "{{ cfg }}"
+        regexp: '^#?PermitRootLogin'
+        line: 'PermitRootLogin no'
+        create: true
         mode: '0644'
-PLAYBOOK
+      register: line_result
 
-ansible-playbook "${PB}" 2>&1 | tee "${TASKLOG}"
-echo "play exit was: $?" | tee -a "${TASKLOG}"
-grep -E "good_len|empty_len" "${TASKLOG}" | tee -a "${TASKLOG}"
-echo "exit was: $?"
+    - name: "Show whether the line changed"
+      ansible.builtin.debug:
+        msg: "changed: {{ line_result.changed }}"
 ```
 
-### Human-Readable Breakdown
+**Expected output:**
 
-- First task proves normal successful non-empty search.
-- Second task intentionally creates empty stdout to trigger guard.
-- `failed_when: ... == 0` turns silent empty output into explicit failure signal.
-- `ignore_errors: true` keeps play running so you can inspect trap behavior.
-
-### Reading It Left to Right
-
-```text
-failed_when: empty_result.stdout | length == 0
-│            │                   │          │
-│            │                   │          └─ fail when no output bytes
-│            │                   └─ Jinja length filter
-│            └─ captured stdout from grep pipeline
-└─ custom task failure rule
+```
+(this is the saved playbook file — no output until you run it in Step 2)
 ```
 
-### The Story
+**Line-by-line breakdown:**
 
-Grep returning nothing is not always an error code problem; it is frequently a verification problem. In automation, "no data" can silently pass unless you assert expectations. This guard converts silent emptiness into auditable behavior.
+- `regexp: '^#?PermitRootLogin'` → Match an existing setting (commented or not) so it is replaced, not duplicated.
+- `line: 'PermitRootLogin no'` → The exact line that must end up present.
+- `create: true` → Create the file if it does not exist.
 
-### Expected Output
+**New words in this step:**
 
-```text
-good_len=<nonzero>
-empty_len=0
-empty_guard_triggered=True
-```
-
-### Switches
-
-| Token | Meaning |
-|---|---|
-| `failed_when:` | Custom failure condition |
-| `result.stdout | length` | Output-byte/char length check |
-| `ignore_errors: true` | Continue to inspect intentional failure |
-| `grep -E` | Regex search mode |
-
-### Concept Card
-
-| ✅ | Concept | What it does |
-|---|---|---|
-| ✅ | Empty-stdout guard | Fails task when expected matches are absent |
-| ✅ | Trap rehearsal | Demonstrates silent pass risk without guard |
-| ✅ | Journalized summary | Persists lengths and failure state |
-| ✅ | `/sbin` search source | Keeps pattern tied to real admin commands |
-| 🪤 Trap Risk | What goes wrong | How to avoid |
-| ⚠️ `T16-B` | Assuming sudo prefix fixes redirect/file privilege in shell snippets | Use `tee` with proper privilege context; verify outputs/ownership |
-
-### 🔁 PERSISTENCE CHECK
-
-| What was configured | Verification command | Why it matters |
-|---|---|---|
-| Guard summary persisted | `test -s /root/rhcsa_journal/lab-16b/task2/guard-summary.txt` | Confirms recorded automation behavior |
-| Good capture exists | `test -s /tmp/lab16b/good.txt` | Confirms positive path |
-| Empty trap detected | `grep -q "empty_len=0" /root/rhcsa_journal/lab-16b/task2/guard-summary.txt` | Confirms failure condition rehearsal |
-
-### Journal Write
-
-```bash
-LAB=lab-16b
-TASK=task2
-JDIR="/root/rhcsa_journal/${LAB}/${TASK}"
-mkdir -p "$JDIR"
-
-cp /tmp/lab16b/task2.txt "$JDIR/evidence.txt"
-
-cat > "$JDIR/done.txt" <<EOF
-LAB:    ${LAB}
-TASK:   ${TASK}
-DATE:   $(date -Is)
-USER:   $(whoami)@$(hostname)
-STATUS: COMPLETE
-EOF
-
-cat > "$JDIR/notes.txt" <<EOF
-TOPIC:    failed_when guard for empty grep stdout
-COMMANDS: failed_when, register, grep -E, tee
-TRAPS:    empty-match silent pass prevented via stdout length assert
-NEXT:     lab-16c verify audit + destroy-restore
-EOF
-
-echo "Journal written: $(ls -la "$JDIR")"
-echo "exit was: $?"
-```
-
-### Cleanup
-
-```bash
-rm -f /tmp/lab16b/task2.txt /tmp/lab16b/good.txt /tmp/lab16b/empty.txt
-echo "exit was: $?"
-```
-
-### Troubleshoot
-
-| Symptom | Fix |
-|---|---|
-| Guard never triggers | Ensure bad regex truly has zero matches |
-| Play aborts too early | Add `ignore_errors: true` on intentional-failure task |
-| Journal summary missing | Verify copy/debug task path under `/root/rhcsa_journal/lab-16b/task2/` |
-
-> **STOP — paste guard summary before Lab Closeout.**
+- **`ansible.builtin.lineinfile`** — ensure exactly one line matching a regex is present in a file.
 
 ---
 
-## Lab Closeout — Section 6 Bulletproof Teardown
+### Step 2 of 2 — Run it twice and watch `changed=0`
+
+**In plain English:** We run the play twice; the first adds/replaces the line, the second finds it already correct.
 
 ```bash
-set +e
-
-podman ps -aq --filter "name=^${CTR}$" 2>/dev/null | xargs -r podman rm -f >/dev/null 2>&1
-awk -v s="${SANDBOX}" '$2 ~ s {print $2}' /proc/mounts | tac | xargs -r -n1 umount -l 2>/dev/null
-if vgs "${VG}" >/dev/null 2>&1; then
-    lvremove -fy "${VG}" 2>/dev/null
-    vgremove -fy "${VG}" 2>/dev/null
-    pvremove -ffy /dev/loop* 2>/dev/null
-fi
-losetup -j "${SANDBOX}/disk.img" 2>/dev/null | cut -d: -f1 | xargs -r losetup -d 2>/dev/null
-
-if getent passwd "${USER}" >/dev/null 2>&1; then userdel -r "${USER}" 2>/dev/null; fi
-if getent group "${GROUP}" >/dev/null 2>&1; then groupdel "${GROUP}" 2>/dev/null; fi
-rm -rf "${SANDBOX}"
-
-echo "── cleanup audit ──"
-getent passwd "${USER}" && echo "❌ user remains" || echo "✅ user gone"
-getent group "${GROUP}" && echo "❌ group remains" || echo "✅ group gone"
-vgs "${VG}" 2>/dev/null && echo "❌ VG remains" || echo "✅ vg gone"
-losetup -l | grep -q "${SANDBOX}" && echo "❌ loop remains" || echo "✅ loop gone"
-podman ps -a --filter "name=^${CTR}$" --format '{{.Names}}' | grep -q . && echo "❌ ctr remains" || echo "✅ ctr gone"
-test -d "${SANDBOX}" && echo "❌ sandbox remains" || echo "✅ sandbox gone"
-
-set -e
-echo "Cleanup complete by $(whoami) at $(date -Is)"
+ansible-playbook /root/rhcsa_journal/lab-16b/playbooks/task2.yml
+ansible-playbook /root/rhcsa_journal/lab-16b/playbooks/task2.yml
+grep PermitRootLogin /tmp/lab-16/conf/sshd_config
 echo "exit was: $?"
 ```
 
-> **STOP — paste cleanup audit lines.**
+**Expected output:**
+
+```
+PLAY RECAP ********************************************************************
+localhost                  : ok=2    changed=1    unreachable=0    failed=0
+PLAY RECAP ********************************************************************
+localhost                  : ok=2    changed=0    unreachable=0    failed=0
+PermitRootLogin no
+exit was: 0
+```
+
+**Line-by-line breakdown:**
+
+- two runs → `changed=1` then `changed=0` — the line is set once and then stable.
+- `grep PermitRootLogin ...` → Confirm exactly one correct line.
+
+**New words in this step:**
+
+- **idempotent edit** — `lineinfile` only writes when the line is missing or different.
 
 ---
 
-## Author
+### Concept card (Task 2)
+
+| Concept | What it does | Exam trap |
+|---|---|---|
+| `lineinfile regexp` | match line to replace | omit it and you duplicate lines |
+| `create: true` | make file if absent | default is to fail on missing file |
+| idempotent edit | re-run `changed=0` | shelling `sed` would not be |
+
+---
+
+### Troubleshoot (Task 2)
+
+| Symptom | Likely cause | Fix |
+|---|---|---|
+| Duplicate lines added | No/loose `regexp` | Anchor the regexp |
+| `file not found` | `create:` missing | Add `create: true` |
+
+---
+
+## ✅ Lab Checklist
+
+- [ ] Task 1 · Step 1 — Write the grep-and-capture playbook
+- [ ] Task 1 · Step 2 — Run it twice and watch the capture converge
+- [ ] Task 2 · Step 1 — Write the lineinfile playbook
+- [ ] Task 2 · Step 2 — Run it twice and watch `changed=0`
+- [ ] Every 🎯 Focus Coverage row (Anchor + NEW) mapped to a step
+- [ ] 🧹 Teardown run — sandbox + any system state removed
+
+---
+
+## 🧹 Teardown
+
+**In plain English:** Delete everything this lab created so the box is clean for the next run.
+
+> Run this after you've verified the lab. `lab_teardown.sh` safely removes the single sandbox root — it refuses to touch `/`, `$HOME`, or any protected path. This lab changed **no** system state.
+
+```bash
+bash lab_teardown.sh "$LAB_ROOT"     # = /tmp/lab-16
+rm -rf /root/rhcsa_journal/lab-16b
+```
+
+**Expected output:**
+
+```
+✅ Removed /tmp/lab-16 — lab workspace is clean.
+```
+
+---
+
+## ⚠️ Common Pitfalls
+
+| Mistake | Symptom | Fix |
+|---|---|---|
+| grep via command with no guards | Spurious failure/changed | Add `failed_when:`/`changed_when:` |
+| `sed` shell-out to edit | Non-idempotent | Use `lineinfile` |
+| Loose `regexp` | Duplicate config lines | Anchor with `^` |
+
+---
+
+## 📌 Exam Strategy
+
+Read with `command: grep` (guarded), change with `lineinfile`. Register grep's output, accept rc 1, and save with `copy`. Use anchored regexes in `lineinfile` so settings are replaced, not duplicated, and re-run to confirm `changed=0`.
+
+- Always guard `command: grep` with `changed_when:` and `failed_when:`.
+- `lineinfile` is the idempotent way to set a config line.
+- Anchor regexes (`^`) to avoid duplicates.
+
+---
+
+## 🔗 Related Labs
+
+- [Lab 16a — Search and Save Output (RHCSA)](../lab-16a-grep-search-save-output-rhcsa/) — the hand-typed `grep`/`tee` this mirrors
+- [Lab 16c — Search and Save Output (Verify)](../lab-16c-grep-search-save-output-verify/) — prove the saved results are correct
+- [Lab 24b — Stream Editing with sed (Ansible)](../lab-24b-sed-stream-editor-ansible/) — `replace`/`lineinfile` vs shelling out to `sed`
+
+---
+
+## 👤 Author
 
 **Kelvin R. Tobias**  
 [kelvinintech.com](https://kelvinintech.com) · [GitHub](https://github.com/kelvintechnical) · [LinkedIn](https://www.linkedin.com/in/kelvin-r-tobias-211949219)

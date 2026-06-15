@@ -1,0 +1,31 @@
+---
+- name: "Lab 34b Task 2 — active port probe"
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  tasks:
+    - name: "Probe TCP port 22"
+      ansible.builtin.wait_for:
+        host: 127.0.0.1
+        port: 22
+        state: started
+        timeout: 5
+      register: probe
+      failed_when: false
+
+    - name: "Report the probe result"
+      ansible.builtin.debug:
+        msg: "port 22 open: {{ probe is succeeded }} (elapsed {{ probe.elapsed | default('n/a') }}s)"
+
+    - name: "Probe a likely-closed port for contrast"
+      ansible.builtin.wait_for:
+        host: 127.0.0.1
+        port: 9
+        state: started
+        timeout: 2
+      register: closed
+      failed_when: false
+
+    - name: "Report the closed-port result"
+      ansible.builtin.debug:
+        msg: "port 9 open: {{ closed is succeeded }}"

@@ -1,0 +1,32 @@
+---
+# Lab 19b Task 2 — read a file with slurp
+#
+# Run:
+#   ansible-playbook /root/rhcsa_journal/lab-19b/playbooks/task2.yml
+#
+# Expected: slurp reads the assembled file (base64); b64decode turns it back
+# into text for the debug output and the assertion. Read-only, so changed=0.
+
+- name: "Lab 19b Task 2 — read a file with slurp"
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars:
+    dest: /tmp/lab-19/combined.txt
+
+  tasks:
+    - name: "Read the assembled file (base64)"
+      ansible.builtin.slurp:
+        src: "{{ dest }}"
+      register: slurped
+
+    - name: "Decode and show the content"
+      ansible.builtin.debug:
+        msg: "{{ (slurped.content | b64decode).split('\n') }}"
+
+    - name: "Assert the header is present"
+      ansible.builtin.assert:
+        that:
+          - "'header line' in (slurped.content | b64decode)"
+        success_msg: "header found"
+        fail_msg: "header missing"

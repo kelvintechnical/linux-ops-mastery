@@ -1,0 +1,23 @@
+---
+# Lab 30b Task 1 — render an info node
+#
+# Run:
+#   ansible-playbook /root/rhcsa_journal/lab-30b/playbooks/task1.yml
+#
+# info is an interactive reader, so automation uses --output=- to render a node
+# to stdout and exit. Quote the exact node name. Read-only, so changed=0.
+
+- name: "Lab 30b Task 1 — render an info node"
+  hosts: localhost
+  connection: local
+  gather_facts: false
+
+  tasks:
+    - name: "Render the ls info node to stdout"
+      ansible.builtin.command: "info --output=- coreutils 'ls invocation'"
+      register: node
+      changed_when: false
+
+    - name: "Show the first lines of the node"
+      ansible.builtin.debug:
+        msg: "{{ node.stdout_lines[:5] }}"

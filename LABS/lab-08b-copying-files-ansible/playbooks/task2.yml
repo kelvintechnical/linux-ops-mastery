@@ -1,0 +1,38 @@
+---
+# Lab 08b Task 2 — overwrite with a backup
+#
+# Run:
+#   ansible-playbook /root/rhcsa_journal/lab-08b/playbooks/task2.yml
+#
+# Expected: the source is mutated, then copied over the destination with
+# backup: true, which saves the old file as deployed.conf.<timestamp>~ and
+# returns its path in backup_file (the rollback target).
+
+- name: "Lab 08b Task 2 — overwrite with a backup"
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  become: true
+  vars:
+    src_file: /tmp/lab-08/src/app.conf
+    dst_file: /tmp/lab-08/deployed.conf
+
+  tasks:
+    - name: "Mutate the source so the next copy differs"
+      ansible.builtin.copy:
+        dest: "{{ src_file }}"
+        content: "key=value\nupdated=true\n"
+        mode: '0644'
+
+    - name: "Copy over the destination, backing up the old version"
+      ansible.builtin.copy:
+        src: "{{ src_file }}"
+        dest: "{{ dst_file }}"
+        remote_src: true
+        mode: '0640'
+        backup: true
+      register: copy_result
+
+    - name: "Show the backup path (rollback target)"
+      ansible.builtin.debug:
+        msg: "backup_file: {{ copy_result.backup_file | default('none — no overwrite needed') }}"

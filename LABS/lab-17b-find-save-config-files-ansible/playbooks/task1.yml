@@ -1,0 +1,40 @@
+---
+# Lab 17b Task 1 — discover and save config paths
+#
+# Run (twice, to prove idempotence of the saved list):
+#   ansible-playbook /root/rhcsa_journal/lab-17b/playbooks/task1.yml
+#   ansible-playbook /root/rhcsa_journal/lab-17b/playbooks/task1.yml
+#
+# Expected: find is read-only; the saved, sorted path list converges to
+# changed=0 on the second run. ansible.builtin.find returns structured data,
+# so there is no shell text to parse and no 2>/dev/null to remember.
+
+- name: "Lab 17b Task 1 — discover and save config paths"
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars:
+    root: /tmp/lab-17/etc
+    out: /tmp/lab-17/configs.txt
+
+  tasks:
+    - name: "Find all .conf regular files"
+      ansible.builtin.find:
+        paths: "{{ root }}"
+        patterns: "*.conf"
+        file_type: file
+        recurse: true
+      register: find_result
+
+    - name: "Save the paths to a list file"
+      ansible.builtin.copy:
+        dest: "{{ out }}"
+        content: "{{ find_result.files | map(attribute='path') | sort | join('\n') }}\n"
+        mode: '0644'
+      register: save_result
+
+    - name: "Show count and changed"
+      ansible.builtin.debug:
+        msg:
+          - "matched: {{ find_result.matched }}"
+          - "changed: {{ save_result.changed }}"

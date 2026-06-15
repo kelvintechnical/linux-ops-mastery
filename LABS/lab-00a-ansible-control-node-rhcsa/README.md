@@ -1,605 +1,366 @@
-# Lab 00a: Ansible Control Node — RHCSA Prerequisites (`dnf`, journal tree, package verification)
+# Lab 00a: Ansible Control Node (RHCSA) — `dnf install ansible-core`, `ansible -m ping`
 
-- **Series:** linux-ops-mastery — Prerequisite Trilogy (run BEFORE Lab 01)
-- **Trilogy:** **`00a` (RHCSA — you are here)** → `00b` (Ansible) → `00c` (Verify)
-- **Career arcs covered:** RHCSA EX200 (`dnf install`, `rpm -qi`, `which`, `stat`, journal discipline), RHCE EX294 (the difference between `ansible-core` and the fat `ansible` package), SRE / DevOps (package provenance + persistent change-log on /root)
-- **Prerequisite:** A running RHEL/Rocky/AlmaLinux 9 box where you can `sudo dnf install`
-- **Time Estimate:** 20–25 minutes
-- **Tasks:** 2 (Task 1 = install + verify package, Task 2 = build the persistent journal tree)
-- **Practice Directory (rotation #00):** `/root/rhcsa_journal`
-- **Sandbox:** `/root/rhcsa_journal/lab00`
-- **Traps rehearsed this lab:** **T00-A** (Installing the wrong package — `ansible` (fat, EPEL) vs `ansible-core` (slim, AppStream — the RHCE-shaped choice))
-
-> **This lab's practice directory is: `/root/rhcsa_journal`** — every task references it in at least two commands. Unlike most labs in this series, the practice directory is intentionally on the persistent root partition, not `/tmp` — because the whole point of Lab 00a is to lay down a journal tree that survives reboot.
+**Series:** linux-ops-mastery — Prerequisite Trilogy · **Lab 00a of the Novice → RHCA path**  
+**Certifications covered:** RHCSA EX200 (`dnf` package management, `rpm -q` verification), RHCE EX294 (standing up a working control node — the prerequisite for every playbook task), SRE/DevOps (reproducible automation tooling)  
+**Prerequisite:** A RHEL/Rocky/Alma 9 box you can `sudo dnf install` on — no prior lab required (this is the bootstrap lab)  
+**Time Estimate:** 20–30 minutes  
+**Difficulty:** Beginner
 
 ---
 
-## 🖥️ LAB HEADER BLOCK — run this FIRST
+## 🎯 Today's Focus Coverage
 
-```bash
-echo "🖥️  ENV:   ${ENV:-DECLARE_ME}"
-echo "💿  DISK:  $(lsblk 2>/dev/null | awk '$NF=="disk"{print "/dev/"$1}' | paste -sd, -)"
-echo "🌐  NIC:   $(ip -o addr show 2>/dev/null | awk '$2!="lo"{print $2}' | sort -u | paste -sd, -)"
-echo "🔐  SE:    $(getenforce 2>/dev/null || echo n/a)"
-echo "📦  OS:    $(cat /etc/redhat-release 2>/dev/null || grep PRETTY_NAME /etc/os-release)"
-echo "🕒  TIME:  $(date -Is)"
-echo "👤  USER:  $(whoami)@$(hostname)"
-echo "⚠️  TRAP REMINDERS THIS LAB: T00-A"
-echo "📁  PRACTICE DIR: /root/rhcsa_journal/lab-00a"
-echo ""
-echo "🔍 Pre-install package state (must be empty — we install ansible-core in Task 1):"
-rpm -q ansible-core 2>/dev/null || echo "  ansible-core not yet installed (expected)"
-rpm -q ansible 2>/dev/null && echo "  ⚠️ fat ansible package detected — this is the T00-A trap; remove it before Task 1"
-which ansible 2>/dev/null || echo "  ansible binary not on PATH (expected pre-install)"
-```
+> Stay on-subject via the ANCHOR rows; expand vocabulary via the NEW rows. Every row is exercised by a STEP below.
 
-> **STOP — paste header output before starting Task 1.**
+**⚓ Anchor — already learned (on-topic reuse)**
+
+| # | Command / switch | Covered by |
+|---|---|---|
+| A1 | `dnf install` | _Task 1 · Step 1_ |
+| A2 | `rpm -q` | _Task 1 · Step 1_ |
+
+**🆕 NEW this lab — introduced for the first time** (minimum 3)
+
+| # | Command / switch | First taught in | Covered by |
+|---|---|---|---|
+| N1 | `ansible-galaxy collection install` | Task 1 · Step 2 | _Task 1 · Step 2_ |
+| N2 | `ansible -m ping` (ad-hoc module) | Task 2 · Step 1 | _Task 2 · Step 1_ |
+| N3 | `ansible-playbook --check --diff` | Task 2 · Step 2 | _Task 2 · Step 2_ |
+| N4 | `ANSIBLE_CONFIG` env var | Task 2 · Step 1 | _Task 2 · Step 1_ |
 
 ---
 
 ## 🎯 Objective
 
-Lay down the RHCSA half of the Ansible control node. By the end of Lab 00a you will have:
-
-1. `ansible-core` installed from the AppStream repo (not the fat `ansible` package from EPEL)
-2. `rpm -qi ansible-core` proving the package came from the expected source with the expected version
-3. `which ansible`, `which ansible-playbook`, `which ansible-galaxy` all returning `/usr/bin/...`
-4. A persistent journal tree at `/root/rhcsa_journal/lab-00a/{task1,task2}/` ready to receive evidence from this lab and every lab after it
-5. The install transcript saved into the journal so weeks from now you can answer "when did I install ansible-core, and which version?"
-
-Lab 00b will install collections + write `~/.ansible.cfg`. Lab 00c will verify the whole stack. Lab 00a is the foundation those depend on — get the package right, get the journal right, and the rest of the trilogy walks itself.
+Stand up a working Ansible control node from nothing: install `ansible-core` from the AppStream repo, verify the package landed, add a Galaxy collection, then prove the tooling actually runs by pinging `localhost` with an ad-hoc module and dry-running a tiny playbook with `--check --diff`. By the end you have the exact environment every `b`-variant lab in this series depends on — config and inventory kept inside a throwaway sandbox so nothing leaks into your real home directory.
 
 ---
 
-## 🧠 Concept: `ansible-core` vs `ansible` — Why the Package Name Matters
+## 🧠 Concept
 
-`ansible-core` is the **engine** (modules under `ansible.builtin.*` + the runtime). `ansible` (the fat package, historically from EPEL or PyPI) bundles `ansible-core` plus ~80 community collections preinstalled. They are not the same package, and the difference is the entire reason the RHCE exam grades the way it does.
+Ansible has two package faces on RHEL 9. `ansible-core` (in AppStream) is the slim engine: the `ansible`, `ansible-playbook`, and `ansible-galaxy` binaries plus the `ansible.builtin` modules. The fat `ansible` package (EPEL) bundles hundreds of extra collections you usually do not need and is the wrong choice on an exam box. A control node needs three things to be useful: the engine, a **config file** that tells it where to look, and an **inventory** that lists the hosts it manages. We point `ANSIBLE_CONFIG` at a sandbox file so the whole setup is disposable.
 
 ```
-   ┌───────────────────────────────────────────────────────────────┐
-   │   dnf install ansible-core    ← AppStream (RHEL/Rocky/Alma)    │
-   │   ├── engine + ansible.builtin.* modules only                  │
-   │   └── collections you need? You install them deliberately.     │
-   │                                                                │
-   │   dnf install ansible         ← EPEL / external repo           │
-   │   ├── engine + ~80 community collections preloaded             │
-   │   └── convenient at home, NOT the RHCE-shaped install.         │
-   └───────────────────────────────────────────────────────────────┘
+dnf install ansible-core   →  /usr/bin/ansible, ansible-playbook, ansible-galaxy
+ANSIBLE_CONFIG=$LAB_ROOT/ansible.cfg  →  [defaults] inventory = $LAB_ROOT/inventory
+ansible -m ping localhost  →  "pong"  (the engine + connection plugin work)
 ```
 
-The RHCE exam expects you to **declare** the collections you need (`ansible.posix`, `community.general`) by running `ansible-galaxy collection install` on the control node — which is exactly what Lab 00b does. A grader who sees `dnf install ansible` on an exam VM raises an eyebrow; `dnf install ansible-core` is the right shape. That is **Trap T00-A**.
-
-The journal tree at `/root/rhcsa_journal/` is the other half of this lab. `/tmp` is tmpfs on most RHEL 9 layouts — it evaporates on reboot, which is fine for sandboxes but useless for evidence. Every later lab writes its `done.txt`, `notes.txt`, and command transcripts into `/root/rhcsa_journal/lab-NN/taskN/`. Lab 00c proves that tree survives a simulated reboot.
+> **Why this matters:** Every RHCE task assumes a control node that already pings its hosts. Knowing `ansible-core` vs `ansible`, and how the config/inventory pair is discovered, is the difference between starting the exam and staring at "no hosts matched."
 
 ---
 
-## 📚 Install + Inspection Reference (everything for Tasks 1–2)
+## 📚 Command Reference
 
-| Token | Meaning | Why an RHCSA candidate needs it |
+| Command | Purpose | Critical flags |
 |---|---|---|
-| `dnf install -y PKG` | Install package, assume yes to prompts | Scripted installs and CI runs |
-| `dnf reinstall -y PKG` | Reinstall to repair a damaged install | Recovery from "command not found" |
-| `rpm -q PKG` | Is PKG installed? Print NEVRA or "not installed" | First diagnostic command |
-| `rpm -qi PKG` | Show install metadata: version, repo, install date, signer | RHCSA "prove the package came from where it should" |
-| `rpm -ql PKG` | List every file the package owns | Locate where a binary actually lives |
-| `which CMD` | First match for CMD on `$PATH` | "Why isn't ansible running?" — wrong shell, hash cache |
-| `hash -r` | Forget the shell's command cache | Required after install/move of a binary |
-| `stat -c '%a %U:%G %n'` | Mode + owner + group + name | The auditor's one-line metadata snapshot |
-| `mkdir -p PATH` | Create PATH and all missing parents, idempotent | Build the journal tree without `-p` typos |
-| `tee FILE` | Tee stdout to FILE while still printing | Capture an install transcript without losing the screen |
-
-> **Rule of Lab 00a:** Every command's output that proves something gets piped through `tee` into the journal. Nothing is "just run it and trust your memory."
+| `dnf install ansible-core` | Install the slim Ansible engine from AppStream | `-y` to skip the prompt; prefer `ansible-core` over fat `ansible` |
+| `rpm -q ansible-core` | Confirm a package is installed and show its version | prints `not installed` (rc 1) when missing |
+| `ansible-galaxy collection install` | Add a content collection (modules/roles) | `-p PATH` installs into a custom collections dir |
+| `ansible -m ping` | Run the `ping` module ad-hoc against hosts | `-m` picks the module; this is NOT ICMP, it is a Python round-trip |
+| `ansible-playbook --check --diff` | Dry-run a playbook and show would-be changes | `--check` makes no changes; `--diff` prints the delta |
 
 ---
 
-## 🚦 Lab-Wide Setup — run BEFORE Task 1
+## 🧰 LAB-WIDE SETUP
+
+**In plain English:** Create one sandbox folder and point Ansible's config at a file inside it, so the inventory, config, and collections all live in one disposable place.
+
+> Run this block **once** before Task 1. It defines a single sandbox root
+> (`LAB_ROOT`) that every file in this lab lives under, so the Teardown
+> section can wipe it in one safe command.
 
 ```bash
-sudo -i
+export LAB_ROOT=/tmp/lab-00
+mkdir -p "$LAB_ROOT"
+cd "$LAB_ROOT"
 
-# We are about to make /root/rhcsa_journal — the persistent journal tree
-# every subsequent lab writes into. This sets up the lab-00a directory
-# specifically; lab-00b and lab-00c will create their own siblings later.
-test -d /root || { echo "no /root — are you logged in as root?"; exit 1; }
-mkdir -p /root/rhcsa_journal/lab-00a
-cd /root/rhcsa_journal/lab-00a
-
-# Verify we are on a supported OS (RHEL/Rocky/Alma 9 or compatible)
-grep -E 'PLATFORM_ID|VERSION_ID' /etc/os-release
-dnf repolist 2>&1 | grep -Ei 'appstream|baseos' | head -n 2
-ls -ld /root/rhcsa_journal /root/rhcsa_journal/lab-00a
+export ANSIBLE_CONFIG="$LAB_ROOT/ansible.cfg"
+mkdir -p "$LAB_ROOT/collections"
+ls -ld "$LAB_ROOT"
 echo "exit was: $?"
 ```
 
-> **STOP — paste the `grep PLATFORM_ID` line and the `appstream`/`baseos` repo list before starting Task 1.**
+**Expected output:**
 
----
-
-## Task 1 — Install `ansible-core` and prove the binary + package metadata
-
-**Practice directory this task:** `/root/rhcsa_journal` · the persistent root-partition journal — every artifact in this task lands under `/root/rhcsa_journal/lab-00a/task1/` so it survives reboot.
-
-### 🔁 Warm-Up — commands woven into Task 1
-
-```bash
-mkdir -p /root/rhcsa_journal/lab-00a/task1
-cd /root/rhcsa_journal/lab-00a/task1
-date -Is                                            2>&1 | tee start.txt
-echo "user=$(whoami) host=$(hostname) os=$(grep PRETTY_NAME /etc/os-release)" \
-                                                    2>&1 | tee -a start.txt
-rpm -q ansible-core                                 2>&1 | tee -a start.txt
-which ansible                                       2>&1 | tee -a start.txt
-set -o pipefail
-echo "Warm-up done by $(whoami) at $(date -Is)"
-echo "exit was: $?"
 ```
-
-> No prior lab to carry from — this **is** the prior lab. The warm-up captures the **pre-install** state into `start.txt` so the diff against the post-install state in `done.txt` is unambiguous evidence that we changed something.
-
-### Purpose
-
-Install `ansible-core` from AppStream (not the fat `ansible` package from EPEL), then prove the install with three independent checks: `rpm -q`, `rpm -qi`, and `which`. Capture the install transcript so weeks from now you can answer "what version did I install, when, and from which repo?"
-
-### 🧵 WEAVE TRACE — warm-up commands re-used in this task body
-
-| Warm-up command | Role inside Task 1 |
-|---|---|
-| `rpm -q ansible-core` | The **pre-install snapshot** in `start.txt` (expected: "not installed") AND the **post-install proof** at the end of the task |
-| `which ansible` | Same pattern — pre-install returns empty/missing, post-install returns `/usr/bin/ansible` |
-| `date -Is` | Stamps both `start.txt` and `done.txt` so the journal records when the install actually happened |
-| `2>&1 \| tee` | Captures both stderr and stdout so a failed install is **not** silently invisible |
-| `set -o pipefail` | Catches the case where `dnf` failed but the `tee` chain swallowed the non-zero exit |
-| `$(grep PRETTY_NAME ...)` | Records the OS so the install evidence is correlated with a specific RHEL/Rocky/Alma version |
-
-### Main command block
-
-```bash
-cd /root/rhcsa_journal/lab-00a/task1
-
-# 1. Install ansible-core (NOT ansible — that is T00-A). AppStream, no EPEL needed.
-dnf install -y ansible-core                         2>&1 | tee install.log
-
-# 2. Prove the install with three independent checks
-rpm -q ansible-core                                 2>&1 | tee version.txt
-rpm -qi ansible-core                                2>&1 | tee -a version.txt
-which ansible ansible-playbook ansible-galaxy       2>&1 | tee paths.txt
-
-# 3. Engine self-report (this is the line you grep for in every later Task 4)
-ansible --version                                   2>&1 | tee ansible-version.txt
-
-# 4. Sanity: every binary above must answer --help without error
-ansible --help | head -n 2
-ansible-playbook --help | head -n 2
-ansible-galaxy --help | head -n 2
-echo "exit was: $?"
-```
-
-### Human-readable breakdown
-
-1. `dnf install -y ansible-core` — install the slim engine package from AppStream. The `-y` flag is mandatory in scripted installs and CI; nothing in this series ever runs interactively. The full transcript lands in `install.log`.
-2. `rpm -q ansible-core` returns the **NEVRA** (name, epoch, version, release, arch) — e.g., `ansible-core-2.14.x-1.el9.noarch`. This is the auditor's "yes, it is installed" line.
-3. `rpm -qi ansible-core` prints install metadata: version, release, build date, **install date**, vendor, and the repo it came from (`From repo: appstream`). The "From repo" line is the RHCE-grade proof you used AppStream, not EPEL.
-4. `which ansible ansible-playbook ansible-galaxy` returns the resolved path for each binary. All three should be `/usr/bin/...` after an `ansible-core` install.
-5. `ansible --version` is the **first diagnostic command** in every later Task 4 — it prints the engine version, the config file in use (currently `None`, Lab 00b fixes that), and the Python interpreter the engine is bound to.
-
-### Reading it left to right
-
-`dnf install -y ansible-core`
-
-- `dnf` — RHEL 9 package manager
-- `install` — subcommand verb
-- `-y` — assume yes to confirmation prompts (required in scripts)
-- `ansible-core` — package name. **Not** `ansible` — different package, different repo, different RHCE expectation.
-
-`rpm -qi ansible-core`
-
-- `rpm` — the low-level RPM database tool
-- `-q` — query mode (does not install or modify)
-- `-i` — info mode: print full metadata
-- `ansible-core` — package name to query
-
-`which ansible ansible-playbook ansible-galaxy`
-
-- `which` — print first match for each argument on `$PATH`
-- three binaries on one line — three lookups, three answers
-
-### The story
-
-Senior engineers install packages **and** verify them in the same shell session. The pattern `dnf install → rpm -q → rpm -qi → which → --version` takes 15 seconds and produces five independent lines of evidence that the install actually happened. The opposite pattern — `dnf install -y X` followed by "now let's move on" — is the one that produces "but I installed it on Monday, why doesn't `ansible` work?" tickets two weeks later when somebody else removed the package and nobody journaled the install date.
-
-For the RHCSA exam specifically: when the prompt says "install X and verify," the grader is checking that the package is **installed from the right repo** and that the **binary is on PATH**. `rpm -qi` plus `which` is the canonical two-command proof.
-
-### Expected output
-
-```text
-# Pre-install state (start.txt):
-2026-05-28T19:50:01-04:00
-user=root host=node01 os=PRETTY_NAME="Red Hat Enterprise Linux 9.4 (Plow)"
-package ansible-core is not installed
-(no output from which ansible)
-
-# install.log (last few lines):
-Installed:
-  ansible-core-2.14.17-1.el9.noarch
-Complete!
-
-# version.txt:
-ansible-core-2.14.17-1.el9.noarch
-Name        : ansible-core
-Version     : 2.14.17
-Release     : 1.el9
-...
-From repo   : appstream
-Summary     : SSH-based configuration management, deployment, and task execution system
-
-# paths.txt:
-/usr/bin/ansible
-/usr/bin/ansible-playbook
-/usr/bin/ansible-galaxy
-
-# ansible-version.txt:
-ansible [core 2.14.17]
-  config file = None
-  configured module search path = ['/root/.ansible/plugins/modules', '/usr/share/ansible/plugins/modules']
-  ansible python module location = /usr/lib/python3.9/site-packages/ansible
-  executable location = /usr/bin/ansible
-  python version = 3.9.x ...
-```
-
-Two facts to notice: `From repo : appstream` (T00-A satisfied — we did **not** install from EPEL) and `config file = None` (expected — Lab 00b writes `~/.ansible.cfg`).
-
-### Switches
-
-| Switch | Meaning | Why it matters |
-|---|---|---|
-| `dnf install -y` | Assume yes | Required for scripted installs |
-| `dnf reinstall -y` | Reinstall over existing | Recovery from a corrupt install |
-| `rpm -q` | Quiet query (NEVRA only) | The "is it installed?" one-liner |
-| `rpm -qi` | Info query (metadata) | "From repo" line is RHCE-grade evidence |
-| `rpm -ql` | List files | Where did the binaries actually land? |
-| `which` | First match on PATH | "Why won't `ansible` run?" — shell hash cache |
-| `hash -r` | Forget shell command cache | After install/move of a binary |
-| `ansible --version` | Engine self-report | First diagnostic in every later Task 4 |
-
-### 🧠 Concept Card
-
-|   | Concept | What it does |
-|---|---|---|
-|   | `ansible-core` | Slim engine + `ansible.builtin.*` modules — RHCE-shaped install |
-|   | `ansible` (fat) | Engine + ~80 community collections — convenient at home, not RHCE-shaped |
-|   | `rpm -qi` "From repo" line | RHCE-grade proof of where the package came from |
-|   | `which` vs `command -v` | Both find a binary; `command -v` is POSIX, `which` is more familiar |
-|   | `config file = None` | You have not written `~/.ansible.cfg` yet — Lab 00b will |
-|   | `tee FILE` | Capture transcript without losing the screen |
-| 🪤 | **Trap Risk T00-A** | `dnf install ansible` (the fat EPEL package) instead of `dnf install ansible-core`. Refused on RHCE grading; the "From repo" line will say `epel`, not `appstream`. |
-
-### 🔁 PERSISTENCE CHECK
-
-| What was configured | Verification command | Why it matters |
-|---|---|---|
-| Package installed | `rpm -q ansible-core` | Returns NEVRA — survives reboot because the RPM database is persistent |
-| Binaries on PATH | `which ansible ansible-playbook ansible-galaxy` | All three resolve to `/usr/bin/...` after reboot |
-| Install transcript | `wc -l /root/rhcsa_journal/lab-00a/task1/install.log` | The auditable record of when the package landed |
-| Version evidence | `head -n 1 /root/rhcsa_journal/lab-00a/task1/version.txt` | The NEVRA recorded in the journal for cross-checking against future installs |
-
-> **Reboot reasoning:** The RPM database lives at `/var/lib/rpm/` on the root partition — packages survive reboot trivially. The journal lives at `/root/rhcsa_journal/` on the same partition — also persistent. Nothing in this task is in `/tmp`, so nothing evaporates. That is **why** Lab 00 uses `/root/` as the practice directory while every other lab uses `/tmp`.
-
-### Journal write — BEFORE cleanup
-
-```bash
-LAB=lab-00a
-TASK=task1
-JDIR="/root/rhcsa_journal/${LAB}/${TASK}"
-mkdir -p "$JDIR"
-
-cat > "$JDIR/done.txt" <<EOF
-LAB:    ${LAB}
-TASK:   ${TASK}
-DATE:   $(date -Is)
-USER:   $(whoami)@$(hostname)
-STATUS: COMPLETE
-PKG:    $(rpm -q ansible-core)
-REPO:   $(rpm -qi ansible-core | awk -F': ' '/From repo/ {print $2}')
-ANSIBLE_VERSION: $(ansible --version | head -n 1)
-EOF
-
-cat > "$JDIR/notes.txt" <<EOF
-TOPIC:    Install ansible-core from AppStream; prove with rpm + which + --version
-COMMANDS: dnf install -y ansible-core, rpm -q, rpm -qi, which, ansible --version
-TRAPS:    T00-A rehearsed (we installed ansible-core NOT ansible; "From repo" says appstream)
-MISSED:   (fill in if any ⚠️ flags)
-NEXT:     task2 — build the persistent journal tree and document the /root vs /tmp choice
-EOF
-
-ls -la "$JDIR"
-cat "$JDIR/done.txt"
-echo "exit was: $?"
-```
-
-### 🧹 Cleanup
-
-Nothing to clean. The install is intentionally persistent and so are the journal artifacts — they will be referenced by every lab in this series and re-verified in Lab 00c.
-
-### Troubleshoot
-
-| Symptom | Fix |
-|---|---|
-| `Unable to find a match: ansible-core` | RHEL: `sudo subscription-manager repos --enable=rhel-9-appstream`. Rocky/Alma: `sudo dnf repolist` — AppStream should already be present; if not, install `rocky-release` / `almalinux-release`. |
-| `ansible: command not found` immediately after install | The shell cached the old (missing) lookup. Run `hash -r` or open a new shell. |
-| `rpm -qi` shows `From repo: epel` | T00-A triggered: you installed the fat `ansible` package. Run `dnf remove -y ansible && dnf install -y ansible-core`. |
-| `ansible --version` shows a different Python than expected | Lab 00b will pin `ansible_python_interpreter=/usr/bin/python3` in the inventory; ignore for now. |
-
-> **STOP — paste `cat $JDIR/done.txt` and the `which ansible ansible-playbook ansible-galaxy` output before starting Task 2.**
-
----
-
-## Task 2 — Build the persistent journal tree at `/root/rhcsa_journal/`
-
-**Practice directory this task:** `/root/rhcsa_journal` · the journal tree we are about to construct lives on the root partition — that is the entire point of this task. The contrast with `/tmp` (tmpfs, ephemeral) is the lesson.
-
-### 🔁 Warm-Up — commands woven into Task 2
-
-```bash
-mkdir -p /root/rhcsa_journal/lab-00a/task2
-cd /root/rhcsa_journal/lab-00a/task2
-date -Is                                            2>&1 | tee start.txt
-stat -c '%n mountpoint=%m fs-survives-reboot?' /tmp /root /root/rhcsa_journal \
-                                                    2>&1 | tee -a start.txt
-df -hT /tmp /root                                   2>&1 | tee -a start.txt
-test -d /root/rhcsa_journal/lab-00a/task1 && echo "task1 journal exists — good"
-set -o pipefail
-echo "Warm-up done by $(whoami) at $(date -Is)"
-echo "exit was: $?"
-```
-
-> Carry from Task 1: `set -o pipefail` and the `2>&1 | tee` capture pattern persist into Task 2. The `start.txt` snapshot now includes the mount-point evidence of **why** `/root` survives reboot but `/tmp` does not.
-
-### Purpose
-
-Build the canonical `/root/rhcsa_journal/lab-00a/` tree, set ownership/mode explicitly, then prove with `stat -c` and `df -hT` that the tree is on the persistent root partition — not on `tmpfs`. This is the structural answer to "where do I put evidence I want to survive a reboot?" — every later lab depends on this directory being here and being persistent.
-
-### 🧵 WEAVE TRACE — warm-up commands re-used in this task body
-
-| Warm-up command | Role inside Task 2 |
-|---|---|
-| `stat -c '%m'` | The **structural** proof: `/root` shows mount `/`, `/tmp` shows mount `/tmp` (likely tmpfs). The mount point is **why** persistence works. |
-| `df -hT /tmp /root` | Cross-check on the filesystem type: `tmpfs` for `/tmp`, `xfs`/`ext4` for `/root`. |
-| `mkdir -p` | Idempotent directory creation — running this task twice does not error |
-| `test -d` | Guards every later check — "the directory we are about to chmod must actually exist" |
-| `2>&1 \| tee` | Captures the full evidence into `task2/evidence.txt` for the journal |
-| `$(date -Is)` | Stamps `start.txt` and `done.txt` for the audit timeline |
-
-### Main command block
-
-```bash
-cd /root/rhcsa_journal/lab-00a/task2
-
-# 1. Build the canonical journal tree
-mkdir -p /root/rhcsa_journal/lab-00a/{task1,task2}
-mkdir -p /root/rhcsa_journal/_evidence
-
-# 2. Set ownership/mode explicitly (RHCSA: never leave permissions implicit)
-chown -R root:root /root/rhcsa_journal
-chmod 0750 /root/rhcsa_journal
-chmod 0750 /root/rhcsa_journal/lab-00a
-chmod 0750 /root/rhcsa_journal/lab-00a/task1
-chmod 0750 /root/rhcsa_journal/lab-00a/task2
-
-# 3. Prove the mode + ownership + mount point (the auditor's three lines)
-stat -c 'mode=%a owner=%U:%G mount=%m path=%n' \
-  /root/rhcsa_journal \
-  /root/rhcsa_journal/lab-00a \
-  /root/rhcsa_journal/lab-00a/task1 \
-  /root/rhcsa_journal/lab-00a/task2                2>&1 | tee /root/rhcsa_journal/lab-00a/task2/evidence.txt
-
-# 4. Capture df + lsblk evidence — the structural why
-echo "── df -hT for /tmp and /root ──" \
-  | tee -a /root/rhcsa_journal/lab-00a/task2/evidence.txt
-df -hT /tmp /root                                   2>&1 | tee -a /root/rhcsa_journal/lab-00a/task2/evidence.txt
-
-echo "── findmnt for the journal mount ──" \
-  | tee -a /root/rhcsa_journal/lab-00a/task2/evidence.txt
-findmnt -T /root/rhcsa_journal                      2>&1 | tee -a /root/rhcsa_journal/lab-00a/task2/evidence.txt
-
-# 5. Persistence reasoning — record it as text we can read again later
-cat > /root/rhcsa_journal/lab-00a/task2/why-root-not-tmp.txt <<'EOF'
-/tmp  is on tmpfs on most RHEL 9 layouts (or it is cleared by systemd-tmpfiles
-      on boot — either way, contents do NOT survive reboot).
-
-/root is on the root partition (xfs/ext4). Files written under /root persist
-      across reboot — they are on durable storage, not RAM, and no init service
-      clears them.
-
-The journal at /root/rhcsa_journal/ is therefore the correct location for
-ANY evidence we want to read again after a reboot. Sandboxes for the lab
-exercises themselves can still live under /tmp (Labs 01+ do this), but the
-done.txt + notes.txt + transcripts go under /root.
-
-This is the structural reason Lab 00a's practice directory is /root and
-every later lab's practice directory is /tmp.
-EOF
-
-cat /root/rhcsa_journal/lab-00a/task2/why-root-not-tmp.txt
-echo "exit was: $?"
-```
-
-### Human-readable breakdown
-
-1. `mkdir -p` builds the lab-00a tree (`task1/`, `task2/`) and a shared `_evidence/` directory next to it. `-p` is idempotent — running this task twice does not error and does not overwrite.
-2. `chown -R root:root` + `chmod 0750` sets ownership and mode explicitly. The RHCSA habit is **never** leave permissions implicit on directories you will keep — the next person to read the journal needs to know they are looking at a controlled tree, not whatever the umask happened to be that day.
-3. `stat -c 'mode=%a owner=%U:%G mount=%m path=%n'` is the auditor's one-line metadata snapshot. The `%m` is the structural proof of persistence — the mount point that contains the path.
-4. `df -hT` shows the filesystem type for `/tmp` and `/root` — `tmpfs` vs `xfs`/`ext4`. This is the **why** behind the mount point difference.
-5. The `why-root-not-tmp.txt` file is the prose version, written into the journal so a future reader (or future you) does not have to re-derive the reasoning.
-
-### Reading it left to right
-
-`mkdir -p /root/rhcsa_journal/lab-00a/{task1,task2}`
-
-- `mkdir` — make directories
-- `-p` — create parents as needed; do not error if path already exists
-- `/root/rhcsa_journal/lab-00a/{task1,task2}` — brace expansion creates **two** paths: `.../task1` and `.../task2`
-
-`chmod 0750 PATH`
-
-- `chmod` — change mode
-- `0750` — octal mode: `7` for owner (rwx), `5` for group (r-x), `0` for others (no access). The leading `0` is conventional and harmless.
-- `PATH` — the directory to update
-
-`stat -c 'mode=%a owner=%U:%G mount=%m path=%n' PATH`
-
-- `stat` — file metadata tool
-- `-c FMT` — custom format string
-- `%a` — octal access mode (e.g., `750`)
-- `%U` — owner name (e.g., `root`)
-- `%G` — group name (e.g., `root`)
-- `%m` — **mount point** containing the file (the persistence-critical field)
-- `%n` — file name
-- `PATH` — file or directory to stat
-
-### The story
-
-The first time you reboot the lab VM, the difference between `/root/rhcsa_journal/` and `/tmp/rm-lab/` will be brutal. The `/tmp` sandbox is gone — fine, that was the design. But if the journal had also been in `/tmp`, every `done.txt` from every prior task would be gone too. A grader (or a future you) opens the system, asks "what state is this in?", and the only honest answer is "I don't know, the journal evaporated."
-
-`/root/rhcsa_journal/` is the structural answer to that. Lab 00c proves it by literally wiping `/tmp` and re-running the audit using **only** journal files from `/root/`. Lab 00a's job is to build the tree correctly **before** any other lab needs it.
-
-The 0750 mode is the RHCSA habit. 0755 would be fine too — but 0750 says "only root and the root group can list this directory," which is the right posture for an evidence tree. Cattle-grade laxness (0777) is the RHCSA cardinal sin and graders mark it down.
-
-### Expected output
-
-```text
-2026-05-28T19:55:14-04:00
-/tmp mountpoint=/tmp fs-survives-reboot?
-/root mountpoint=/ fs-survives-reboot?
-/root/rhcsa_journal mountpoint=/ fs-survives-reboot?
-Filesystem     Type   Size  Used Avail Use% Mounted on
-tmpfs          tmpfs  3.8G  1.2M  3.8G   1% /tmp
-/dev/mapper/rhel-root xfs   17G  4.1G   13G  25% /
-task1 journal exists — good
-
-mode=750 owner=root:root mount=/ path=/root/rhcsa_journal
-mode=750 owner=root:root mount=/ path=/root/rhcsa_journal/lab-00a
-mode=750 owner=root:root mount=/ path=/root/rhcsa_journal/lab-00a/task1
-mode=750 owner=root:root mount=/ path=/root/rhcsa_journal/lab-00a/task2
-── df -hT for /tmp and /root ──
-Filesystem            Type   Size  Used Avail Use% Mounted on
-tmpfs                 tmpfs  3.8G  1.2M  3.8G   1% /tmp
-/dev/mapper/rhel-root xfs    17G  4.1G   13G  25% /
-── findmnt for the journal mount ──
-TARGET SOURCE                FSTYPE OPTIONS
-/      /dev/mapper/rhel-root xfs    rw,relatime,attr2,inode64,...
+drwxr-xr-x. 3 root root 60 Jun 15 18:00 /tmp/lab-00
 exit was: 0
 ```
 
-> Read the `mount=` column carefully: every journal path resolves to mount point `/` (the root partition, persistent). `/tmp` resolves to its own tmpfs mount — that is the structural reason the journal goes under `/root/`.
+---
 
-### Switches
+## TASK 1 of 2 — Install the engine and add a collection
 
-| Token | Meaning |
-|---|---|
-| `mkdir -p PATH` | Create PATH and missing parents; idempotent |
-| `mkdir -p A/{B,C}` | Brace expansion — creates A/B and A/C in one call |
-| `chown -R USER:GRP PATH` | Recursive ownership change |
-| `chmod 0750 PATH` | Mode 750: owner rwx, group r-x, others none |
-| `stat -c '%m'` | Mount point that contains the file — the persistence field |
-| `stat -c '%a'` | Octal access mode (e.g., `750`) |
-| `df -hT PATH` | Human-readable disk usage + filesystem type |
-| `findmnt -T PATH` | Find the mount that backs PATH |
+**In plain English:** We install `ansible-core`, prove the package is present, then pull a Galaxy collection into the sandbox so we never touch the system collections path.
 
-### 🧠 Concept Card
+---
 
-|   | Concept | What it does |
-|---|---|---|
-|   | `/root/` is persistent | Stored on the root partition (xfs/ext4) — survives reboot |
-|   | `/tmp/` is ephemeral | Stored on tmpfs (or cleared by systemd-tmpfiles) — does NOT survive reboot |
-|   | `stat -c '%m'` | The mount-point field — exposes **why** a path is persistent |
-|   | 0750 on evidence | Owner + root-group readable; nobody else listed — RHCSA-shaped permission |
-|   | `mkdir -p` idempotence | Running this task twice does not error — same end state regardless |
-|   | Explicit chown/chmod after mkdir | Never trust umask for evidence directories |
-| 🪤 | **Trap Risk T00-A (reinforced)** | If `rpm -qi` showed `From repo: epel` in Task 1, the journal will document the trap — fix it before running Lab 00b. |
+### Step 1 of 2 — Install `ansible-core` and verify with `rpm -q`
 
-### 🔁 PERSISTENCE CHECK
-
-| What was configured | Verification command | Why it matters |
-|---|---|---|
-| Journal tree exists | `test -d /root/rhcsa_journal/lab-00a/task1 && test -d /root/rhcsa_journal/lab-00a/task2 && echo OK` | Both subdirectories must be present |
-| Correct mode | `stat -c '%a %n' /root/rhcsa_journal/lab-00a` | Must print `750 /root/rhcsa_journal/lab-00a` |
-| Correct mount | `findmnt -T /root/rhcsa_journal -no SOURCE,FSTYPE` | Must show a real block device + xfs/ext4 — NOT tmpfs |
-| Evidence captured | `wc -l /root/rhcsa_journal/lab-00a/task2/evidence.txt` | Must be > 0 — proves the auditor commands ran and were saved |
-| Reasoning preserved | `cat /root/rhcsa_journal/lab-00a/task2/why-root-not-tmp.txt` | The prose version of "why /root not /tmp" — survives so future-you remembers |
-
-> **Reboot reasoning:** Everything in this task is on the root partition. After a reboot, `df -hT /root` still shows the same xfs/ext4 mount, and every file under `/root/rhcsa_journal/lab-00a/` is still there. That is the structural foundation Lab 00c will exercise — wipe `/tmp`, prove the journal still works.
-
-### Journal write — BEFORE cleanup
+**In plain English:** We install the slim Ansible engine from AppStream and immediately confirm the package landed with its version.
 
 ```bash
-LAB=lab-00a
-TASK=task2
-JDIR="/root/rhcsa_journal/${LAB}/${TASK}"
-mkdir -p "$JDIR"
-
-cat > "$JDIR/done.txt" <<EOF
-LAB:    ${LAB}
-TASK:   ${TASK}
-DATE:   $(date -Is)
-USER:   $(whoami)@$(hostname)
-STATUS: COMPLETE
-JOURNAL_ROOT: /root/rhcsa_journal
-MODE:   $(stat -c '%a' /root/rhcsa_journal/lab-00a)
-OWNER:  $(stat -c '%U:%G' /root/rhcsa_journal/lab-00a)
-MOUNT:  $(stat -c '%m' /root/rhcsa_journal/lab-00a)
-FSTYPE: $(findmnt -T /root/rhcsa_journal -no FSTYPE)
-EOF
-
-cat > "$JDIR/notes.txt" <<EOF
-TOPIC:    Build the persistent journal tree; prove /root is durable, /tmp is not
-COMMANDS: mkdir -p, chown -R, chmod 0750, stat -c '%m', df -hT, findmnt
-TRAPS:    T00-A reinforced via the journal "From repo" record from Task 1
-MISSED:   (fill in if any ⚠️ flags)
-NEXT:     lab-00b — install collections, write ~/.ansible.cfg + ~/inventory, run first playbook
-EOF
-
-ls -la "$JDIR"
-cat "$JDIR/done.txt"
+sudo dnf install -y ansible-core
+rpm -q ansible-core
+ansible --version | head -1
 echo "exit was: $?"
 ```
 
-### 🧹 Cleanup
+**Expected output:**
 
-Nothing to clean. The journal tree is intentionally persistent — Lab 00b and Lab 00c both depend on it, and so does every later lab in this series.
+```
+... Installed: ansible-core-2.16.x ...
+ansible-core-2.16.3-1.el9.x86_64
+ansible [core 2.16.3]
+exit was: 0
+```
 
-### Troubleshoot
+**Line-by-line breakdown:**
 
-| Symptom | Fix |
-|---|---|
-| `mkdir: cannot create directory '/root/rhcsa_journal'` | You are not root. Run `sudo -i` and retry. |
-| `stat -c '%m'` not supported | Old `coreutils` — install `coreutils >= 8.30`. On RHEL 9 it is current. |
-| `findmnt: command not found` | Install `util-linux`. RHEL 9 ships it by default. |
-| Mode shown as `755` not `750` | The explicit `chmod 0750` did not run; rerun the chmod block. |
-| `df -hT /tmp` shows the same filesystem as `/root` | `/tmp` is not separately mounted on this layout. It still clears on reboot if `systemd-tmpfiles` is enabled. Run `systemctl is-enabled systemd-tmpfiles-clean.timer` to confirm. |
+- `sudo dnf install -y ansible-core` → Install the slim engine from AppStream; `-y` answers "yes" so the install is non-interactive. We deliberately do NOT install the fat `ansible` package.
+- `rpm -q ansible-core` → Query the RPM database for the package; printing `ansible-core-2.16...` (not `not installed`) proves it is present.
+- `ansible --version | head -1` → Run the binary itself and show the first line, confirming the engine actually executes.
 
-> **STOP — paste the `stat -c 'mode=%a ... mount=%m path=%n'` block (showing mount=/ for every journal path) and `cat $JDIR/notes.txt` before completing Lab 00a.**
+**New words in this step:**
 
----
-
-## Lab 00a Checklist (2 tasks)
-
-- [ ] Task 1 — `dnf install -y ansible-core` (AppStream, not EPEL), verified with `rpm -q` + `rpm -qi` + `which` + `ansible --version` + transcript in journal
-- [ ] Task 2 — `/root/rhcsa_journal/lab-00a/{task1,task2}` created with mode 0750, owner root:root, mount point proven to be the root partition (not tmpfs), + reasoning written to `why-root-not-tmp.txt`
+- **AppStream** — the RHEL 9 repository that ships application runtimes like `ansible-core`, separate from the BaseOS core repo.
+- **`ansible-core`** — the minimal Ansible package (engine + `ansible.builtin` only), the RHCE-correct choice over the EPEL `ansible` bundle.
 
 ---
 
-## 🔗 Related Labs in the Trilogy
+### Step 2 of 2 — Add a Galaxy collection into the sandbox
 
-| Lab | Connection |
-|---|---|
-| **Lab 00b** — Ansible Control Node — Collections, Config & First Playbook | The Ansible half — installs `ansible.posix` + `community.general`, writes `~/.ansible.cfg` and `~/inventory`, runs the first `--check --diff` playbook |
-| **Lab 00c** — Ansible Control Node — Verification Capstone & Persistence Proof | The auditor seat — three-tool audit (`rpm -qi`, `ansible-galaxy collection list`, `ansible -m ping`) + simulated-reboot persistence proof |
-| Lab 01a — `stdout`, `>`, `>>` (Output Redirection RHCSA) | The next foundational lab — Lab 00 trilogy sets up the control node so Lab 01a can begin teaching the actual shell craft |
-| Every later Lab N — Task 4 (Ansible) | Depends on the package install from Task 1 here and on the collections + config from Lab 00b |
+**In plain English:** We install the `community.general` collection into a sandbox path so the extra modules are available without polluting the system-wide collections directory.
+
+```bash
+ansible-galaxy collection install community.general -p "$LAB_ROOT/collections"
+ansible-galaxy collection list -p "$LAB_ROOT/collections" | grep community.general
+echo "exit was: $?"
+```
+
+**Expected output:**
+
+```
+Starting galaxy collection install process
+... community.general:8.x.x was installed successfully
+community.general 8.6.0
+exit was: 0
+```
+
+**Line-by-line breakdown:**
+
+- `ansible-galaxy collection install community.general -p "$LAB_ROOT/collections"` → Download and unpack the collection; `-p` forces it into the sandbox path instead of `~/.ansible/collections`.
+- `ansible-galaxy collection list -p ...` → List the collections in that path; piping to `grep` confirms `community.general` is there.
+
+**New words in this step:**
+
+- **collection** — a packaged bundle of Ansible modules, roles, and plugins published on Ansible Galaxy.
+- **`-p` (collections path)** — installs the collection into a chosen directory instead of the default user path.
+
+---
+
+### Concept card (Task 1)
+
+| Concept | What it does | Exam trap |
+|---|---|---|
+| `ansible-core` vs `ansible` | core = slim engine; fat = bundle | installing fat `ansible` from EPEL is the wrong reflex |
+| `rpm -q pkg` | confirms install + version | exit code 1 (not an error message) means "not installed" |
+| `ansible-galaxy ... -p` | sandbox the collection path | omitting `-p` writes to `~/.ansible`, surviving teardown |
+
+---
+
+### Troubleshoot (Task 1)
+
+| Symptom | Likely cause | Fix |
+|---|---|---|
+| `No match for argument: ansible-core` | AppStream repo disabled | `sudo dnf repolist`; enable AppStream, retry |
+| `command not found: ansible` | Install failed silently | Re-run `dnf install`; check `rpm -q ansible-core` |
+
+---
+
+## TASK 2 of 2 — Wire up config + inventory and prove it runs
+
+**In plain English:** We write a sandbox `ansible.cfg` and `inventory`, ping `localhost` with an ad-hoc module to prove connectivity, then dry-run a tiny playbook with `--check --diff`.
+
+---
+
+### Step 1 of 2 — Write config + inventory, then `ansible -m ping`
+
+**In plain English:** We create the config and inventory files inside the sandbox, then run the ad-hoc `ping` module against `localhost` to confirm the engine, config discovery, and local connection all work.
+
+```bash
+cat > "$LAB_ROOT/ansible.cfg" <<EOF
+[defaults]
+inventory = $LAB_ROOT/inventory
+collections_path = $LAB_ROOT/collections
+host_key_checking = False
+EOF
+
+cat > "$LAB_ROOT/inventory" <<'EOF'
+localhost ansible_connection=local
+EOF
+
+ansible -m ping localhost
+echo "exit was: $?"
+```
+
+**Expected output:**
+
+```
+localhost | SUCCESS => {
+    "ansible_facts": {"discovered_interpreter_python": "/usr/bin/python3"},
+    "changed": false,
+    "ping": "pong"
+}
+exit was: 0
+```
+
+**Line-by-line breakdown:**
+
+- `cat > "$LAB_ROOT/ansible.cfg" <<EOF ... EOF` → Heredoc writing the config; `[defaults]` tells Ansible where the inventory and collections live. Because `$ANSIBLE_CONFIG` points here, this file is auto-discovered.
+- `cat > "$LAB_ROOT/inventory" <<'EOF' ... EOF` → Heredoc writing a one-host inventory; `ansible_connection=local` means "run here, do not SSH."
+- `ansible -m ping localhost` → Run the `ping` module ad-hoc; `pong` proves the engine reached the host through the local connection plugin (this is a Python check, not ICMP).
+
+**New words in this step:**
+
+- **ad-hoc command** — a one-off `ansible -m MODULE` run, no playbook file involved.
+- **`ANSIBLE_CONFIG`** — an environment variable that overrides config discovery to point at an exact file.
+
+---
+
+### Step 2 of 2 — Dry-run a tiny playbook with `--check --diff`
+
+**In plain English:** We write a one-task playbook and run it with `--check --diff` so Ansible reports what it *would* change without actually changing anything.
+
+```bash
+cat > "$LAB_ROOT/hello.yml" <<'EOF'
+---
+- name: "Lab 00a smoke test"
+  hosts: localhost
+  gather_facts: false
+  tasks:
+    - name: "Ensure a marker file exists"
+      ansible.builtin.copy:
+        dest: /tmp/lab-00/marker.txt
+        content: "control node is alive\n"
+        mode: '0644'
+EOF
+
+ansible-playbook --check --diff "$LAB_ROOT/hello.yml"
+echo "exit was: $?"
+```
+
+**Expected output:**
+
+```
+TASK [Ensure a marker file exists] *********************************************
+--- before
++++ after
+@@ -0,0 +1 @@
++control node is alive
+changed: [localhost]
+
+PLAY RECAP ********************************************************************
+localhost                  : ok=1    changed=1    unreachable=0    failed=0
+exit was: 0
+```
+
+**Line-by-line breakdown:**
+
+- `cat > "$LAB_ROOT/hello.yml" <<'EOF' ... EOF` → Write a minimal playbook with one `copy` task targeting a sandbox file.
+- `ansible-playbook --check --diff ...` → `--check` runs in "dry-run" mode making no real change; `--diff` prints the unified delta the task would apply, so `changed=1` is *predicted*, not performed.
+
+**New words in this step:**
+
+- **check mode** — `--check` simulates a run and reports would-be changes without touching anything.
+- **diff mode** — `--diff` prints the before/after delta for tasks that support it.
+
+---
+
+### Concept card (Task 2)
+
+| Concept | What it does | Exam trap |
+|---|---|---|
+| `ansible.cfg [defaults]` | sets inventory + collections path | nearest cfg wins; `ANSIBLE_CONFIG` overrides all |
+| `ping` module | Python round-trip to the host | it is NOT ICMP — a firewall blocking ping is irrelevant |
+| `--check --diff` | dry-run + show the delta | `changed=1` here means "would change," nothing happened |
+
+---
+
+### Troubleshoot (Task 2)
+
+| Symptom | Likely cause | Fix |
+|---|---|---|
+| `Could not match supplied host pattern` | Inventory not found | Confirm `ANSIBLE_CONFIG` and the `inventory =` path |
+| `UNREACHABLE` on localhost | Missing `ansible_connection=local` | Add it to the inventory line |
+
+---
+
+## ✅ Lab Checklist
+
+- [ ] Task 1 · Step 1 — Install `ansible-core` and verify with `rpm -q`
+- [ ] Task 1 · Step 2 — Add a Galaxy collection into the sandbox
+- [ ] Task 2 · Step 1 — Write config + inventory, then `ansible -m ping`
+- [ ] Task 2 · Step 2 — Dry-run a tiny playbook with `--check --diff`
+- [ ] Every 🎯 Focus Coverage row (Anchor + NEW) mapped to a step
+- [ ] 🧹 Teardown run — sandbox + any system state removed
+
+---
+
+## 🧹 Teardown
+
+**In plain English:** Delete everything this lab created so the box is clean for the next run.
+
+> Run this after you've verified the lab. `lab_teardown.sh` safely removes the single sandbox root — it refuses to touch `/`, `$HOME`, or any protected path.
+
+```bash
+bash lab_teardown.sh "$LAB_ROOT"     # = /tmp/lab-00
+```
+
+**This lab installed a SYSTEM package — reverse it only if you want a fully clean box** (`rm` will not):
+
+```bash
+# sudo dnf remove -y ansible-core      # remove the engine you installed
+```
+
+**Expected output:**
+
+```
+✅ Removed /tmp/lab-00 — lab workspace is clean.
+```
+
+---
+
+## ⚠️ Common Pitfalls
+
+| Mistake | Symptom | Fix |
+|---|---|---|
+| Installing fat `ansible` from EPEL | Hundreds of extra collections, slow | Install `ansible-core` from AppStream |
+| Editing the wrong `ansible.cfg` | Changes ignored | Set `ANSIBLE_CONFIG` to the exact file |
+| Expecting `ping` to use ICMP | Confusion when ICMP is blocked | The `ping` module is a Python round-trip, not ICMP |
+
+---
+
+## 📌 Exam Strategy
+
+On the RHCE the control node is assumed working, but you must be able to rebuild it fast. Install `ansible-core`, drop a project-local `ansible.cfg` next to your playbooks (nearest config wins), list hosts in an inventory, and confirm with `ansible -m ping all` before writing a single play.
+
+- Use a project-local `ansible.cfg` so the grader's environment cannot interfere.
+- `ansible all -m ping` is the first command of every Ansible session — make it muscle memory.
+- Reach for `--check --diff` to preview risky plays before committing.
+
+---
+
+## 🔗 Related Labs
+
+- [Lab 00b — Ansible Control Node (Ansible)](../lab-00b-ansible-control-node-ansible/) — manage the control node's own packages and config with a playbook
+- [Lab 00c — Ansible Control Node (Verify)](../lab-00c-ansible-control-node-verify/) — prove the engine, config, and ping all work
+- [Lab 01a — Stdout Redirection (RHCSA)](../lab-01a-stdout-redirection-rhcsa/) — the first content lab, now that your tooling is ready
 
 ---
 
 ## 👤 Author
 
-**Kelvin R. Tobias**
+**Kelvin R. Tobias**  
 [kelvinintech.com](https://kelvinintech.com) · [GitHub](https://github.com/kelvintechnical) · [LinkedIn](https://www.linkedin.com/in/kelvin-r-tobias-211949219)

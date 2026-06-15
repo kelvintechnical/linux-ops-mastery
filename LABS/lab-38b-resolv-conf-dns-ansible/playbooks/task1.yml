@@ -1,0 +1,25 @@
+---
+- name: "Lab 38b Task 1 — declarative DNS config"
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  become: true
+  tasks:
+    - name: "Set DNS servers and search domain on lab-dns"
+      community.general.nmcli:
+        conn_name: lab-dns
+        ifname: dummy0
+        type: dummy
+        method4: manual
+        ip4: 10.88.88.2/24
+        dns4:
+          - 10.88.88.53
+          - 10.88.88.54
+        dns_search:
+          - lab.local
+        state: present
+      register: nm
+
+    - name: "Show whether anything changed"
+      ansible.builtin.debug:
+        msg: "changed: {{ nm.changed }}"

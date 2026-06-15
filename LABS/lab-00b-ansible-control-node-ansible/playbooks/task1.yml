@@ -1,0 +1,30 @@
+---
+# Lab 00b Task 1 — ensure ansible-core is present (idempotent)
+#
+# Run (twice, to prove idempotence):
+#   ansible-playbook /root/rhcsa_journal/lab-00b/playbooks/task1.yml
+#   ansible-playbook /root/rhcsa_journal/lab-00b/playbooks/task1.yml
+#
+# Expected: PLAY RECAP shows changed=0 on the second run (and usually the
+# first too, since Lab 00a already installed the package). ansible.builtin.dnf
+# is state-aware, so it only acts when the package is missing.
+
+- name: "Lab 00b Task 1 — ensure ansible-core is present (idempotent)"
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  become: true
+
+  tasks:
+    - name: "Ensure ansible-core is installed"
+      ansible.builtin.dnf:
+        name: ansible-core
+        state: present
+      register: pkg_result
+
+    - name: "Assert the ansible binary exists"
+      ansible.builtin.assert:
+        that:
+          - "pkg_result is succeeded"
+        success_msg: "ansible-core is present"
+        fail_msg: "ansible-core install failed"

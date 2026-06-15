@@ -1,0 +1,33 @@
+---
+# Lab 26b Task 2 — manage a multi-line block
+#
+# Run (twice, to prove idempotence):
+#   ansible-playbook /root/rhcsa_journal/lab-26b/playbooks/task2.yml
+#   ansible-playbook /root/rhcsa_journal/lab-26b/playbooks/task2.yml
+#
+# blockinfile manages a multi-line region as one idempotent unit. The marker
+# ({mark} expands to BEGIN/END) tells Ansible exactly which lines it owns, so a
+# re-run with unchanged content reports changed=0. Give each block a unique marker.
+
+- name: "Lab 26b Task 2 — manage a multi-line block"
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars:
+    conf: /tmp/lab-26/app.conf
+
+  tasks:
+    - name: "Manage the limits block"
+      ansible.builtin.blockinfile:
+        path: "{{ conf }}"
+        marker: "# {mark} APP LIMITS"
+        block: |
+          max_connections = 100
+          timeout = 30
+          retries = 3
+        backup: true
+      register: block_result
+
+    - name: "Show whether anything changed"
+      ansible.builtin.debug:
+        msg: "changed: {{ block_result.changed }}"

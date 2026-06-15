@@ -1,275 +1,350 @@
-# Lab 20a: Scrolling Through Large Files (RHCSA) — `less`, `more`, search nav, follow mode
+# Lab 20a: Scrolling Through Large Files (RHCSA) — `less`, `more`
 
-- **Series:** linux-ops-mastery — File Operations & Shell Fundamentals
-- **Trilogy:** `20a` (RHCSA) → [`20b`](../lab-20b-less-more-scrolling-ansible/) (Ansible) → [`20c`](../lab-20c-less-more-scrolling-verify/) (Verify)
-- **Time Estimate:** 25-35 minutes
-- **Tasks:** 2 (Task 1 = interactive navigation muscle memory, Task 2 = `less +F` vs `tail -f` under rotation)
-- **Practice Directory (rotation #20):** `/etc`
-- **Sandbox (Tier B):** `/tmp/lab20a` with `USER=labuser_20_pager`, `GROUP=labgrp_20_pager`
-- **Traps rehearsed:** **T20-A** (`less +F` and `tail -f` behave differently when logs rotate) · **T20-B** (ANSI/binary display noise; use `less -R` for raw color codes) · **T41** · **T44**
-
-> **This lab's practice directory is `/etc`**. We read real system files there and write sandbox evidence under `/tmp/lab20a`.
+**Series:** linux-ops-mastery — Text Processing & Filters · **Lab 20a of the Novice → RHCA path**  
+**Certifications covered:** RHCSA EX200 (paging through logs and configs), SRE/DevOps (reading large logs without flooding the terminal)  
+**Prerequisite:** [Lab 19c](../lab-19c-cat-concatenate-files-verify/) completed  
+**Time Estimate:** 20–30 minutes  
+**Difficulty:** Beginner
 
 ---
 
-## LAB HEADER BLOCK
+## 🎯 Today's Focus Coverage
 
-```bash
-echo "ENV:  ${ENV:-DECLARE_ME}"
-echo "TIME: $(date -Is)"
-echo "USER: $(whoami)@$(hostname)"
-echo "TRAPS THIS LAB: T20-A T20-B T41 T44"
-echo "PRACTICE DIR: /etc"
-ls -ld /etc
-ls /etc | wc -l
-echo "Shell: $BASH_VERSION"
-```
+> Stay on-subject via the ANCHOR rows; expand vocabulary via the NEW rows. Every row is exercised by a STEP below.
 
-> **STOP - Paste header output before setup.**
+**⚓ Anchor — already learned (on-topic reuse)**
 
----
+| # | Command / switch | Covered by |
+|---|---|---|
+| A1 | `cat` (and why it floods) | _Task 1 · Step 1_ |
+| A2 | `seq` to build content | _Lab-wide setup_ |
 
-## Objective
+**🆕 NEW this lab — introduced for the first time** (minimum 3)
 
-Build pager reflexes for exam speed:
-
-1. Navigate large files with `less` using `/pattern`, `?pattern`, `n`, `N`, `g`, `G`, `q`.
-2. Understand `less` flags: `-N` line numbers, `-S` no wrap, `+F` follow mode, `-R` raw ANSI colors.
-3. Contrast `less +F` versus `tail -f` behavior when a file rotates (T20-A).
+| # | Command / switch | First taught in | Covered by |
+|---|---|---|---|
+| N1 | `less` + `/` `?` `n` `N` | Task 1 · Step 1 | _Task 1 · Step 1_ |
+| N2 | `less -N` / `G` / `g` | Task 1 · Step 2 | _Task 1 · Step 2_ |
+| N3 | `less +F` (follow mode) | Task 2 · Step 1 | _Task 2 · Step 1_ |
+| N4 | `more` paging | Task 2 · Step 2 | _Task 2 · Step 2_ |
 
 ---
 
-## Lab-Wide Setup (Tier B)
+## 🎯 Objective
 
-```bash
-sudo -i
+Read files too big for one screen without flooding your terminal. You will page through a large log with `less`, search forward (`/`) and backward (`?`), jump to the top (`g`) and bottom (`G`), show line numbers (`-N`), tail-follow live output (`+F`), and contrast it all with the older `more`. By the end you navigate any log confidently from the keyboard.
 
-export LAB_NUM=20
-export LAB_SLUG=pager
-export SANDBOX=/tmp/lab20a
-export GROUP=labgrp_${LAB_NUM}_${LAB_SLUG}
-export USER=labuser_${LAB_NUM}_${LAB_SLUG}
-export USER_HOME=${SANDBOX}/home_${USER}
-
-mkdir -p "${SANDBOX}" "${USER_HOME}" /root/rhcsa_journal/lab-20a/task1 /root/rhcsa_journal/lab-20a/task2
-getent group "${GROUP}" >/dev/null || groupadd "${GROUP}"
-getent passwd "${USER}" >/dev/null || useradd -d "${USER_HOME}" -M -s /bin/bash -g "${GROUP}" "${USER}"
-chown -R "${USER}:${GROUP}" "${SANDBOX}"
-
-id "${USER}"
-ls -ld "${SANDBOX}" "${USER_HOME}"
-getent group "${GROUP}"
-getent passwd "${USER}"
-echo "setup exit: $?"
-```
-
-> **STOP - Paste `id`, `ls -ld`, and both `getent` lines before Task 1.**
+> **Note:** `less` is interactive. Run these commands and use the listed keys; the "expected output" describes what you should see on screen. Press `q` to quit the pager each time.
 
 ---
 
-## Task 1 — `less` navigation drill on `/var/log/messages`
+## 🧠 Concept
 
-### Warm-Up
+`cat` dumps a whole file to the terminal — fine for 10 lines, useless for 10,000. A **pager** shows one screen at a time and lets you move around. `less` is the modern pager: arrow/PageUp/PageDown to scroll, `/pattern` to search forward, `?pattern` backward, `n`/`N` for next/previous match, `g`/`G` for top/bottom, `-N` to number lines, and `+F` to "follow" a growing file like `tail -f` (Ctrl-C drops back to paging). `more` is the older, simpler pager (forward-mostly), still found on minimal systems. The mantra: *less is more* — `less` does everything `more` does and far more.
 
-```bash
-ls -l /var/log/messages 2>&1 | tee /tmp/lab20a/warmup-task1.txt
-wc -l /var/log/messages
-head -n 5 /var/log/messages
-tail -n 5 /var/log/messages
-set -o pipefail
-echo "warm-up exit: $?"
+```
+less big.log        → page; /error finds, n=next, q=quit
+less -N big.log     → with line numbers
+less +F big.log     → follow new lines (Ctrl-C to stop, q to quit)
+more big.log        → simple forward pager (Space=page, q=quit)
 ```
 
-### Purpose
+> **Why this matters:** On the exam and on call you live in logs. Knowing `/`, `n`, `G`, and `+F` turns a 50,000-line log from a wall of text into a searchable, navigable document.
 
-Practice all key motions in one pass and capture proof.  
-Target keys: `/`, `?`, `n`, `N`, `g`, `G`, `q`, plus flags `-N`, `-S`.
+---
 
-### Main command block
+## 📚 Command Reference
+
+| Command / key | Purpose | Notes |
+|---|---|---|
+| `less FILE` | Open the pager | `q` quits |
+| `/pat` `?pat` | Search fwd / back | `n` next, `N` previous |
+| `g` / `G` | Top / bottom | jump instantly |
+| `less -N` | Show line numbers | toggle in-pager with `-N` |
+| `less +F` | Follow growth | Ctrl-C to page, `q` to quit |
+| `more FILE` | Simple pager | Space pages, `q` quits |
+
+---
+
+## 🧰 LAB-WIDE SETUP
+
+**In plain English:** Build a sandbox with a large multi-line log to scroll through.
+
+> Run this block **once** before Task 1. It defines a single sandbox root
+> (`LAB_ROOT`) that every file in this lab lives under, so the Teardown
+> section can wipe it in one safe command.
 
 ```bash
-TASKLOG=/tmp/lab20a/task1.txt
-NAV_SCRIPT=/tmp/lab20a/less-nav-demo.sh
-
-cat > "${NAV_SCRIPT}" <<'EOF'
-#!/usr/bin/env bash
-set -euo pipefail
-FILE=/var/log/messages
-echo "Demo file: ${FILE}"
-echo "1) less -N -S ${FILE}"
-echo "2) keys: /error ENTER, n, N, ?systemd ENTER, n, g, G, q"
-echo "3) capture approximations with grep/head/tail:"
-echo "--- /error equivalent ---"
-grep -in "error" "${FILE}" | head -n 5 || true
-echo "--- ?systemd equivalent ---"
-grep -in "systemd" "${FILE}" | tail -n 5 || true
-echo "--- g equivalent (top) ---"
-head -n 3 "${FILE}"
-echo "--- G equivalent (bottom) ---"
-tail -n 3 "${FILE}"
-EOF
-
-chmod +x "${NAV_SCRIPT}"
-"${NAV_SCRIPT}" 2>&1 | tee "${TASKLOG}"
-
-echo "Now run interactively:"
-echo "  less -N -S /var/log/messages" | tee -a "${TASKLOG}"
-echo "  keys: /error ENTER, n, N, ?systemd ENTER, n, g, G, q" | tee -a "${TASKLOG}"
-echo "task1 exit: $?"
+export LAB_ROOT=/tmp/lab-20
+mkdir -p "$LAB_ROOT"
+cd "$LAB_ROOT"
+seq 1 500 | sed 's/^/line /' > big.log
+echo "ERROR disk full" >> big.log
+seq 501 1000 | sed 's/^/line /' >> big.log
+wc -l big.log
+echo "exit was: $?"
 ```
 
-### Expected output
+**Expected output:**
 
-```text
-Demo file: /var/log/messages
-1) less -N -S /var/log/messages
-2) keys: /error ENTER, n, N, ?systemd ENTER, n, g, G, q
+```
+1001 big.log
+exit was: 0
+```
+
+---
+
+## TASK 1 of 2 — Page and search with `less`
+
+**In plain English:** We open the big log, search for a needle, and jump around it.
+
+---
+
+### Step 1 of 2 — Search forward and back
+
+**In plain English:** We open the log in `less` and find the `ERROR` line by searching.
+
+```bash
+cd "$LAB_ROOT"
+less big.log
+# Inside less, type:
+#   /ERROR   then Enter   → jumps to the ERROR line
+#   n                     → next match (none here, stays put / bell)
+#   ?line 5               → search backward for "line 5"
+#   q                     → quit
+```
+
+**Expected output (on screen):**
+
+```
+line 1
+line 2
 ...
-Now run interactively:
-less -N -S /var/log/messages
-keys: /error ENTER, n, N, ?systemd ENTER, n, g, G, q
+(after /ERROR Enter, the view jumps to:)
+ERROR disk full
 ```
 
-### Concept Card
+**Line-by-line breakdown:**
 
-| Key / Flag | Meaning |
-|---|---|
-| `/pattern` | Forward search |
-| `?pattern` | Backward search |
-| `n` / `N` | Next / previous match |
-| `g` / `G` | Jump to top / bottom |
-| `q` | Quit pager |
-| `-N` | Show line numbers |
-| `-S` | Chop long lines (no wrap) |
-| **🪤 T20-B** | ANSI escape soup in logs: use `less -R FILE` when color codes are present |
+- `less big.log` → Open the file in the pager, showing the first screen.
+- `/ERROR` → Search forward; `less` jumps to and highlights the next match.
+- `?line 5` → Search backward from the cursor.
 
-### Journal write
+**New words in this step:**
 
-```bash
-JDIR=/root/rhcsa_journal/lab-20a/task1
-mkdir -p "${JDIR}"
-cp /tmp/lab20a/task1.txt "${JDIR}/evidence.txt"
-cp /tmp/lab20a/less-nav-demo.sh "${JDIR}/less-nav-demo.sh"
-echo "TASK1 COMPLETE $(date -Is)" > "${JDIR}/done.txt"
-ls -la "${JDIR}"
-```
+- **pager** — a program that shows a file one screen at a time.
+- **`/` and `?`** — search forward and backward inside `less`.
 
 ---
 
-## Task 2 — `less +F` vs `tail -f` under rotation (T20-A)
+### Step 2 of 2 — Line numbers and top/bottom jumps
 
-### Warm-Up
-
-```bash
-touch /tmp/lab20a/growing.log
-echo "seed-$(date -Is)" >> /tmp/lab20a/growing.log
-tail -n 3 /tmp/lab20a/growing.log
-set -o pipefail
-echo "warm-up exit: $?"
-```
-
-### Purpose
-
-Show that `less +F` is pager-follow mode (can return to navigation) while `tail -f` is stream-follow mode, and highlight rotate behavior differences.
-
-### Main command block
+**In plain English:** We reopen with line numbers and jump to the end and start of the file.
 
 ```bash
-TASKLOG=/tmp/lab20a/task2.txt
-LOG=/tmp/lab20a/growing.log
-ROT=/tmp/lab20a/growing.log.1
-
-{
-  echo "=== create growth and rotation ==="
-  for i in 1 2 3; do echo "before-rotate-$i $(date -Is)" >> "${LOG}"; done
-  mv "${LOG}" "${ROT}"
-  touch "${LOG}"
-  for i in 1 2 3; do echo "after-rotate-$i $(date -Is)" >> "${LOG}"; done
-  echo
-  echo "=== commands to run in separate terminals ==="
-  echo "less +F ${LOG}        # Ctrl-C to stop follow, then scroll/search"
-  echo "tail -f ${LOG}        # stream only; use tail -F for name-follow across rotate"
-  echo "tail -F ${LOG}        # better for rotate by filename"
-  echo
-  echo "=== Tier B weave (run as ${USER}) ==="
-} | tee "${TASKLOG}"
-
-sudo -u "${USER}" bash -c "tail -n 5 '${LOG}' > '${USER_HOME}/tail-asuser.txt'"
-stat -c '%U:%G %a %n' "${USER_HOME}/tail-asuser.txt" | tee -a "${TASKLOG}"
-cat "${USER_HOME}/tail-asuser.txt" | tee -a "${TASKLOG}"
-
-echo "task2 exit: $?"
+cd "$LAB_ROOT"
+less -N big.log
+# Inside less, type:
+#   G   → jump to the last line (line 1000)
+#   g   → jump back to the first line
+#   q   → quit
 ```
 
-### Expected output
+**Expected output (on screen):**
 
-```text
-=== commands to run in separate terminals ===
-less +F /tmp/lab20a/growing.log
-tail -f /tmp/lab20a/growing.log
-tail -F /tmp/lab20a/growing.log
+```
+      1 line 1
+      2 line 2
+      3 line 3
+... (line numbers on the left; G jumps to the bottom, g to the top)
+```
+
+**Line-by-line breakdown:**
+
+- `less -N big.log` → Open with a line-number gutter on the left.
+- `G` / `g` → Jump to the bottom / top instantly — vital in huge logs.
+
+**New words in this step:**
+
+- **`-N`** — show line numbers in the pager.
+- **`g` / `G`** — jump to top / bottom of the file.
+
+---
+
+### Concept card (Task 1)
+
+| Concept | What it does | Exam trap |
+|---|---|---|
+| `/` vs `?` | search fwd / back | `n`/`N` repeat the search |
+| `g` / `G` | top / bottom | uppercase = bottom |
+| `-N` | line numbers | helps cross-reference errors |
+
+---
+
+### Troubleshoot (Task 1)
+
+| Symptom | Likely cause | Fix |
+|---|---|---|
+| Stuck in `less` | Don't know how to exit | Press `q` |
+| Search wraps unexpectedly | Hit top/bottom | `n` continues; watch for "Pattern not found" |
+
+---
+
+## TASK 2 of 2 — Follow growth and the older `more`
+
+**In plain English:** We follow a growing file like `tail -f`, then compare with `more`.
+
+---
+
+### Step 1 of 2 — Follow a growing file with `less +F`
+
+**In plain English:** We open the log in follow mode while a background writer appends lines, watching them appear live.
+
+```bash
+cd "$LAB_ROOT"
+( for i in $(seq 1 5); do echo "new entry $i"; sleep 1; done >> big.log ) &
+less +F big.log
+# In less follow mode you see new lines arrive; then:
+#   Ctrl-C   → stop following, return to normal paging
+#   q        → quit
+```
+
+**Expected output (on screen):**
+
+```
 ...
-labuser_20_pager:labgrp_20_pager 644 /tmp/lab20a/home_labuser_20_pager/tail-asuser.txt
-after-rotate-1 ...
-after-rotate-2 ...
-after-rotate-3 ...
+line 1000
+new entry 1
+new entry 2
+new entry 3
+new entry 4
+new entry 5
+(Waiting for data... press Ctrl-C to stop)
 ```
 
-### Concept Card
+**Line-by-line breakdown:**
 
-| Command | Behavior |
-|---|---|
-| `less +F FILE` | Follow end of file, then `Ctrl-C` returns to browse/search mode |
-| `tail -f FILE` | Follows file descriptor; may miss new file after rename/rotate |
-| `tail -F FILE` | Follows filename and retries; better across rotation |
-| **🪤 T20-A** | Confusing `-f` with `-F` and expecting same rotation behavior |
+- `( ... ) &` → Background writer that appends a line per second.
+- `less +F big.log` → Open in follow mode; new lines appear as they're written — like `tail -f` but you can Ctrl-C and scroll back.
 
-### Journal write
+**New words in this step:**
+
+- **follow mode (`+F`)** — `less` tails a growing file; Ctrl-C returns to paging.
+
+---
+
+### Step 2 of 2 — Page with the older `more`
+
+**In plain English:** We open the same log with `more` to see the simpler, forward-only pager.
 
 ```bash
-JDIR=/root/rhcsa_journal/lab-20a/task2
-mkdir -p "${JDIR}"
-cp /tmp/lab20a/task2.txt "${JDIR}/evidence.txt"
-cp /tmp/lab20a/growing.log /tmp/lab20a/growing.log.1 "${JDIR}/" 2>/dev/null || true
-cp "${USER_HOME}/tail-asuser.txt" "${JDIR}/tail-asuser.txt"
-echo "TASK2 COMPLETE $(date -Is)" > "${JDIR}/done.txt"
-ls -la "${JDIR}"
+cd "$LAB_ROOT"
+more big.log
+# Inside more, type:
+#   Space   → next page
+#   Enter   → next line
+#   /entry  → search forward
+#   q       → quit
 ```
+
+**Expected output (on screen):**
+
+```
+line 1
+line 2
+...
+--More--(5%)
+```
+
+**Line-by-line breakdown:**
+
+- `more big.log` → Open the simple pager; `--More--(5%)` shows progress.
+- `Space` / `Enter` → Page / line forward; `more` is mostly forward-only.
+
+**New words in this step:**
+
+- **`more`** — the older, simpler forward pager; `less` superseded it.
 
 ---
 
-## Lab Closeout — Bulletproof Teardown (Section 6)
+### Concept card (Task 2)
+
+| Concept | What it does | Exam trap |
+|---|---|---|
+| `less +F` | follow growth | Ctrl-C to scroll, `q` to quit |
+| `more` | simple pager | limited backward movement |
+| pipe to pager | `cmd | less` | page any command's output |
+
+---
+
+### Troubleshoot (Task 2)
+
+| Symptom | Likely cause | Fix |
+|---|---|---|
+| `+F` never shows new lines | Nothing writing | Confirm the writer is running |
+| `more` can't scroll back | By design | Use `less` instead |
+
+---
+
+## ✅ Lab Checklist
+
+- [ ] Task 1 · Step 1 — Search forward and back
+- [ ] Task 1 · Step 2 — Line numbers and top/bottom jumps
+- [ ] Task 2 · Step 1 — Follow a growing file with `less +F`
+- [ ] Task 2 · Step 2 — Page with the older `more`
+- [ ] Every 🎯 Focus Coverage row (Anchor + NEW) mapped to a step
+- [ ] 🧹 Teardown run — sandbox + any system state removed
+
+---
+
+## 🧹 Teardown
+
+**In plain English:** Delete everything this lab created so the box is clean for the next run.
+
+> Run this after you've verified the lab. `lab_teardown.sh` safely removes the single sandbox root — it refuses to touch `/`, `$HOME`, or any protected path. This lab changed **no** system state. If the background writer is still running, it will exit on its own after 5 seconds.
 
 ```bash
-set +e
-rm -f /tmp/lab20a/warmup-task1.txt /tmp/lab20a/task1.txt /tmp/lab20a/task2.txt
-rm -f /tmp/lab20a/growing.log /tmp/lab20a/growing.log.1 /tmp/lab20a/less-nav-demo.sh
-rm -f "${USER_HOME}/tail-asuser.txt"
+cd /tmp
+bash lab_teardown.sh "$LAB_ROOT"     # = /tmp/lab-20
+```
 
-if getent passwd "${USER}" >/dev/null 2>&1; then userdel -r "${USER}" 2>/dev/null; fi
-if getent group "${GROUP}" >/dev/null 2>&1; then groupdel "${GROUP}" 2>/dev/null; fi
-rm -rf "${SANDBOX}"
+**Expected output:**
 
-echo "---- lab-20a cleanup audit ----"
-getent passwd "${USER}" >/dev/null && echo "❌ user remains" || echo "✅ user gone"
-getent group "${GROUP}" >/dev/null && echo "❌ group remains" || echo "✅ group gone"
-test -d "${SANDBOX}" && echo "❌ sandbox remains" || echo "✅ sandbox gone"
-test -d "${USER_HOME}" && echo "❌ home remains" || echo "✅ home gone"
-set -e
+```
+✅ Removed /tmp/lab-20 — lab workspace is clean.
 ```
 
 ---
 
-## Related Labs
+## ⚠️ Common Pitfalls
 
-| Lab | Connection |
-|---|---|
-| **Lab 20b** | Ansible-safe pager patterns and profile defaults |
-| **Lab 20c** | Audit + destroy-restore verification |
+| Mistake | Symptom | Fix |
+|---|---|---|
+| `cat`-ing a huge file | Terminal flooded | Use `less` |
+| Forgetting `q` | "Stuck" in the pager | Press `q` to exit |
+| Using `more` for big logs | Can't scroll back | Switch to `less` |
 
 ---
 
-## Author
+## 📌 Exam Strategy
+
+Never `cat` a large log — open it in `less`, search with `/`, repeat with `n`, and jump with `g`/`G`. Pipe any verbose command into `less` to page its output. Use `+F` when you need live follow but want to scroll back.
+
+- `less` searches; `/pat` then `n` is your log-hunting combo.
+- `G` to the bottom is the fastest way to the newest entries.
+- Pipe `journalctl`, `dmesg`, etc. into `less`.
+
+---
+
+## 🔗 Related Labs
+
+- [Lab 20b — Scrolling Large Files (Ansible)](../lab-20b-less-more-scrolling-ansible/) — extracting page ranges without a pager
+- [Lab 20c — Scrolling Large Files (Verify)](../lab-20c-less-more-scrolling-verify/) — prove the right lines were read
+- [Lab 21a — Monitoring Live Log Files (RHCSA)](../lab-21a-tail-f-live-logs-rhcsa/) — `tail -f` for live following
+
+---
+
+## 👤 Author
 
 **Kelvin R. Tobias**  
 [kelvinintech.com](https://kelvinintech.com) · [GitHub](https://github.com/kelvintechnical) · [LinkedIn](https://www.linkedin.com/in/kelvin-r-tobias-211949219)

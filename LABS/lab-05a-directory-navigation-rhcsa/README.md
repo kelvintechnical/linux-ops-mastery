@@ -1,476 +1,331 @@
-# Lab 05a: Directory Navigation (RHCSA) — `pwd`, `cd`, `$OLDPWD`
+# Lab 05a: Directory Navigation (RHCSA) — `pwd`, `cd`
 
-- **Series:** linux-ops-mastery — Essential Tools & File Operations
-- **Trilogy:** `05a` (RHCSA hand-typed) → ⛔ no `05b` (Section 18 boundary — `cd` has no honest Ansible module; `chdir:` is task-scoped only) → [`05c`](../lab-05c-directory-nav-verify/) (Verify capstone)
-- **Career arcs covered:** RHCSA EX200 (every "navigate to /path and run X" reflex), SRE (rapid context switches between log dirs during incidents), DevOps (script-relative `pwd`-aware paths)
-- **Prerequisite:** [`Lab 04c`](../lab-04c-capture-both-output-error-verify/) completed
-- **Time Estimate:** 20–30 minutes
-- **Tasks:** 2 (Task 1 = `cd` / `pwd -L`/`-P` / `cd ..` / `cd ~` · Task 2 = `cd -` / `$OLDPWD` / symlink trap T41)
-- **Practice Directory (rotation #05):** `/usr`
-- **Sandbox (Tier B):** `/tmp/lab05a` with `USER=labuser_05_nav`, `GROUP=labgrp_05_nav`, `USER_HOME=/tmp/lab05a/home_labuser_05_nav`
-- **Traps rehearsed this lab:** **T41** (symlink path vs real path — `pwd -L` vs `pwd -P` reveal which one the shell is "in") · **T42** (assuming `cd ~` goes to `/home/USER` when invoked under sudo — actually goes to root's home) · **T43** (running a script with relative paths after `cd` — script must `cd "$(dirname "$0")"` first) · **T44** (Closeout audit)
-
-> **This lab's practice directory is: `/usr`** — the largest dir on most systems; `/usr/bin`, `/usr/lib`, `/usr/share` are all reachable in one `cd`. Perfect for navigation drills.
+**Series:** linux-ops-mastery — Essential Tools & File Operations · **Lab 05a of the Novice → RHCA path**  
+**Certifications covered:** RHCSA EX200 (every "go to /path and run X" task), RHCE EX294 (the `chdir:` reflex behind shell tasks), SRE/DevOps (script-relative paths and safe context switching)  
+**Prerequisite:** [Lab 04c](../lab-04c-capture-both-output-error-verify/) completed  
+**Time Estimate:** 20–30 minutes  
+**Difficulty:** Beginner
 
 ---
 
-## LAB HEADER BLOCK
+## 🎯 Today's Focus Coverage
 
-```bash
-echo "🖥️  ENV:   ${ENV:-DECLARE_ME}"
-echo "🔐  SE:    $(getenforce 2>/dev/null || echo n/a)"
-echo "📦  OS:    $(cat /etc/redhat-release 2>/dev/null || grep PRETTY_NAME /etc/os-release)"
-echo "🕒  TIME:  $(date -Is)"
-echo "👤  USER:  $(whoami)@$(hostname)"
-echo "⚠️  TRAP REMINDERS THIS LAB: T41 T42 T43"
-echo "📁  PRACTICE DIR: /usr"
-echo ""
-echo "💡 /usr context:"
-ls -ld /usr /usr/bin /usr/lib /usr/share
-ls /usr | head -n 10
-echo "Shell version: $BASH_VERSION"
+> Stay on-subject via the ANCHOR rows; expand vocabulary via the NEW rows. Every row is exercised by a STEP below.
+
+**⚓ Anchor — already learned (on-topic reuse)**
+
+| # | Command / switch | Covered by |
+|---|---|---|
+| A1 | `cd` | _Task 1 · Step 1_ |
+| A2 | `pwd` | _Task 1 · Step 1_ |
+
+**🆕 NEW this lab — introduced for the first time** (minimum 3)
+
+| # | Command / switch | First taught in | Covered by |
+|---|---|---|---|
+| N1 | `pwd -L` / `pwd -P` | Task 1 · Step 2 | _Task 1 · Step 2_ |
+| N2 | `cd -` and `$OLDPWD` | Task 2 · Step 1 | _Task 2 · Step 1_ |
+| N3 | `cd ~` (HOME expansion) | Task 1 · Step 1 | _Task 1 · Step 1_ |
+| N4 | `cd ..` (parent traversal) | Task 1 · Step 1 | _Task 1 · Step 1_ |
+
+---
+
+## 🎯 Objective
+
+Move through the filesystem with intent: print where you are, jump to a parent, home, or a previous directory, and — the trap that catches everyone — tell the difference between the *symlinked* path you typed and the *real* path you are physically standing in. By the end you can navigate fluently and prove which path the shell thinks is current using `pwd -L` versus `pwd -P`.
+
+---
+
+## 🧠 Concept
+
+The shell keeps a "current working directory" (CWD) and a single memory slot, `$OLDPWD`, holding the last place you were. `cd` changes the CWD; `cd -` swaps to `$OLDPWD` (a toggle); `cd ~` goes home; `cd ..` climbs one level. The subtlety is symlinks: if you `cd` into a symlinked directory, the shell *remembers the symlink path* (logical view) but the files actually live at the real path (physical view). `pwd -L` prints the logical path; `pwd -P` resolves every symlink to the real one. Confusing the two breaks scripts that compute paths.
+
+```
+cd /usr/lib   (symlink? no)          pwd -L → /usr/lib      pwd -P → /usr/lib
+cd $LAB_ROOT/link → real dir         pwd -L → .../link      pwd -P → .../real
+cd -          (toggle)               returns to $OLDPWD
 ```
 
-> **STOP — paste header output before setup.**
+> **Why this matters:** RHCSA tasks say "in /etc/…" and a wrong CWD silently sends your output to the wrong place. Knowing `pwd -P` lets you prove where you really are before you write a file.
 
 ---
 
-## Lab-Wide Setup — Tier B Sandbox (Section 1.5)
+## 📚 Command Reference
+
+| Command | Purpose | Critical flags |
+|---|---|---|
+| `pwd` | Print the current working directory | defaults to `-L` (logical) |
+| `pwd -L` | Print the logical path (keeps symlinks) | shows the path you typed |
+| `pwd -P` | Print the physical path (resolves symlinks) | shows where files truly live |
+| `cd -` | Switch to the previous directory (`$OLDPWD`) | prints the directory it jumps to |
+| `cd ~` | Go to `$HOME` | under `sudo -i`, `~` is root's home, not yours |
+
+---
+
+## 🧰 LAB-WIDE SETUP
+
+**In plain English:** Build a sandbox with a real subdirectory and a symlink that points at it, so we can demonstrate the logical-vs-physical path difference safely.
+
+> Run this block **once** before Task 1. It defines a single sandbox root
+> (`LAB_ROOT`) that every file in this lab lives under, so the Teardown
+> section can wipe it in one safe command.
 
 ```bash
-sudo -i
-
-export LAB_NUM=05
-export LAB_SLUG=nav
-export SANDBOX=/tmp/lab05a
-export GROUP=labgrp_${LAB_NUM}_${LAB_SLUG}
-export USER=labuser_${LAB_NUM}_${LAB_SLUG}
-export USER_HOME=${SANDBOX}/home_${USER}
-
-mkdir -p "${SANDBOX}" "${USER_HOME}"
-mkdir -p /root/rhcsa_journal/lab-05a/task1 /root/rhcsa_journal/lab-05a/task2
-
-cat > "${SANDBOX}/THIS_DIRECTORY.txt" <<'EOF'
-Practice directory: /usr
-/usr is the largest directory on most systems. It holds everything
-installed by the package manager that is not needed for the initial
-boot: compilers, editors, most commands, man pages, and shared data.
-Navigation labs use /usr because every subdir we'll cd into is
-predictably present on every Linux host.
-EOF
-
-# Build a symlink chain inside the sandbox for T41 (real vs symlink path)
-mkdir -p "${SANDBOX}/real/deep/path"
-ln -s   "${SANDBOX}/real" "${SANDBOX}/sym-to-real"
-
-getent group  "${GROUP}" >/dev/null || groupadd "${GROUP}"
-getent passwd "${USER}"  >/dev/null || useradd -d "${USER_HOME}" -M -s /bin/bash -g "${GROUP}" "${USER}"
-chown -R "${USER}:${GROUP}" "${SANDBOX}"
-
-id "${USER}"
-ls -ld "${SANDBOX}" "${USER_HOME}" /usr "${SANDBOX}/sym-to-real"
-echo "Sandbox built by $(whoami) at $(date -Is)"
+export LAB_ROOT=/tmp/lab-05
+mkdir -p "$LAB_ROOT/real_dir/sub"
+ln -s "$LAB_ROOT/real_dir" "$LAB_ROOT/link_dir"
+ls -l "$LAB_ROOT"
 echo "exit was: $?"
 ```
 
-> **STOP — paste the `id`, four `ls -ld`, and the symlink line before Task 1.**
+**Expected output:**
+
+```
+drwxr-xr-x. 3 root root 17 Jun 15 18:10 real_dir
+lrwxrwxrwx. 1 root root 18 Jun 15 18:10 link_dir -> /tmp/lab-05/real_dir
+exit was: 0
+```
 
 ---
 
-## Task 1 — `cd`, `pwd -L` / `-P`, `cd ..`, `cd ~`
+## TASK 1 of 2 — Move and locate with `cd` and `pwd`
 
-**Practice directory this task:** `/usr` plus the sandbox symlink chain.
+**In plain English:** We practice the everyday jumps — into a subdir, up to the parent, home — then expose the symlink trap with `pwd -L` versus `pwd -P`.
 
-### 🔁 Warm-Up
+---
 
-```bash
-pwd                                                     2>&1 | tee /tmp/lab05a/warmup.txt
-echo "HOME=${HOME}"
-ls -ld /usr /usr/bin /usr/share/man
-echo "Warm-up done by $(whoami) at $(date -Is)"
-echo "exit was: $?"
-```
+### Step 1 of 2 — Jump in, up, and home
 
-### Purpose
-
-Walk through `/usr` with `cd`; demonstrate `pwd -L` (logical) vs `pwd -P` (physical, resolves symlinks) using the sandbox symlink; cover `cd ..` and `cd ~`.
-
-### 🧵 WEAVE TRACE
-
-| Warm-up command | Role inside Task 1 |
-|---|---|
-| `pwd` | Pre-state — we walk away from this dir and `cd -` back later |
-| `echo "HOME=${HOME}"` | Pre-state for `cd ~` test |
-| `ls -ld /usr/bin` | Confirms target dirs exist before we cd into them |
-
-### Main command block
+**In plain English:** We change into a subdirectory, climb back to its parent, and bounce home, printing the working directory at each stop.
 
 ```bash
-TASKLOG=/tmp/lab05a/task1.txt
-
-echo "═══ Part A: cd into /usr/bin and inspect ═══"        2>&1 | tee $TASKLOG
-cd /usr/bin
-pwd                                                       | tee -a $TASKLOG
-ls | head -n 5                                            | tee -a $TASKLOG
-
-echo "═══ Part B: cd .. (parent dir) ═══"                  | tee -a $TASKLOG
+cd "$LAB_ROOT/real_dir/sub"
+pwd
 cd ..
-pwd                                                       | tee -a $TASKLOG
-
-echo "═══ Part C: cd ~ (home) ═══"                         | tee -a $TASKLOG
+pwd
 cd ~
-pwd                                                       | tee -a $TASKLOG
-test "$(pwd)" = "${HOME}" \
-    && echo "✅ cd ~ landed at \$HOME (${HOME})" \
-    || echo "❌ cd ~ != \$HOME" \
-    | tee -a $TASKLOG
-
-echo "═══ Part D: T41 — pwd -L vs pwd -P via symlink ═══"  | tee -a $TASKLOG
-cd "${SANDBOX}/sym-to-real/deep/path"
-echo "After cd through symlink:"                          | tee -a $TASKLOG
-echo "  pwd       = $(pwd)"                               | tee -a $TASKLOG
-echo "  pwd -L    = $(pwd -L)"                            | tee -a $TASKLOG
-echo "  pwd -P    = $(pwd -P)"                            | tee -a $TASKLOG
-
-LOGICAL=$(pwd -L)
-PHYSICAL=$(pwd -P)
-if [ "${LOGICAL}" != "${PHYSICAL}" ]; then
-    echo "✅ T41 demonstrated — logical and physical differ"  | tee -a $TASKLOG
-else
-    echo "❌ T41 not demonstrated"                           | tee -a $TASKLOG
-fi
-
-echo "═══ Part E: same walk AS ${USER} (Tier B) ═══"        | tee -a $TASKLOG
-sudo -u "${USER}" -H bash -c '
-    cd /usr/share
-    echo "as-USER pwd: $(pwd)"
-    cd '"${SANDBOX}"'/sym-to-real/deep/path
-    echo "as-USER pwd -L: $(pwd -L)"
-    echo "as-USER pwd -P: $(pwd -P)"
-' > "${USER_HOME}/walk.txt"
-cat "${USER_HOME}/walk.txt"                                | tee -a $TASKLOG
-stat -c '%U:%G %a %n' "${USER_HOME}/walk.txt"              | tee -a $TASKLOG
-
+pwd
 echo "exit was: $?"
 ```
 
-### Expected output
+**Expected output:**
 
-```text
-═══ Part A: cd into /usr/bin and inspect ═══
-/usr/bin
-[
-2to3
-2to3-3.9
-...
-═══ Part B: cd .. (parent dir) ═══
-/usr
-═══ Part C: cd ~ (home) ═══
+```
+/tmp/lab-05/real_dir/sub
+/tmp/lab-05/real_dir
 /root
-✅ cd ~ landed at $HOME (/root)
-═══ Part D: T41 — pwd -L vs pwd -P via symlink ═══
-After cd through symlink:
-  pwd       = /tmp/lab05a/sym-to-real/deep/path
-  pwd -L    = /tmp/lab05a/sym-to-real/deep/path
-  pwd -P    = /tmp/lab05a/real/deep/path
-✅ T41 demonstrated — logical and physical differ
-═══ Part E: same walk AS labuser_05_nav (Tier B) ═══
-as-USER pwd: /usr/share
-as-USER pwd -L: /tmp/lab05a/sym-to-real/deep/path
-as-USER pwd -P: /tmp/lab05a/real/deep/path
-labuser_05_nav:labgrp_05_nav 644 /tmp/lab05a/home_labuser_05_nav/walk.txt
+exit was: 0
 ```
 
-### Switches
+**Line-by-line breakdown:**
 
-| Token | Meaning |
-|---|---|
-| `cd /path` | Change to absolute path |
-| `cd ..` | Parent dir |
-| `cd ~` | `$HOME` |
-| `pwd` | Print logical (default) working dir |
-| `pwd -L` | Logical — what the shell tracks (preserves symlink in path) |
-| `pwd -P` | Physical — resolved through symlinks |
-| `cd /sym/path && pwd -L` vs `pwd -P` | Diverge when path contains symlink components |
+- `cd "$LAB_ROOT/real_dir/sub"` → Change into the deepest folder; `pwd` confirms the CWD.
+- `cd ..` → Climb one level to the parent; `..` always means "the directory above this one."
+- `cd ~` → Jump to `$HOME` (`/root` when you are root); `~` expands to your home directory.
 
-### 🧠 Concept Card
+**New words in this step:**
 
-| Concept | What it does |
-|---|---|
-| Shell `$PWD` tracking | Bash stores the logical path you typed; `pwd -L` reads `$PWD` |
-| Kernel inode tracking | Every dir has an inode; `pwd -P` does `getcwd(2)` from the kernel |
-| **🪤 Trap Risk T41** | Confusing logical and physical when scripts compare paths. **Fix:** decide which one your script needs and use the matching flag. |
-| **🪤 Trap Risk T42** | `cd ~` under `sudo -i` goes to `/root`, not the original user's home. **Fix:** use `sudo -u USER -H` for user-relative `cd ~`. |
-
-### 🔁 PERSISTENCE CHECK
-
-| What was configured | Verification command | Why it matters |
-|---|---|---|
-| sandbox dirs | `test -d "${SANDBOX}/real/deep/path"` | Lab artifacts present |
-| symlink chain | `readlink "${SANDBOX}/sym-to-real"` returns `${SANDBOX}/real` | T41 reproducible |
-| Tier B walk evidence | `stat -c '%U' "${USER_HOME}/walk.txt"` returns `${USER}` | sudo -u ran |
-
-> **Reboot note:** All sandbox content is under `/tmp` (tmpfs) — re-run Lab-Wide Setup to rebuild after reboot.
-
-### Journal write
-
-```bash
-LAB=lab-05a
-TASK=task1
-JDIR="/root/rhcsa_journal/${LAB}/${TASK}"
-mkdir -p "$JDIR"
-cp /tmp/lab05a/task1.txt "$JDIR/evidence.txt"
-cp "${USER_HOME}/walk.txt" "$JDIR/walk-asuser.txt"
-
-cat > "$JDIR/done.txt" <<EOF
-LAB:    ${LAB}
-TASK:   ${TASK}
-DATE:   $(date -Is)
-USER:   $(whoami)@$(hostname)
-LAB_USER: ${USER}
-LAB_GROUP: ${GROUP}
-STATUS: COMPLETE
-EOF
-
-cat > "$JDIR/notes.txt" <<EOF
-TOPIC:    cd, cd .., cd ~, pwd -L vs -P; T41 symlink path divergence
-COMMANDS: cd, pwd, pwd -L, pwd -P, ls -ld, sudo -u USER -H bash -c
-TRAPS:    T41 demonstrated; T42 noted
-TIER B:   walk-asuser.txt owned by ${USER}:${GROUP}
-NEXT:     task2 — cd - and \$OLDPWD round-trip
-EOF
-
-ls -la "$JDIR"
-echo "exit was: $?"
-```
-
-### 🧹 Cleanup
-
-```bash
-rm -f /tmp/lab05a/warmup.txt /tmp/lab05a/task1.txt
-rm -f "${USER_HOME}/walk.txt"
-ls /tmp/lab05a
-echo "exit was: $?"
-```
-
-> **STOP — paste the T41 `✅` line and the Tier B `walk-asuser.txt` ownership line before Task 2.**
+- **CWD (current working directory)** — the folder the shell treats as "here" for relative paths.
+- **`~` (tilde)** — shorthand for the current user's home directory.
 
 ---
 
-## Task 2 — `cd -` and `$OLDPWD` round-trip (T43)
+### Step 2 of 2 — Expose the symlink trap with `pwd -L` vs `pwd -P`
 
-### 🔁 Warm-Up
+**In plain English:** We `cd` into the symlink, then print both the logical path we typed and the physical path the files really live at.
 
 ```bash
-echo "OLDPWD=${OLDPWD:-unset}"
-cd /usr/share
-echo "OLDPWD now=${OLDPWD}"
+cd "$LAB_ROOT/link_dir"
+pwd -L
+pwd -P
+echo "exit was: $?"
+```
+
+**Expected output:**
+
+```
+/tmp/lab-05/link_dir
+/tmp/lab-05/real_dir
+exit was: 0
+```
+
+**Line-by-line breakdown:**
+
+- `cd "$LAB_ROOT/link_dir"` → Enter the symlinked directory; the shell remembers the symlink path.
+- `pwd -L` → Print the *logical* path — the symlink name you typed (`link_dir`).
+- `pwd -P` → Print the *physical* path — symlinks resolved to where files truly are (`real_dir`).
+
+**New words in this step:**
+
+- **logical path** — the path including symlink names, as the shell remembers it.
+- **physical path** — the canonical path with all symlinks resolved.
+
+---
+
+### Concept card (Task 1)
+
+| Concept | What it does | Exam trap |
+|---|---|---|
+| `cd ..` | climb to parent | from `/` it stays at `/`, not an error |
+| `cd ~` | go to `$HOME` | under `sudo -i`, `~` is root's home |
+| `pwd -L` vs `-P` | logical vs physical | a script using `-L` can write to the wrong real dir |
+
+---
+
+### Troubleshoot (Task 1)
+
+| Symptom | Likely cause | Fix |
+|---|---|---|
+| `cd ~` lands in `/root` unexpectedly | You are root via `sudo -i` | Use the explicit path, not `~` |
+| `pwd` shows the symlink, files elsewhere | You `cd`'d via a symlink | Use `pwd -P` to see the real location |
+
+---
+
+## TASK 2 of 2 — Toggle directories with `cd -` and `$OLDPWD`
+
+**In plain English:** We learn the fast two-place toggle every admin uses, then prove `$OLDPWD` holds the previous directory.
+
+---
+
+### Step 1 of 2 — Toggle with `cd -`
+
+**In plain English:** We bounce between two directories using `cd -`, which jumps back to wherever we just were.
+
+```bash
+cd "$LAB_ROOT/real_dir"
+cd /usr
 cd -
-echo "After cd -, pwd=$(pwd)"
-echo "Warm-up done by $(whoami) at $(date -Is)"
+pwd
 echo "exit was: $?"
 ```
 
-### Purpose
+**Expected output:**
 
-Use `cd -` to bounce between two directories; demonstrate that `$OLDPWD` is the variable behind it; rehearse T43 by running a "broken" relative-path script and the `cd "$(dirname "$0")"` fix.
+```
+/tmp/lab-05/real_dir
+/tmp/lab-05/real_dir
+exit was: 0
+```
 
-### Main command block
+**Line-by-line breakdown:**
+
+- `cd "$LAB_ROOT/real_dir"` then `cd /usr` → Visit two directories so the shell stores the first in `$OLDPWD`.
+- `cd -` → Toggle back to `$OLDPWD`; it also prints the directory it lands in.
+- `pwd` → Confirm we are back in `real_dir`.
+
+**New words in this step:**
+
+- **`cd -`** — jump to the previous directory; running it twice returns you where you started.
+
+---
+
+### Step 2 of 2 — Read the `$OLDPWD` memory slot directly
+
+**In plain English:** We inspect the `$OLDPWD` variable to prove the shell tracks the previous directory in plain text.
 
 ```bash
-TASKLOG=/tmp/lab05a/task2.txt
-
-echo "═══ Part A: cd - round-trip ═══"                     2>&1 | tee $TASKLOG
-cd /var/log
-echo "PWD=$(pwd)  OLDPWD=${OLDPWD}"                       | tee -a $TASKLOG
-cd /etc
-echo "PWD=$(pwd)  OLDPWD=${OLDPWD}"                       | tee -a $TASKLOG
-cd -                                                       | tee -a $TASKLOG
-echo "After cd - PWD=$(pwd)"                              | tee -a $TASKLOG
-cd -                                                       | tee -a $TASKLOG
-echo "After cd - again PWD=$(pwd)"                        | tee -a $TASKLOG
-
-echo "═══ Part B: T43 — broken relative-path script ═══"   | tee -a $TASKLOG
-cat > "${SANDBOX}/broken.sh" <<'EOF'
-#!/bin/bash
-# Forgets to cd to its own dir — uses unsafe relative path
-ls ./data/items.txt 2>&1 | head -n 3 || echo "ls failed (relative path broken)"
-EOF
-mkdir -p "${SANDBOX}/data"
-echo "alpha" > "${SANDBOX}/data/items.txt"
-echo "bravo" >> "${SANDBOX}/data/items.txt"
-chmod +x "${SANDBOX}/broken.sh"
-
-cd /tmp
-"${SANDBOX}/broken.sh"                                    2>&1 | tee -a $TASKLOG
-
-echo "═══ Part C: T43 fix — cd \"\$(dirname \"\$0\")\" ═══" | tee -a $TASKLOG
-cat > "${SANDBOX}/fixed.sh" <<'EOF'
-#!/bin/bash
-cd "$(dirname "$0")"
-ls ./data/items.txt
-cat ./data/items.txt
-EOF
-chmod +x "${SANDBOX}/fixed.sh"
-
-cd /tmp
-"${SANDBOX}/fixed.sh"                                     2>&1 | tee -a $TASKLOG
-
-grep -q 'alpha' /tmp/lab05a/task2.txt \
-    && echo "✅ T43 fix worked — script is path-independent" \
-    || echo "❌ T43 fix did not work" \
-    | tee -a $TASKLOG
-
-echo "═══ Part D: round-trip AS ${USER} ═══"               | tee -a $TASKLOG
-sudo -u "${USER}" -H bash -c '
-    cd /usr
-    cd /etc
-    cd -
-    echo "as-USER PWD after cd -: $(pwd)"
-    echo "as-USER OLDPWD: ${OLDPWD}"
-' > "${USER_HOME}/round-trip.txt"
-cat "${USER_HOME}/round-trip.txt"                          | tee -a $TASKLOG
-stat -c '%U:%G %a %n' "${USER_HOME}/round-trip.txt"        | tee -a $TASKLOG
-
+cd "$LAB_ROOT/real_dir/sub"
+cd "$LAB_ROOT"
+echo "OLDPWD is: $OLDPWD"
 echo "exit was: $?"
 ```
 
-### Expected output
+**Expected output:**
 
-```text
-═══ Part A: cd - round-trip ═══
-PWD=/var/log  OLDPWD=...
-PWD=/etc  OLDPWD=/var/log
-/var/log
-After cd - PWD=/var/log
-/etc
-After cd - again PWD=/etc
-═══ Part B: T43 — broken relative-path script ═══
-ls: cannot access './data/items.txt': No such file or directory
-ls failed (relative path broken)
-═══ Part C: T43 fix — cd "$(dirname "$0")" ═══
-./data/items.txt
-alpha
-bravo
-✅ T43 fix worked — script is path-independent
-═══ Part D: round-trip AS labuser_05_nav ═══
-/etc
-as-USER PWD after cd -: /usr
-as-USER OLDPWD: /etc
-labuser_05_nav:labgrp_05_nav 644 /tmp/lab05a/home_labuser_05_nav/round-trip.txt
+```
+OLDPWD is: /tmp/lab-05/real_dir/sub
+exit was: 0
 ```
 
-### 🧠 Concept Card
+**Line-by-line breakdown:**
 
-| Concept | What it does |
-|---|---|
-| `cd -` | Bounce to `$OLDPWD` and update `$OLDPWD` to the current dir |
-| `$OLDPWD` | Bash variable holding the previous directory |
-| `cd "$(dirname "$0")"` | Make a script path-independent — `$0` is the script's own path |
-| **🪤 Trap Risk T43** | Scripts using relative paths break when invoked from a different dir. **Fix:** `cd "$(dirname "$0")"` at the top. |
+- `cd ".../sub"` then `cd "$LAB_ROOT"` → Move twice so `$OLDPWD` is set to the `sub` directory.
+- `echo "OLDPWD is: $OLDPWD"` → Print the variable; it holds exactly the previous CWD that `cd -` would jump to.
 
-### 🔁 PERSISTENCE CHECK
+**New words in this step:**
 
-| What was configured | Verification command | Why it matters |
+- **`$OLDPWD`** — the environment variable holding the previous working directory; `cd -` is just a jump to it.
+
+---
+
+### Concept card (Task 2)
+
+| Concept | What it does | Exam trap |
 |---|---|---|
-| Round-trip works | output of `cd -` returns expected paths | OLDPWD tracking |
-| T43 fix proven | `grep alpha task2.txt` | Path-independent script worked |
-| Tier B evidence | `stat -c '%U' round-trip.txt` returns `${USER}` | sudo -u ran |
+| `cd -` | toggle to `$OLDPWD` | only remembers ONE previous dir, not a stack |
+| `$OLDPWD` | stores the last CWD | a fresh shell has it unset |
+| `cd` (no arg) | goes to `$HOME` | easy to confuse with `cd -` |
 
-### Journal write
+---
+
+### Troubleshoot (Task 2)
+
+| Symptom | Likely cause | Fix |
+|---|---|---|
+| `cd -` errors `OLDPWD not set` | First `cd` in a new shell | `cd` somewhere once to populate `$OLDPWD` |
+| `cd -` goes somewhere unexpected | You changed dirs in between | Remember it tracks only the single last dir |
+
+---
+
+## ✅ Lab Checklist
+
+- [ ] Task 1 · Step 1 — Jump in, up, and home
+- [ ] Task 1 · Step 2 — Expose the symlink trap with `pwd -L` vs `pwd -P`
+- [ ] Task 2 · Step 1 — Toggle with `cd -`
+- [ ] Task 2 · Step 2 — Read the `$OLDPWD` memory slot directly
+- [ ] Every 🎯 Focus Coverage row (Anchor + NEW) mapped to a step
+- [ ] 🧹 Teardown run — sandbox + any system state removed
+
+---
+
+## 🧹 Teardown
+
+**In plain English:** Delete everything this lab created so the box is clean for the next run.
+
+> Run this after you've verified the lab. `lab_teardown.sh` safely removes the single sandbox root — it refuses to touch `/`, `$HOME`, or any protected path. This lab changed **no** system state.
 
 ```bash
-LAB=lab-05a
-TASK=task2
-JDIR="/root/rhcsa_journal/${LAB}/${TASK}"
-mkdir -p "$JDIR"
-cp /tmp/lab05a/task2.txt "$JDIR/evidence.txt"
-cp "${SANDBOX}/broken.sh" "$JDIR/broken.sh"
-cp "${SANDBOX}/fixed.sh" "$JDIR/fixed.sh"
-cp "${USER_HOME}/round-trip.txt" "$JDIR/round-trip-asuser.txt"
-
-cat > "$JDIR/done.txt" <<EOF
-LAB:    ${LAB}
-TASK:   ${TASK}
-DATE:   $(date -Is)
-USER:   $(whoami)@$(hostname)
-LAB_USER: ${USER}
-LAB_GROUP: ${GROUP}
-STATUS: COMPLETE
-EOF
-
-cat > "$JDIR/notes.txt" <<EOF
-TOPIC:    cd -, \$OLDPWD round-trip; T43 broken vs fixed relative-path scripts
-COMMANDS: cd -, dirname, sudo -u USER -H
-TRAPS:    T43 rehearsed
-TIER B:   round-trip-asuser.txt owned by ${USER}:${GROUP}
-NEXT:     lab-05c — verify capstone (no 05b, Section 18 boundary)
-EOF
-
-ls -la "$JDIR"
-echo "exit was: $?"
+cd /tmp
+bash lab_teardown.sh "$LAB_ROOT"     # = /tmp/lab-05
 ```
 
-### 🧹 Cleanup (per-task)
+**Expected output:**
 
-```bash
-rm -f /tmp/lab05a/task2.txt
-rm -f "${USER_HOME}/round-trip.txt"
-# Keep broken.sh + fixed.sh — 05c uses them
-ls /tmp/lab05a
-echo "exit was: $?"
+```
+✅ Removed /tmp/lab-05 — lab workspace is clean.
 ```
 
-> **STOP — paste the T43 `✅` line and the Part D Tier B output before Lab Closeout.**
+---
+
+## ⚠️ Common Pitfalls
+
+| Mistake | Symptom | Fix |
+|---|---|---|
+| Trusting `pwd` inside a symlink | Files land in the real dir, not where you expect | Use `pwd -P` to confirm |
+| Assuming `cd -` keeps a history | It only remembers one previous dir | Use `pushd`/`popd` for a stack |
+| Running teardown from inside `$LAB_ROOT` | "Device or resource busy" | `cd /tmp` first, then teardown |
 
 ---
 
-## Lab Closeout — Bulletproof Teardown (Section 6)
+## 📌 Exam Strategy
 
-```bash
-set +e
-awk -v s="${SANDBOX}" '$2 ~ s {print $2}' /proc/mounts | tac | xargs -r -n1 umount -l 2>/dev/null
+Navigation is invisible until it bites: a wrong CWD sends your redirected output into the wrong file. Before any "create a file in /path" task, `cd` there and `pwd -P` to confirm you are physically in the right place. Use `cd -` to bounce between a config dir and a log dir without retyping long paths.
 
-if getent passwd "${USER}" >/dev/null 2>&1; then userdel -r "${USER}" 2>/dev/null; fi
-if getent group "${GROUP}" >/dev/null 2>&1; then groupdel "${GROUP}" 2>/dev/null; fi
-
-rm -rf "${SANDBOX}"
-
-echo "── Lab 05a cleanup audit ──"
-getent passwd "${USER}"  >/dev/null && echo "❌ user remains"    || echo "✅ user gone"
-getent group  "${GROUP}" >/dev/null && echo "❌ group remains"   || echo "✅ group gone"
-test -d "${SANDBOX}"                && echo "❌ sandbox remains" || echo "✅ sandbox gone"
-test -d "${USER_HOME}"              && echo "❌ home remains"    || echo "✅ home gone"
-
-set -e
-echo "Cleanup complete by $(whoami) at $(date -Is)"
-echo "exit was: $?"
-```
-
-> **STOP — paste four `✅` lines.**
+- `pwd -P` is your "am I really here?" check before writing files.
+- `cd -` saves seconds on every back-and-forth — build the reflex.
+- Remember `~` follows the *effective* user, so it changes under `sudo -i`.
 
 ---
 
-## Lab 05a Checklist (2 tasks + closeout)
+## 🔗 Related Labs
 
-- [ ] Lab-Wide Setup — Tier B sandbox + symlink chain
-- [ ] Task 1 — pwd -L vs pwd -P diverge (T41); Tier B walk file owned
-- [ ] Task 2 — `cd -` round-trip; T43 broken→fixed; Tier B round-trip file owned
-- [ ] Lab Closeout — four `✅`
-
----
-
-## Related Labs
-
-| Lab | Connection |
-|---|---|
-| ⛔ **No Lab 05b** | Section 18 boundary — `cd` has no honest Ansible module; `chdir:` only changes the working dir for one task |
-| **Lab 05c** | Verify capstone — audit walk + round-trip + T43 fix |
-| Lab 14a — find | After Lab 05, you can navigate; Lab 14 walks the tree |
+- [Lab 05b — Directory Navigation (Ansible)](../lab-05b-directory-navigation-ansible/) — why there is no `cd` module and how `chdir:` replaces it
+- [Lab 05c — Directory Navigation (Verify)](../lab-05c-directory-navigation-verify/) — prove logical vs physical paths with hard evidence
+- [Lab 09a — Hard and Soft Links (RHCSA)](../lab-09a-hard-and-soft-links-rhcsa/) — the symlinks behind the `pwd -L`/`-P` trap
 
 ---
 
-## Author
+## 👤 Author
 
-**Kelvin R. Tobias**
+**Kelvin R. Tobias**  
 [kelvinintech.com](https://kelvinintech.com) · [GitHub](https://github.com/kelvintechnical) · [LinkedIn](https://www.linkedin.com/in/kelvin-r-tobias-211949219)

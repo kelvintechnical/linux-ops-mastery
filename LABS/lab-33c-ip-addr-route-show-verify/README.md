@@ -1,184 +1,316 @@
-# Lab 33c: Verifying IP and Routing Info - audit + destroy/restore
+# Lab 33c: Display IP and Routing Info (Verify) — prove addresses & routes
 
-- **Series:** linux-ops-mastery - Documentation & Networking
-- **Trilogy:** `33a` (RHCSA) -> `33b` (Ansible) -> `33c` (Verify - you are here)
-- **Time Estimate:** 25-35 minutes
-- **Tasks:** 2 (Task 1 = audit artifacts from 33a/33b, Task 2 = destroy-restore drill)
-- **Practice Directory (rotation #33):** `/mnt`
-- **Sandbox (Tier B):** `/tmp/lab33c` with `USER=labuser_33_ipshow`, `GROUP=labgrp_33_ipshow`
-- **Traps rehearsed this lab:** **T33-A** · **T33-B** · **T41** · **T44**
-
-> **This lab verifies** that interface/routing evidence from both command line and Ansible paths is complete, replayable, and recoverable under failure.
+**Series:** linux-ops-mastery — Networking · **Lab 33c of the Novice → RHCA path**  
+**Certifications covered:** RHCSA EX200 (evidence-based network checks), SRE (config drift detection)  
+**Prerequisite:** [Lab 33b](../lab-33b-ip-addr-route-show-ansible/) completed  
+**Time Estimate:** 20–30 minutes  
+**Difficulty:** Beginner → Intermediate
 
 ---
 
-## LAB HEADER BLOCK
+## 🎯 Today's Focus Coverage
 
-```bash
-echo "🖥️  ENV:   ${ENV:-DECLARE_ME}"
-echo "📦  OS:    $(cat /etc/redhat-release 2>/dev/null || grep PRETTY_NAME /etc/os-release)"
-echo "🕒  TIME:  $(date -Is)"
-echo "👤  USER:  $(whoami)@$(hostname)"
-echo "📁  PRACTICE DIR: /mnt"
-echo "⚠️  TRAP REMINDERS THIS LAB: T33-A T33-B T41 T44"
-ip -br addr show
-ip route show
+> Stay on-subject via the ANCHOR rows; expand vocabulary via the NEW rows. Every row is exercised by a STEP below.
+
+**⚓ Anchor — already learned (on-topic reuse)**
+
+| # | Command / switch | Covered by |
+|---|---|---|
+| A1 | `ip addr` | _Task 1 · Step 1_ |
+| A2 | `ip route` | _Task 2 · Step 1_ |
+
+**🆕 NEW this lab — introduced for the first time** (minimum 3)
+
+| # | Command / switch | First taught in | Covered by |
+|---|---|---|---|
+| N1 | `ip -br addr \| grep -q` | Task 1 · Step 1 | _Task 1 · Step 1_ |
+| N2 | address present assertion | Task 1 · Step 2 | _Task 1 · Step 2_ |
+| N3 | default-route assertion | Task 2 · Step 1 | _Task 2 · Step 1_ |
+| N4 | `ip route get` device check | Task 2 · Step 2 | _Task 2 · Step 2_ |
+
+---
+
+## 🎯 Objective
+
+Turn network inspection into pass/fail checks. You will assert that a specific interface is UP, that an expected address is assigned, that a default route exists (or correctly does not on isolated hosts), and that `ip route get` selects the expected device for a destination. These checks catch config drift objectively.
+
+---
+
+## 🧠 Concept
+
+Verification reduces `ip` output to booleans. `ip -br addr show dev DEV` plus `grep -q` proves an interface exists and is UP. Grepping the address line proves the *expected* IP is assigned. `ip route` piped to `grep -q '^default'` proves a gateway is configured. `ip route get DEST` plus a field check proves the kernel routes a destination through the expected device. Each check captures output, tests a condition, and prints PASS/FAIL — exactly what a monitoring probe or exam grader needs.
+
+```
+ip -br addr show dev lo | grep -q UNKNOWN/UP    → interface state
+ip -br addr show dev lo | grep -q 127.0.0.1     → address present
+ip route get 127.0.0.1 | grep -q 'dev lo'       → route to expected dev
+echo $?                                          → 0 PASS / non-zero FAIL
 ```
 
-> **STOP - paste header output before setup.**
+> **Why this matters:** "The interface is UP with the right IP and a working default route" must be provable, not assumed. These checks make network state auditable.
 
 ---
 
-## Objective
+## 📚 Command Reference
 
-1. Audit `33a` and `33b` artifacts to confirm they show interface, IPv4 route, IPv6 route, and Ansible evidence with trap-awareness notes.
-2. Perform a destroy-restore drill to prove routing/address inspection recovers cleanly after deleting evidence outputs.
+| Command | Purpose | Notes |
+|---|---|---|
+| `ip -br addr show dev` | Iface + state | grep the state |
+| `grep -q` | Silent assert | sets exit code |
+| `ip route` | Routing table | check `default` |
+| `ip route get` | Route decision | check `dev` |
 
 ---
 
-## Lab-Wide Setup - Tier B Sandbox
+## 🧰 LAB-WIDE SETUP
+
+**In plain English:** Make the sandbox; checks run against the loopback for determinism.
+
+> Run this block **once** before Task 1.
 
 ```bash
-sudo -i
-
-export SANDBOX=/tmp/lab33c
-export GROUP=labgrp_33_ipshow
-export USER=labuser_33_ipshow
-export USER_HOME=${SANDBOX}/home_${USER}
-
-mkdir -p "${SANDBOX}" "${USER_HOME}" /root/rhcsa_journal/lab-33c/task1 /root/rhcsa_journal/lab-33c/task2
-getent group "${GROUP}" >/dev/null || groupadd "${GROUP}"
-getent passwd "${USER}" >/dev/null || useradd -d "${USER_HOME}" -M -s /bin/bash -g "${GROUP}" "${USER}"
-chown -R "${USER}:${GROUP}" "${SANDBOX}"
+export LAB_ROOT=/tmp/lab-33
+mkdir -p "$LAB_ROOT"
+cd "$LAB_ROOT"
+echo "ready"
+echo "exit was: $?"
 ```
 
----
+**Expected output:**
 
-## Task 1 - Audit `33a` / `33b` artifacts
-
-### Purpose
-
-Verify that both implementation paths produced valid evidence:
-
-- `33a` should include `ip -br addr`, `ip addr show lo`, `ip route show`, `ip route show table all`, and `ip -6 route` captures.
-- `33b` should include fact-gather output and guarded `ip addr` command capture with assert/failure logic.
-
-### Main command block
-
-```bash
-TASKLOG=/tmp/lab33c/task1.txt
-
-echo "=== audit 33a journal ==="                                      | tee "${TASKLOG}"
-ls -la /root/rhcsa_journal/lab-33a/task1 /root/rhcsa_journal/lab-33a/task2 \
-  2>&1 | tee -a "${TASKLOG}"
-
-echo "=== audit 33b journal ==="                                      | tee -a "${TASKLOG}"
-ls -la /root/rhcsa_journal/lab-33b/task1 /root/rhcsa_journal/lab-33b/task2 \
-  2>&1 | tee -a "${TASKLOG}"
-
-echo "=== key content checks ==="                                     | tee -a "${TASKLOG}"
-grep -E "ip -br addr show|ip addr show lo|ip link" \
-  /root/rhcsa_journal/lab-33a/task1/evidence.txt 2>&1 | tee -a "${TASKLOG}" || true
-grep -E "ip route show table all|ip -6 route" \
-  /root/rhcsa_journal/lab-33a/task2/evidence.txt 2>&1 | tee -a "${TASKLOG}" || true
-grep -E "Gather network facts|Interfaces detected|PLAY RECAP" \
-  /root/rhcsa_journal/lab-33b/task1/evidence.txt \
-  /root/rhcsa_journal/lab-33b/task2/evidence.txt 2>&1 | tee -a "${TASKLOG}" || true
-
-echo "exit was: $?"                                                   | tee -a "${TASKLOG}"
 ```
-
-### Journal write
-
-```bash
-JDIR=/root/rhcsa_journal/lab-33c/task1
-cp /tmp/lab33c/task1.txt "${JDIR}/audit.txt"
+ready
+exit was: 0
 ```
 
 ---
 
-## Task 2 - Destroy-restore drill (T41 rehearsal)
+## TASK 1 of 2 — Prove interface and address
 
-### Purpose
-
-Force a local evidence loss event, then rebuild inspection artifacts from live system state.
-
-### Main command block
-
-```bash
-TASKLOG=/tmp/lab33c/task2.txt
-
-echo "=== DESTROY phase ==="                                          | tee "${TASKLOG}"
-rm -f /tmp/lab33c/rebuilt-ip.txt /tmp/lab33c/rebuilt-routes.txt /tmp/lab33c/rebuilt-ipv6-routes.txt
-ls -l /tmp/lab33c/rebuilt-* 2>&1 | tee -a "${TASKLOG}" || true
-
-echo "=== RESTORE phase ==="                                          | tee -a "${TASKLOG}"
-ip -br addr show > /tmp/lab33c/rebuilt-ip.txt
-ip route show table all > /tmp/lab33c/rebuilt-routes.txt
-ip -6 route > /tmp/lab33c/rebuilt-ipv6-routes.txt
-
-wc -l /tmp/lab33c/rebuilt-ip.txt /tmp/lab33c/rebuilt-routes.txt /tmp/lab33c/rebuilt-ipv6-routes.txt \
-  | tee -a "${TASKLOG}"
-
-echo "=== restore spot checks ==="                                    | tee -a "${TASKLOG}"
-head -n 5 /tmp/lab33c/rebuilt-ip.txt                                  | tee -a "${TASKLOG}"
-head -n 5 /tmp/lab33c/rebuilt-routes.txt                              | tee -a "${TASKLOG}"
-head -n 5 /tmp/lab33c/rebuilt-ipv6-routes.txt                         | tee -a "${TASKLOG}" || true
-
-echo "exit was: $?"                                                   | tee -a "${TASKLOG}"
-```
-
-### Trap callout
-
-- **T41:** skipping destroy-restore leaves false confidence; recovery must be practiced while calm so failures are routine.
-
-### Journal write
-
-```bash
-JDIR=/root/rhcsa_journal/lab-33c/task2
-cp /tmp/lab33c/task2.txt "${JDIR}/destroy-restore.txt"
-cp /tmp/lab33c/rebuilt-ip.txt "${JDIR}/rebuilt-ip.txt"
-cp /tmp/lab33c/rebuilt-routes.txt "${JDIR}/rebuilt-routes.txt"
-cp /tmp/lab33c/rebuilt-ipv6-routes.txt "${JDIR}/rebuilt-ipv6-routes.txt"
-```
+**In plain English:** We assert the interface is up and the expected IP is present.
 
 ---
 
-## Lab Closeout - Bulletproof Teardown (Section 6)
+### Step 1 of 2 — Assert the interface exists and is up
+
+**In plain English:** We confirm `lo` is present and in an operational state.
 
 ```bash
-set +e
-
-if getent passwd "${USER}" >/dev/null 2>&1; then
-  userdel -r "${USER}" 2>/dev/null
+if ip -br addr show dev lo | grep -qE 'UP|UNKNOWN'; then
+  echo "PASS: lo is operational"
+else
+  echo "FAIL: lo not up"
 fi
-if getent group "${GROUP}" >/dev/null 2>&1; then
-  groupdel "${GROUP}" 2>/dev/null
+```
+
+**Expected output:**
+
+```
+PASS: lo is operational
+```
+
+**Line-by-line breakdown:**
+
+- `ip -br addr show dev lo` → Brief status of the loopback interface.
+- `grep -qE 'UP|UNKNOWN'` → Loopback reports `UNKNOWN` state but is usable; either counts as operational.
+
+**New words in this step:**
+
+- **operational state** — `UP`/`UNKNOWN` mean usable; `DOWN` does not.
+
+---
+
+### Step 2 of 2 — Assert the expected address
+
+**In plain English:** We confirm the expected IPv4 is assigned to the interface.
+
+```bash
+if ip -br addr show dev lo | grep -q '127.0.0.1'; then
+  echo "PASS: 127.0.0.1 present"
+else
+  echo "FAIL: address missing"
 fi
+```
 
-rm -rf "${SANDBOX}"
+**Expected output:**
 
-echo "── Lab 33c cleanup audit ──"
-getent passwd "${USER}" >/dev/null && echo "❌ user remains" || echo "✅ user gone"
-getent group "${GROUP}" >/dev/null && echo "❌ group remains" || echo "✅ group gone"
-test -d "${SANDBOX}" && echo "❌ sandbox remains" || echo "✅ sandbox gone"
-test -d "${USER_HOME}" && echo "❌ home remains" || echo "✅ home gone"
+```
+PASS: 127.0.0.1 present
+```
 
-set -e
+**Line-by-line breakdown:**
+
+- `grep -q '127.0.0.1'` → Silent test for the expected address; exit 0 = present.
+
+**New words in this step:**
+
+- **address assertion** — confirming a specific IP is bound to an interface.
+
+---
+
+### Concept card (Task 1)
+
+| Concept | What it does | Exam trap |
+|---|---|---|
+| state grep | iface up? | `lo` is `UNKNOWN` |
+| address grep | IP present? | exact match |
+| `grep -q` | silent | exit code only |
+
+---
+
+### Troubleshoot (Task 1)
+
+| Symptom | Likely cause | Fix |
+|---|---|---|
+| FAIL on `lo` UP | Matched only `UP` | Include `UNKNOWN` |
+| Address FAIL | Not assigned | Configure with `nmcli` |
+
+---
+
+## TASK 2 of 2 — Prove routing
+
+**In plain English:** We assert a default route exists and route selection is correct.
+
+---
+
+### Step 1 of 2 — Assert a default route (or note its absence)
+
+**In plain English:** We check whether a default gateway is configured and report clearly.
+
+```bash
+if ip route | grep -q '^default'; then
+  echo "PASS: default route present -> $(ip route | awk '/^default/{print $3; exit}')"
+else
+  echo "INFO: no default route (isolated host)"
+fi
+```
+
+**Expected output:**
+
+```
+PASS: default route present -> 192.168.x.1
+```
+
+> On an isolated host with no gateway you'll see `INFO: no default route (isolated host)` instead — both are valid, documented outcomes.
+
+**Line-by-line breakdown:**
+
+- `grep -q '^default'` → Tests for a default route line.
+- `awk '/^default/{print $3}'` → Extracts the gateway when present.
+
+**New words in this step:**
+
+- **default-route assertion** — proving (or explicitly noting the absence of) a gateway.
+
+---
+
+### Step 2 of 2 — Assert route selection with `ip route get`
+
+**In plain English:** We confirm the kernel routes the loopback target via `lo`.
+
+```bash
+if ip route get 127.0.0.1 | grep -q 'dev lo'; then
+  echo "PASS: 127.0.0.1 routes via lo"
+else
+  echo "FAIL: unexpected route device"
+fi
+```
+
+**Expected output:**
+
+```
+PASS: 127.0.0.1 routes via lo
+```
+
+**Line-by-line breakdown:**
+
+- `ip route get 127.0.0.1` → The kernel's routing decision for that destination.
+- `grep -q 'dev lo'` → Confirms it selected the expected device.
+
+**New words in this step:**
+
+- **route selection check** — proving the kernel picks the expected egress device.
+
+---
+
+### Concept card (Task 2)
+
+| Concept | What it does | Exam trap |
+|---|---|---|
+| default grep | gateway present? | absence can be valid |
+| `route get` | decision | check `dev` field |
+| clear reporting | PASS/INFO/FAIL | distinguish states |
+
+---
+
+### Troubleshoot (Task 2)
+
+| Symptom | Likely cause | Fix |
+|---|---|---|
+| Unexpected FAIL | No gateway on host | Treat as INFO if isolated |
+| Wrong dev | Routing misconfig | Review routes/metrics |
+
+---
+
+## ✅ Lab Checklist
+
+- [ ] Task 1 · Step 1 — Assert the interface exists and is up
+- [ ] Task 1 · Step 2 — Assert the expected address
+- [ ] Task 2 · Step 1 — Assert a default route (or note its absence)
+- [ ] Task 2 · Step 2 — Assert route selection with `ip route get`
+- [ ] Every 🎯 Focus Coverage row (Anchor + NEW) mapped to a step
+- [ ] 🧹 Teardown run — sandbox + any system state removed
+
+---
+
+## 🧹 Teardown
+
+**In plain English:** Delete everything this lab created so the box is clean for the next run.
+
+> Run this after you've verified the lab. `lab_teardown.sh` safely removes the single sandbox root — it refuses to touch `/`, `$HOME`, or any protected path. This lab changed **no** system state.
+
+```bash
+cd /tmp
+bash lab_teardown.sh "$LAB_ROOT"     # = /tmp/lab-33
+```
+
+**Expected output:**
+
+```
+✅ Removed /tmp/lab-33 — lab workspace is clean.
 ```
 
 ---
 
-## Lab 33c Checklist
+## ⚠️ Common Pitfalls
 
-- [ ] Task 1 completed (`33a` and `33b` artifacts audited for required command/fact coverage)
-- [ ] Task 2 completed (destroy-restore drill rebuilt IP and route evidence)
-- [ ] T41 destroy-restore rehearsal documented in journal evidence
-- [ ] Section 6 closeout audit shows four `✅` lines
+| Mistake | Symptom | Fix |
+|---|---|---|
+| Matching only `UP` | `lo` fails | Accept `UNKNOWN` too |
+| Assuming a gateway exists | False FAIL | Handle isolated hosts |
+| Reading wrong route field | Wrong gateway | `default` line, field 3 |
 
 ---
 
-## Author
+## 📌 Exam Strategy
 
-**Kelvin R. Tobias**
+Reduce each network claim to a `grep -q` exit code: interface up, address present, default route present, route selection correct. Distinguish a legitimately isolated host (no gateway) from a real failure.
+
+- `grep -q` turns `ip` output into PASS/FAIL.
+- `lo` is `UNKNOWN`, not `UP` — match both.
+- `ip route get` proves which device is chosen.
+
+---
+
+## 🔗 Related Labs
+
+- [Lab 33a — Display IP and Routing Info (RHCSA)](../lab-33a-ip-addr-route-show-rhcsa/) — the commands these checks verify
+- [Lab 33b — Display IP and Routing Info (Ansible)](../lab-33b-ip-addr-route-show-ansible/) — facts and JSON parsing
+- [Lab 34a — Inspecting Listening Sockets (RHCSA)](../lab-34a-ss-listening-sockets-rhcsa/) — which services are bound to those addresses
+
+---
+
+## 👤 Author
+
+**Kelvin R. Tobias**  
 [kelvinintech.com](https://kelvinintech.com) · [GitHub](https://github.com/kelvintechnical) · [LinkedIn](https://www.linkedin.com/in/kelvin-r-tobias-211949219)

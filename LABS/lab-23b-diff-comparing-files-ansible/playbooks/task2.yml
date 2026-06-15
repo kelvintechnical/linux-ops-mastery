@@ -1,0 +1,33 @@
+---
+# Lab 23b Task 2 — compare two files
+#
+# Run:
+#   ansible-playbook /root/rhcsa_journal/lab-23b/playbooks/task2.yml
+#
+# diff returns rc 1 when files differ, so failed_when allows rc 0 or 1 and
+# only a real error (rc 2) fails the play. The diff output is shown only when
+# the files actually differ. Read-only, so changed=0.
+
+- name: "Lab 23b Task 2 — compare two files"
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars:
+    a: /tmp/lab-23/current.conf
+    b: /tmp/lab-23/proposed.conf
+
+  tasks:
+    - name: "Diff the two files"
+      ansible.builtin.command: "diff -u {{ a }} {{ b }}"
+      register: diff_out
+      changed_when: false
+      failed_when: diff_out.rc not in [0, 1]
+
+    - name: "Report identical or different"
+      ansible.builtin.debug:
+        msg: "{{ 'identical' if diff_out.rc == 0 else 'differ' }}"
+
+    - name: "Show the unified diff if any"
+      ansible.builtin.debug:
+        var: diff_out.stdout_lines
+      when: diff_out.rc == 1

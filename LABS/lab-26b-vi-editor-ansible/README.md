@@ -1,258 +1,374 @@
-# Lab 26b: Command Mode and Insert Mode in `vi` (Ansible) — Section 18 Boundary
+# Lab 26b: Editing Files (Ansible) — `blockinfile`, `lineinfile` instead of vi
 
-- **Series:** linux-ops-mastery — Text File Management
-- **Trilogy:** [`26a`](../lab-26a-vi-editor-rhcsa/) → **`26b`** (Ansible boundary) → [`26c`](../lab-26c-vi-editor-verify/)
-- **Time Estimate:** 25-35 minutes
-- **Tasks:** 2 (Task 1 = `replace` + `lineinfile` as declarative equivalent of interactive edits · Task 2 = trap proof that `command: vi file` fails without TTY and must be replaced with modules)
-- **Practice Directory (rotation #26):** `/opt`
-- **Sandbox (Tier B):** `/tmp/lab26b` with `USER=labuser_26_vi`, `GROUP=labgrp_26_vi`
-- **Playbooks live at:** `/root/rhcsa_journal/lab-26b/playbooks/`
-- **Traps rehearsed:** **T26-A** · **T26-B** · **T41** · **T44**
-
-> **Section 18 boundary note:** there is no honest `vi` Ansible module.  
-> The declarative substitutes are `ansible.builtin.replace`, `ansible.builtin.lineinfile`, and sometimes `ansible.builtin.blockinfile`.
+**Series:** linux-ops-mastery — Text Editors · **Lab 26b of the Novice → RHCA path**  
+**Certifications covered:** RHCE EX294 (declarative file edits — the automation answer to vi), RHCSA EX200 (the edits vi would make), DevOps (managed config blocks)  
+**Prerequisite:** [Lab 26a](../lab-26a-vi-editor-rhcsa/) completed and a working control node  
+**Time Estimate:** 25–35 minutes  
+**Difficulty:** Intermediate
 
 ---
 
-## LAB HEADER BLOCK
+## 🎯 Today's Focus Coverage
 
-```bash
-echo "TIME: $(date -Is)"
-echo "USER: $(whoami)@$(hostname)"
-echo "PRACTICE DIR: /opt"
-echo "BOUNDARY: no vi module; use replace/lineinfile/blockinfile"
-ansible --version | head -n 2
-ansible -m ping localhost | tail -n 4
-ls -ld /opt
+> Stay on-subject via the ANCHOR rows; expand vocabulary via the NEW rows. Every row is exercised by a STEP below.
+
+**⚓ Anchor — already learned (on-topic reuse)**
+
+| # | Command / switch | Covered by |
+|---|---|---|
+| A1 | `lineinfile` single line | _Task 1 · Step 1_ |
+| A2 | `:%s///g` mental model | _Task 1 · Step 1_ |
+
+**🆕 NEW this lab — introduced for the first time** (minimum 3)
+
+| # | Command / switch | First taught in | Covered by |
+|---|---|---|---|
+| N1 | the interactive-editor boundary | Task 1 · Step 1 | _Task 1 · Step 1_ |
+| N2 | `ansible.builtin.blockinfile` | Task 2 · Step 1 | _Task 2 · Step 1_ |
+| N3 | `marker:` managed block | Task 2 · Step 1 | _Task 2 · Step 1_ |
+| N4 | `insertafter:` / `insertbefore:` | Task 1 · Step 1 | _Task 1 · Step 1_ |
+
+---
+
+## 🎯 Objective
+
+There is no "vi module" — automation edits *declaratively*. You will make the single-line edits vi would do with `ansible.builtin.lineinfile` (placed precisely with `insertafter:`), and manage a multi-line region as one idempotent unit with `ansible.builtin.blockinfile` and its `marker:`. These are the tools that replace opening a file and typing.
+
+---
+
+## 🧠 Concept
+
+Interactive editors can't be automated — a play can't "press `i` and type." Instead Ansible declares the *desired content*. `ansible.builtin.lineinfile` ensures a single line exists (optionally positioned with `insertafter:`/`insertbefore:` regexes), the declarative version of vi's insert. `ansible.builtin.blockinfile` manages a whole multi-line region wrapped in auto-generated `marker:` comments (`# BEGIN ANSIBLE MANAGED BLOCK` … `# END …`); on re-run it updates only that block and reports `changed=0` when unchanged. The marker is what makes a block idempotent and safe to re-manage — Ansible knows exactly which lines it owns.
+
+```
+VI (26a)                             ANSIBLE (26b)
+─────────────────────────────       ──────────────────────────────────────
+o, type a line, Esc, :wq             lineinfile: line='...' insertafter='^...'
+edit a multi-line section            blockinfile: block=|... marker='# {mark} APP'
 ```
 
----
-
-## Objective
-
-Translate editor intent into idempotent automation:
-
-1. Use `replace` for whole-file pattern substitution (`:%s/foo/bar/g` equivalent).
-2. Use `lineinfile` for precise single-line insertion/replacement (insert/append intent).
-3. Prove why interactive editor commands (`vi`) are invalid in non-TTY Ansible runs.
+> **Why this matters:** RHCE config management is declarative. `blockinfile` lets you own a managed region of a shared file (e.g. an `/etc/hosts` block) without clobbering the rest — the idempotent replacement for hand-editing in vi.
 
 ---
 
-## Lab-Wide Setup (Tier B)
+## 📚 Command Reference
+
+| Command | Purpose | Critical flags |
+|---|---|---|
+| `ansible.builtin.lineinfile` | Ensure one line | `insertafter:`, `regexp:` |
+| `insertafter:` / `insertbefore:` | Position the line | regex anchor |
+| `ansible.builtin.blockinfile` | Manage a region | `block:`, `marker:` |
+| `marker:` | Delimit managed block | `{mark}` placeholder |
+| `backup: true` | Keep a backup | before editing |
+
+---
+
+## 🧰 LAB-WIDE SETUP
+
+**In plain English:** Build the sandbox and playbook folder with a config to edit.
+
+> Run this block **once** before Task 1. It builds the clean, private workspace that both tasks depend on.
 
 ```bash
-sudo -i
-
-export LAB_NUM=26
-export LAB_SLUG=vi
-export SANDBOX=/tmp/lab26b
-export GROUP=labgrp_26_vi
-export USER=labuser_26_vi
-export USER_HOME=${SANDBOX}/home_${USER}
-
-mkdir -p "${SANDBOX}" "${USER_HOME}" /root/rhcsa_journal/lab-26b/playbooks
-mkdir -p /root/rhcsa_journal/lab-26b/task1 /root/rhcsa_journal/lab-26b/task2
-getent group "${GROUP}" >/dev/null || groupadd "${GROUP}"
-getent passwd "${USER}" >/dev/null || useradd -d "${USER_HOME}" -M -s /bin/bash -g "${GROUP}" "${USER}"
-chown -R "${USER}:${GROUP}" "${SANDBOX}"
-```
-
----
-
-## Task 1 — `replace` + `lineinfile`: declarative `vi`
-
-### Purpose
-
-Perform the same intent as:
-
-- `:%s/foo/bar/g`
-- insert or append a line
-
-but through repeatable idempotent playbooks.
-
-### Fixture + playbook
-
-```bash
-cat > /tmp/lab26b/app.ini <<'EOF'
-mode=old
-owner=ops
-path=/opt/app
+export LAB_ROOT=/tmp/lab-26
+mkdir -p "$LAB_ROOT"
+mkdir -p /root/rhcsa_journal/lab-26b/playbooks
+cat > "$LAB_ROOT/app.conf" <<'EOF'
+[main]
+name = demo
+[network]
 EOF
+cat "$LAB_ROOT/app.conf"
+echo "exit was: $?"
+```
 
-cat > /root/rhcsa_journal/lab-26b/playbooks/task1.yml <<'PLAYBOOK'
+**Expected output:**
+
+```
+[main]
+name = demo
+[network]
+exit was: 0
+```
+
 ---
-- name: "Lab 26b Task 1 - declarative vi substitutes"
+
+## TASK 1 of 2 — Insert a positioned line
+
+**In plain English:** We add a line right after a section header, idempotently.
+
+---
+
+### Step 1 of 2 — Write the lineinfile playbook
+
+**In plain English:** We create `task1.yml`, which inserts `port = 8080` right after the `[network]` header.
+
+```yaml
+---
+- name: "Lab 26b Task 1 — insert a positioned line"
   hosts: localhost
   connection: local
   gather_facts: false
-
+  vars:
+    conf: /tmp/lab-26/app.conf
   tasks:
-    - name: "Equivalent to :%s/old/new/g"
-      ansible.builtin.replace:
-        path: /tmp/lab26b/app.ini
-        regexp: 'old'
-        replace: 'new'
-
-    - name: "Equivalent to append/new line intent"
+    - name: "Ensure port line exists under [network]"
       ansible.builtin.lineinfile:
-        path: /tmp/lab26b/app.ini
-        insertafter: EOF
-        line: "edited_by=ansible"
+        path: "{{ conf }}"
+        line: 'port = 8080'
+        insertafter: '^\[network\]'
+        backup: true
+      register: line_result
 
-    - name: "Show final content"
-      ansible.builtin.command: cat /tmp/lab26b/app.ini
-      register: app_view
-      changed_when: false
-
-    - name: "Print final content"
+    - name: "Show whether anything changed"
       ansible.builtin.debug:
-        var: app_view.stdout_lines
-PLAYBOOK
-
-ansible-playbook --check --diff /root/rhcsa_journal/lab-26b/playbooks/task1.yml 2>&1 | tee /tmp/lab26b/task1-check.txt
-ansible-playbook /root/rhcsa_journal/lab-26b/playbooks/task1.yml                    2>&1 | tee /tmp/lab26b/task1-apply1.txt
-ansible-playbook /root/rhcsa_journal/lab-26b/playbooks/task1.yml                    2>&1 | tee /tmp/lab26b/task1-apply2.txt
-cat /tmp/lab26b/app.ini | tee /tmp/lab26b/task1.txt
-echo "task1 exit: $?"
+        msg: "changed: {{ line_result.changed }}"
 ```
 
-### Section 18 boundary card
+**Expected output:**
 
-| Need | Use in Ansible |
-|---|---|
-| `:%s/foo/bar/g` style replacement | `ansible.builtin.replace` |
-| single-line set/ensure | `ansible.builtin.lineinfile` |
-| multi-line managed stanza | `ansible.builtin.blockinfile` |
-| interactive editor session | **Boundary** (not a valid Ansible module pattern) |
-
-### Journal write
-
-```bash
-JDIR=/root/rhcsa_journal/lab-26b/task1
-mkdir -p "${JDIR}"
-cp /tmp/lab26b/task1*.txt "${JDIR}/" 2>/dev/null || true
-cp /tmp/lab26b/app.ini "${JDIR}/"
-cp /root/rhcsa_journal/lab-26b/playbooks/task1.yml "${JDIR}/"
-echo "TASK1 COMPLETE $(date -Is)" > "${JDIR}/done.txt"
-ls -la "${JDIR}"
 ```
+(this is the saved playbook file — no output until you run it in Step 2)
+```
+
+**Line-by-line breakdown:**
+
+- `line: 'port = 8080'` → The line to guarantee exists — the declarative insert.
+- `insertafter: '^\[network\]'` → Position it right after the `[network]` header, like moving the cursor there in vi.
+
+**New words in this step:**
+
+- **`insertafter:`** — place the managed line after a regex-matched anchor.
 
 ---
 
-## Task 2 — Trap: `command: vi file` fails (no TTY)
+### Step 2 of 2 — Run it twice and watch `changed=0`
 
-### Purpose
-
-Prove the anti-pattern and correct it:
-
-- bad: `ansible.builtin.command: vi file`
-- good: `replace` / `lineinfile`
-
-### Main command block
+**In plain English:** We run the play twice; the line is inserted once and then already present.
 
 ```bash
-cat > /tmp/lab26b/trap.txt <<'EOF'
-state=old
-EOF
+ansible-playbook /root/rhcsa_journal/lab-26b/playbooks/task1.yml
+ansible-playbook /root/rhcsa_journal/lab-26b/playbooks/task1.yml
+cat /tmp/lab-26/app.conf
+echo "exit was: $?"
+```
 
-cat > /root/rhcsa_journal/lab-26b/playbooks/task2-bad.yml <<'PLAYBOOK'
+**Expected output:**
+
+```
+PLAY RECAP ********************************************************************
+localhost                  : ok=2    changed=1    unreachable=0    failed=0
+PLAY RECAP ********************************************************************
+localhost                  : ok=2    changed=0    unreachable=0    failed=0
+[main]
+name = demo
+[network]
+port = 8080
+exit was: 0
+```
+
+**Line-by-line breakdown:**
+
+- two runs → `changed=1` then `changed=0`: the line exists after the first run.
+- `cat app.conf` → The port line sits directly under `[network]`.
+
+**New words in this step:**
+
+- **declarative insert** — guaranteeing a line's presence rather than typing it.
+
 ---
-- name: "Lab 26b Task 2 - BAD pattern"
+
+### Concept card (Task 1)
+
+| Concept | What it does | Exam trap |
+|---|---|---|
+| `lineinfile` | one canonical line | anchor to avoid dupes |
+| `insertafter:` | position | regex must match |
+| idempotent | re-run `changed=0` | line already present |
+
+---
+
+### Troubleshoot (Task 1)
+
+| Symptom | Likely cause | Fix |
+|---|---|---|
+| Line appended at EOF | `insertafter` regex missed | Fix the anchor regex |
+| Duplicate lines | No `regexp:` to match existing | Add `regexp:` |
+
+---
+
+## TASK 2 of 2 — Manage a multi-line block
+
+**In plain English:** We own a multi-line region with `blockinfile` and prove it's idempotent.
+
+---
+
+### Step 1 of 2 — Write the blockinfile playbook
+
+**In plain English:** We create `task2.yml`, which manages a labelled block of settings as one unit.
+
+```yaml
+---
+- name: "Lab 26b Task 2 — manage a multi-line block"
   hosts: localhost
   connection: local
   gather_facts: false
+  vars:
+    conf: /tmp/lab-26/app.conf
   tasks:
-    - name: "Do not do this"
-      ansible.builtin.command: vi /tmp/lab26b/trap.txt
-PLAYBOOK
+    - name: "Manage the limits block"
+      ansible.builtin.blockinfile:
+        path: "{{ conf }}"
+        marker: "# {mark} APP LIMITS"
+        block: |
+          max_connections = 100
+          timeout = 30
+          retries = 3
+        backup: true
+      register: block_result
 
-cat > /root/rhcsa_journal/lab-26b/playbooks/task2-good.yml <<'PLAYBOOK'
----
-- name: "Lab 26b Task 2 - GOOD pattern"
-  hosts: localhost
-  connection: local
-  gather_facts: false
-  tasks:
-    - name: "Replace old->new declaratively"
-      ansible.builtin.replace:
-        path: /tmp/lab26b/trap.txt
-        regexp: 'old'
-        replace: 'new'
-
-    - name: "Append audit line"
-      ansible.builtin.lineinfile:
-        path: /tmp/lab26b/trap.txt
-        insertafter: EOF
-        line: "edited_by=module_not_vi"
-PLAYBOOK
-
-ansible-playbook /root/rhcsa_journal/lab-26b/playbooks/task2-bad.yml  2>&1 | tee /tmp/lab26b/task2-bad.txt || true
-ansible-playbook /root/rhcsa_journal/lab-26b/playbooks/task2-good.yml 2>&1 | tee /tmp/lab26b/task2-good1.txt
-ansible-playbook /root/rhcsa_journal/lab-26b/playbooks/task2-good.yml 2>&1 | tee /tmp/lab26b/task2-good2.txt
-
-cat /tmp/lab26b/trap.txt | tee /tmp/lab26b/task2.txt
-
-# Tier B weave
-sudo -u "${USER}" bash -c 'echo "verified-by-$(whoami)" > "'"${USER_HOME}"'/task2-asuser.txt"'
-stat -c '%U:%G %a %n' "${USER_HOME}/task2-asuser.txt" | tee -a /tmp/lab26b/task2.txt
-echo "task2 exit: $?"
+    - name: "Show whether anything changed"
+      ansible.builtin.debug:
+        msg: "changed: {{ block_result.changed }}"
 ```
 
-### Trap callouts
+**Expected output:**
 
-- **T26-A:** even outside Ansible, `vi` command mode requires `Esc` discipline.
-- **T26-B:** never use raw editor writes on `/etc/passwd`; use `vipw` in Lab 27.
-- **Boundary:** no TTY in normal Ansible run means `vi` is non-viable.
+```
+(this is the saved playbook file — no output until you run it in Step 2)
+```
 
-### Journal write
+**Line-by-line breakdown:**
+
+- `marker: "# {mark} APP LIMITS"` → `{mark}` expands to BEGIN/END, wrapping the region Ansible owns.
+- `block: |` → The multi-line content managed as a single idempotent unit.
+
+**New words in this step:**
+
+- **`blockinfile`** — manage a multi-line region as one idempotent block.
+- **`marker:`** — the BEGIN/END comments delimiting the managed block.
+
+---
+
+### Step 2 of 2 — Run it twice and inspect the block
+
+**In plain English:** We run the play twice; the block is inserted once and unchanged thereafter.
 
 ```bash
-JDIR=/root/rhcsa_journal/lab-26b/task2
-mkdir -p "${JDIR}"
-cp /tmp/lab26b/task2*.txt "${JDIR}/" 2>/dev/null || true
-cp /tmp/lab26b/trap.txt "${JDIR}/"
-cp /root/rhcsa_journal/lab-26b/playbooks/task2-bad.yml "${JDIR}/"
-cp /root/rhcsa_journal/lab-26b/playbooks/task2-good.yml "${JDIR}/"
-cp "${USER_HOME}/task2-asuser.txt" "${JDIR}/"
-echo "TASK2 COMPLETE $(date -Is)" > "${JDIR}/done.txt"
-ls -la "${JDIR}"
+ansible-playbook /root/rhcsa_journal/lab-26b/playbooks/task2.yml
+ansible-playbook /root/rhcsa_journal/lab-26b/playbooks/task2.yml
+cat /tmp/lab-26/app.conf
+echo "exit was: $?"
 ```
+
+**Expected output:**
+
+```
+PLAY RECAP ********************************************************************
+localhost                  : ok=2    changed=1    unreachable=0    failed=0
+PLAY RECAP ********************************************************************
+localhost                  : ok=2    changed=0    unreachable=0    failed=0
+[main]
+name = demo
+[network]
+port = 8080
+# BEGIN APP LIMITS
+max_connections = 100
+timeout = 30
+retries = 3
+# END APP LIMITS
+exit was: 0
+```
+
+**Line-by-line breakdown:**
+
+- two runs → `changed=1` then `changed=0`: the marker lets Ansible recognize its own block.
+- `cat app.conf` → The managed block sits between its BEGIN/END markers.
+
+**New words in this step:**
+
+- **managed region** — the marker-delimited lines Ansible owns and can re-manage safely.
 
 ---
 
-## Lab Closeout — Bulletproof Teardown (Section 6)
+### Concept card (Task 2)
+
+| Concept | What it does | Exam trap |
+|---|---|---|
+| `blockinfile` | multi-line region | one block per marker |
+| `{mark}` | BEGIN/END | unique marker per block |
+| idempotent block | re-run `changed=0` | content must match |
+
+---
+
+### Troubleshoot (Task 2)
+
+| Symptom | Likely cause | Fix |
+|---|---|---|
+| Two blocks appear | Reused default marker | Give each a unique `marker:` |
+| Block keeps changing | Trailing whitespace | Normalize the `block:` text |
+
+---
+
+## ✅ Lab Checklist
+
+- [ ] Task 1 · Step 1 — Write the lineinfile playbook
+- [ ] Task 1 · Step 2 — Run it twice and watch `changed=0`
+- [ ] Task 2 · Step 1 — Write the blockinfile playbook
+- [ ] Task 2 · Step 2 — Run it twice and inspect the block
+- [ ] Every 🎯 Focus Coverage row (Anchor + NEW) mapped to a step
+- [ ] 🧹 Teardown run — sandbox + any system state removed
+
+---
+
+## 🧹 Teardown
+
+**In plain English:** Delete everything this lab created so the box is clean for the next run.
+
+> Run this after you've verified the lab. `lab_teardown.sh` safely removes the single sandbox root — it refuses to touch `/`, `$HOME`, or any protected path. This lab changed **no** system state.
 
 ```bash
-set +e
+bash lab_teardown.sh "$LAB_ROOT"     # = /tmp/lab-26
+rm -rf /root/rhcsa_journal/lab-26b
+```
 
-rm -f /tmp/lab26b/task1*.txt /tmp/lab26b/task2*.txt
-rm -f /tmp/lab26b/app.ini /tmp/lab26b/trap.txt
-rm -f "${USER_HOME}/task2-asuser.txt"
+**Expected output:**
 
-if getent passwd "${USER}" >/dev/null 2>&1; then userdel -r "${USER}" 2>/dev/null; fi
-if getent group "${GROUP}" >/dev/null 2>&1; then groupdel "${GROUP}" 2>/dev/null; fi
-rm -rf "${SANDBOX}"
-
-echo "---- lab-26b cleanup audit ----"
-getent passwd "${USER}" >/dev/null && echo "❌ user remains" || echo "✅ user gone"
-getent group "${GROUP}" >/dev/null && echo "❌ group remains" || echo "✅ group gone"
-test -d "${SANDBOX}" && echo "❌ sandbox remains" || echo "✅ sandbox gone"
-test -d "${USER_HOME}" && echo "❌ home remains" || echo "✅ home gone"
-set -e
+```
+✅ Removed /tmp/lab-26 — lab workspace is clean.
 ```
 
 ---
 
-## Lab 26b Checklist
+## ⚠️ Common Pitfalls
 
-- [ ] Task 1 completed (`replace` + `lineinfile` + second idempotent run)
-- [ ] Task 2 completed (proof `command: vi file` is wrong without TTY; fixed with modules)
-- [ ] Section 18 boundary explicitly documented
-- [ ] Section 6 closeout audit shows four `✅` lines
+| Mistake | Symptom | Fix |
+|---|---|---|
+| Expecting a vi module | There isn't one | Use `lineinfile`/`blockinfile` |
+| Reused block marker | Blocks overwrite each other | Unique `marker:` per block |
+| Unanchored line | Duplicates | Add `regexp:`/`insertafter:` |
 
 ---
 
-## Author
+## 📌 Exam Strategy
+
+Automate edits declaratively: `lineinfile` (with `insertafter:`) for single lines, `blockinfile` (with a unique `marker:`) for regions. Both are idempotent and let you own part of a file without disturbing the rest.
+
+- One `blockinfile` per unique `marker:`.
+- `insertafter:`/`insertbefore:` position single lines precisely.
+- Re-run to confirm `changed=0`.
+
+---
+
+## 🔗 Related Labs
+
+- [Lab 26a — Command/Insert Mode in vi (RHCSA)](../lab-26a-vi-editor-rhcsa/) — the interactive editing this replaces
+- [Lab 26c — Command/Insert Mode in vi (Verify)](../lab-26c-vi-editor-verify/) — prove the edits saved
+- [Lab 24b — Stream Editing with sed (Ansible)](../lab-24b-sed-stream-editor-ansible/) — `replace`/`lineinfile` edits
+
+---
+
+## 👤 Author
 
 **Kelvin R. Tobias**  
 [kelvinintech.com](https://kelvinintech.com) · [GitHub](https://github.com/kelvintechnical) · [LinkedIn](https://www.linkedin.com/in/kelvin-r-tobias-211949219)

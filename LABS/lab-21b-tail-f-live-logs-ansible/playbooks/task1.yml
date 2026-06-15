@@ -1,0 +1,25 @@
+---
+# Lab 21b Task 1 — snapshot the tail
+#
+# Run:
+#   ansible-playbook /root/rhcsa_journal/lab-21b/playbooks/task1.yml
+#
+# There is no tail -f module: a play must terminate. The automation pattern is
+# a point-in-time snapshot with tail -n, captured read-only (changed_when:false).
+
+- name: "Lab 21b Task 1 — snapshot the tail"
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars:
+    log: /tmp/lab-21/app.log
+
+  tasks:
+    - name: "Capture the last 15 lines"
+      ansible.builtin.command: "tail -n 15 {{ log }}"
+      register: tail_out
+      changed_when: false
+
+    - name: "Show the captured tail"
+      ansible.builtin.debug:
+        var: tail_out.stdout_lines

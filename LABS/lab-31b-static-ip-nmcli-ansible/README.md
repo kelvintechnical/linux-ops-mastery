@@ -1,428 +1,369 @@
-# Lab 31b: Configure a Static IP Address (Ansible) - `community.general.nmcli`
+# Lab 31b: Configure a Static IP (Ansible) — `community.general.nmcli`
 
-- **Series:** linux-ops-mastery
-- **Trilogy:** `31a` (RHCSA) -> `31b` (Ansible) -> `31c` (Verify)
-- **Practice Directory:** `/run`
-- **Tier B Sandbox:** `/tmp/lab31b`
-- **Lab User/Group:** `labuser_31_staticip` / `labgrp_31_staticip`
-- **Test Connection:** `lab31test` only (safe profile on `lo`)
-- **Traps rehearsed:** `T31-A`, `T31-B`, `T41`, `T44`
-
-This lab's practice directory is: `/run`
+**Series:** linux-ops-mastery — Networking · **Lab 31b of the Novice → RHCA path**  
+**Certifications covered:** RHCE EX294 (idempotent network configuration), RHCSA EX200 (the `nmcli` work), DevOps (declarative host networking)  
+**Prerequisite:** [Lab 31a](../lab-31a-static-ip-nmcli-rhcsa/) completed and a working control node · **root/sudo required**  
+**Time Estimate:** 30–40 minutes  
+**Difficulty:** Intermediate
 
 ---
 
-## LAB HEADER
+## 🎯 Today's Focus Coverage
+
+> Stay on-subject via the ANCHOR rows; expand vocabulary via the NEW rows. Every row is exercised by a STEP below.
+
+**⚓ Anchor — already learned (on-topic reuse)**
+
+| # | Command / switch | Covered by |
+|---|---|---|
+| A1 | `nmcli` profiles | _Task 1 · Step 1_ |
+| A2 | idempotence (`changed=0`) | _Task 1 · Step 2_ |
+
+**🆕 NEW this lab — introduced for the first time** (minimum 3)
+
+| # | Command / switch | First taught in | Covered by |
+|---|---|---|---|
+| N1 | `community.general.nmcli` | Task 1 · Step 1 | _Task 1 · Step 1_ |
+| N2 | `type: dummy` + `conn_name:` | Task 1 · Step 1 | _Task 1 · Step 1_ |
+| N3 | `ip4:`/`gw4:`/`dns4:` | Task 1 · Step 1 | _Task 1 · Step 1_ |
+| N4 | `state: absent` removal | Task 2 · Step 1 | _Task 2 · Step 1_ |
+
+---
+
+## 🎯 Objective
+
+Manage a static IP declaratively with the `community.general.nmcli` module. You will create a dummy-interface profile with a static IPv4 config, prove a re-run is `changed=0`, then update and finally remove it with `state: absent`. The module is the idempotent automation of every `nmcli con add/mod/up/delete` from Lab 31a — safely on a dummy device.
+
+> **⚠️ System-state lab.** Operates only on a `dummy0` device and `lab-static` profile; the real NIC is untouched. Teardown removes both. Use a practice VM.
+
+---
+
+## 🧠 Concept
+
+`community.general.nmcli` wraps NetworkManager declaratively. You describe the desired profile — `conn_name`, `ifname`, `type`, `ip4`, `gw4`, `dns4`, `method4` — and the module reconciles it: creating, modifying, or leaving it alone, reporting `changed=0` when it already matches. `state: present` ensures the profile exists and is configured; `state: absent` deletes it. This replaces the imperative `con add`/`con mod`/`con delete` sequence with one idempotent task. We keep `type: dummy` so it's safe to run repeatedly without touching production interfaces.
+
+```
+RHCSA (31a)                          ANSIBLE (31b)
+─────────────────────────────       ──────────────────────────────────────
+nmcli con add ... ipv4.method manual nmcli: conn_name=lab-static type=dummy
+nmcli con mod ... ipv4.gateway         ip4=10.99.99.2/24 gw4=... dns4=... state=present
+nmcli con delete                     nmcli: conn_name=lab-static state=absent
+```
+
+> **Why this matters:** RHCE network tasks must be idempotent. The `nmcli` module gives you create/modify/remove in one declarative step, with `changed=0` proving convergence — exactly what the exam and real fleets need.
+
+---
+
+## 📚 Command Reference
+
+| Command | Purpose | Critical flags |
+|---|---|---|
+| `community.general.nmcli` | Manage a profile | `conn_name:`, `type:`, `state:` |
+| `ip4:` / `gw4:` / `dns4:` | Static IPv4 settings | manual addressing |
+| `method4: manual` | Static method | vs `auto` |
+| `state: present/absent` | Ensure/remove | declarative |
+| `register:` + re-run | Prove idempotence | `changed=0` |
+
+---
+
+## 🧰 LAB-WIDE SETUP
+
+**In plain English:** Ensure the dummy module and playbook folder are ready.
+
+> Run this block **once** before Task 1. `LAB_ROOT` is a Teardown marker; the real changes are the profile/device, removed in Teardown.
 
 ```bash
-echo "TIME: $(date -Is)"
-echo "USER: $(whoami)@$(hostname)"
-echo "PRACTICE DIR: /run"
-echo "TEST PROFILE: lab31test"
-ansible --version | head -n 2
-ansible-galaxy collection list | grep -E 'community.general' || true
-nmcli con show | tee /tmp/lab31b_header_connections.txt
-echo "TRAPS: T31-A T31-B T41 T44"
+export LAB_ROOT=/tmp/lab-31
+mkdir -p "$LAB_ROOT"
+mkdir -p /root/rhcsa_journal/lab-31b/playbooks
+sudo modprobe dummy 2>/dev/null || true
+ansible-galaxy collection list 2>/dev/null | grep -i community.general || echo "install community.general if missing"
 echo "exit was: $?"
 ```
 
-> STOP and confirm header output before continuing.
+**Expected output:**
 
----
-
-## Lab-Wide Tier B Setup (run before Task 1)
-
-```bash
-sudo -i
-export LAB_NUM=31
-export LAB_SLUG=staticip
-export SANDBOX=/tmp/lab31b
-export GROUP=labgrp_31_staticip
-export USER=labuser_31_staticip
-export USER_HOME=${SANDBOX}/home_${USER}
-export CON_NAME=lab31test
-
-mkdir -p "${SANDBOX}" "${USER_HOME}" /root/rhcsa_journal/lab-31b/task1 /root/rhcsa_journal/lab-31b/task2 /root/rhcsa_journal/lab-31b/playbooks
-getent group "${GROUP}" >/dev/null || groupadd "${GROUP}"
-getent passwd "${USER}" >/dev/null || useradd -d "${USER_HOME}" -M -s /bin/bash -g "${GROUP}" "${USER}"
-chown -R "${USER}:${GROUP}" "${SANDBOX}"
-
-cat > "${SANDBOX}/THIS_DIRECTORY.txt" <<'EOF'
-/run is runtime-only state and is rebuilt each boot. This makes it ideal
-for training persistence validation and controlled networking experiments.
-EOF
-
-id "${USER}"
-ls -ld /run "${SANDBOX}" "${USER_HOME}"
-echo "Sandbox built by $(whoami) at $(date -Is)"
-echo "exit was: $?"
+```
+community.general    ...
+exit was: 0
 ```
 
 ---
 
-## Task 1 - Apply static profile declaratively with Ansible
+## TASK 1 of 2 — Create the profile idempotently
 
-Practice directory this task: `/run`
+**In plain English:** We declare the static profile and prove a re-run changes nothing.
 
-### Warm-Up
-
-```bash
-nmcli con show | head -n 10
-ip addr show lo
-ip route show
-ls -ld /run /tmp/lab31b
-echo "Warm-up done by $(whoami) at $(date -Is)"
-echo "exit was: $?"
-```
-
-### WEAVE TRACE
-
-- `nmcli con show` -> pre/post profile existence checks.
-- `ip addr show lo` -> runtime inspection after playbook apply.
-- `ip route show` -> captures kernel routing baseline.
-
-### Purpose
-
-Use a real FQCN module (`community.general.nmcli`) to create and configure `lab31test` idempotently, run `--check --diff` first, then apply and prove second run is unchanged.
-
-### Main Block
-
-```bash
-export SANDBOX=/tmp/lab31b
-export PLAY=/root/rhcsa_journal/lab-31b/playbooks/task1.yml
-
-cat > "${PLAY}" <<'EOF'
 ---
-- name: Lab31b task1 static IP profile
+
+### Step 1 of 2 — Write the nmcli playbook
+
+**In plain English:** We create `task1.yml`, which ensures the `lab-static` dummy profile exists with a static IP.
+
+```yaml
+---
+- name: "Lab 31b Task 1 — static IP on a dummy interface"
   hosts: localhost
   connection: local
   gather_facts: false
+  become: true
   tasks:
-    - name: Ensure test connection exists with static IPv4
+    - name: "Ensure the lab-static profile exists (static IPv4)"
       community.general.nmcli:
-        conn_name: lab31test
-        ifname: lo
-        type: ethernet
+        conn_name: lab-static
+        ifname: dummy0
+        type: dummy
         method4: manual
-        ip4: 198.51.100.31/24
-        gw4: 198.51.100.1
+        ip4: 10.99.99.2/24
+        gw4: 10.99.99.1
         dns4:
-          - 1.1.1.1
-          - 8.8.8.8
-        autoconnect: false
+          - 10.99.99.53
         state: present
-      register: nm_task1
+      register: nm_result
 
-    - name: Bring test profile up
-      ansible.builtin.command: nmcli con up lab31test
-      register: up_result
-      changed_when: "'successfully activated' in up_result.stdout or up_result.rc == 0"
-
-    - name: Debug module result
+    - name: "Show whether anything changed"
       ansible.builtin.debug:
-        var: nm_task1
-EOF
-
-ansible-playbook --check --diff "${PLAY}" 2>&1 | tee "${SANDBOX}/task1-check.txt"
-ansible-playbook "${PLAY}"                 2>&1 | tee "${SANDBOX}/task1-apply1.txt"
-ansible-playbook "${PLAY}"                 2>&1 | tee "${SANDBOX}/task1-apply2.txt"
-
-nmcli -f NAME,IPV4.METHOD,IP4.ADDRESS,IP4.GATEWAY,IP4.DNS con show lab31test \
-    2>&1 | tee "${SANDBOX}/task1-verify.txt"
-
-sudo -u "${USER}" bash -c 'echo "Task1 ansible run reviewed at $(date -Is)" >> /tmp/lab31b/task1-reviewed-by-user.txt'
-stat -c '%U:%G %a %n' /tmp/lab31b/task1-reviewed-by-user.txt | tee -a "${SANDBOX}/task1-verify.txt"
-echo "exit was: $?"
+        msg: "changed: {{ nm_result.changed }}"
 ```
 
-### Breakdown
+**Expected output:**
 
-- `community.general.nmcli` enforces desired profile state declaratively.
-- `--check --diff` previews intended changes before mutation.
-- second apply must show `changed=0` for idempotence.
-- explicit `nmcli con up` addresses `T31-B` (apply runtime state).
-
-### L->R
-
-`ansible-playbook --check --diff /root/rhcsa_journal/lab-31b/playbooks/task1.yml`
-
-- `ansible-playbook` execute playbook
-- `--check` dry run simulation
-- `--diff` show before/after differences
-- `task1.yml` desired-state definition
-
-### Story
-
-Hand commands scale poorly. Ansible codifies the same network intent so configuration is reproducible, reviewable, and rerunnable without drift.
-
-### Expected Output
-
-- check mode reports planned changes.
-- first apply reports changes.
-- second apply reports no change (`changed=0`).
-
-### Switches
-
-| Token | Meaning |
-|---|---|
-| `--check` | simulate changes |
-| `--diff` | show content differences |
-| `community.general.nmcli` | NetworkManager module |
-| `state: present` | ensure profile exists |
-| `method4: manual` | static IPv4 mode |
-
-### Concept Card
-
-| ✅ | Concept | What it does |
-|---|---|---|
-| ✅ | FQCN module usage | enforces RHCE-style explicit module namespace |
-| ✅ | Check mode first | validates intent before mutation |
-| ✅ | Idempotence rerun | proves no repeated drift |
-| ✅ | `nmcli con up` after config | applies profile now |
-| 🪤 Trap Risk | `T31-A`: runtime-only `ip addr add` mistaken for persistence | use NM profile as source of truth, not transient `ip addr add` |
-
-### PERSISTENCE CHECK
-
-| What was configured | Verification command | Why it matters |
-|---|---|---|
-| Profile in NM DB | `nmcli con show lab31test` | confirms saved profile |
-| Runtime activation | `nmcli con up lab31test && ip addr show lo` | confirms active state |
-| Idempotence | second `ansible-playbook` output | validates repeat-safe automation |
-
-### Journal Write
-
-```bash
-LAB=lab-31b
-TASK=task1
-JDIR="/root/rhcsa_journal/${LAB}/${TASK}"
-mkdir -p "${JDIR}"
-cp /tmp/lab31b/task1-check.txt  "${JDIR}/check.txt"
-cp /tmp/lab31b/task1-apply1.txt "${JDIR}/apply1.txt"
-cp /tmp/lab31b/task1-apply2.txt "${JDIR}/apply2.txt"
-cp /tmp/lab31b/task1-verify.txt "${JDIR}/verify.txt"
-cat > "${JDIR}/done.txt" <<EOF
-LAB: ${LAB}
-TASK: ${TASK}
-DATE: $(date -Is)
-USER: $(whoami)@$(hostname)
-STATUS: COMPLETE
-EOF
-cat > "${JDIR}/notes.txt" <<EOF
-TOPIC: community.general.nmcli static profile with check/diff and idempotence
-COMMANDS: ansible-playbook --check --diff, ansible-playbook, nmcli con show
-TRAPS: T31-A rehearsed
-NEXT: task2 failed_when assertion for ipv4.addresses
-EOF
-ls -la "${JDIR}"
-echo "exit was: $?"
+```
+(this is the saved playbook file — no output until you run it in Step 2)
 ```
 
-### Cleanup
+**Line-by-line breakdown:**
 
-```bash
-rm -f /tmp/lab31b/task1-reviewed-by-user.txt
-echo "exit was: $?"
-```
+- `community.general.nmcli: conn_name/type: dummy` → Declare a safe dummy profile.
+- `method4: manual`, `ip4/gw4/dns4` → The full static IPv4 configuration.
+- `state: present` → Ensure it exists and matches; idempotent.
 
-### Troubleshoot
+**New words in this step:**
 
-| Symptom | Fix |
-|---|---|
-| module not found | install `community.general` collection |
-| second run still changed | inspect mutable fields and remove non-idempotent command behavior |
-| connection not active | ensure `nmcli con up lab31test` task runs successfully |
-
-### STOP
-
-Stop and paste Task 1 output before moving on.
+- **`community.general.nmcli`** — declarative NetworkManager profile management.
 
 ---
 
-## Task 2 - Add `failed_when` guard for `ipv4.addresses`
+### Step 2 of 2 — Run it twice and watch `changed=0`
 
-Practice directory this task: `/run`
-
-### Warm-Up
+**In plain English:** We run the play twice; the profile is created once and then already matches.
 
 ```bash
-nmcli -f NAME,IP4.ADDRESS,IPV4.METHOD con show lab31test
-grep -n "state: present" /root/rhcsa_journal/lab-31b/playbooks/task1.yml
-ls -ld /run /tmp/lab31b
-echo "Warm-up done by $(whoami) at $(date -Is)"
+ansible-playbook /root/rhcsa_journal/lab-31b/playbooks/task1.yml
+ansible-playbook /root/rhcsa_journal/lab-31b/playbooks/task1.yml
+nmcli -g ipv4.addresses con show lab-static
 echo "exit was: $?"
 ```
 
-### WEAVE TRACE
+**Expected output:**
 
-- `nmcli ... con show` -> data source for assertion check.
-- `grep -n` -> confirms module file context before extension.
-- `ls -ld` -> evidence context in practice directory.
+```
+PLAY RECAP (run 1) : ok=2  changed=1  ...
+PLAY RECAP (run 2) : ok=2  changed=0  ...
+10.99.99.2/24
+exit was: 0
+```
 
-### Purpose
+**Line-by-line breakdown:**
 
-Implement a robust assertion task that fails if the connection output does not contain an IPv4 address, catching misconfiguration quickly.
+- two runs → `changed=1` then `changed=0`: the module converges to the declared profile.
+- `nmcli -g ipv4.addresses con show lab-static` → Confirms the static address is set.
 
-### Main Block
+**New words in this step:**
 
-```bash
-export SANDBOX=/tmp/lab31b
-export PLAY=/root/rhcsa_journal/lab-31b/playbooks/task2.yml
+- **declarative networking** — describing the desired profile rather than running `con add/mod`.
 
-cat > "${PLAY}" <<'EOF'
 ---
-- name: Lab31b task2 validation with failed_when
+
+### Concept card (Task 1)
+
+| Concept | What it does | Exam trap |
+|---|---|---|
+| `nmcli` module | manage profile | wraps `nmcli` |
+| `method4: manual` | static | `auto` = DHCP |
+| idempotent | re-run `changed=0` | matches existing |
+
+---
+
+### Troubleshoot (Task 1)
+
+| Symptom | Likely cause | Fix |
+|---|---|---|
+| Module not found | Collection missing | Install `community.general` |
+| Always `changed` | dns4 type mismatch | Use a list for `dns4` |
+
+---
+
+## TASK 2 of 2 — Update and remove
+
+**In plain English:** We change a setting, then remove the profile with `state: absent`.
+
+---
+
+### Step 1 of 2 — Write the update/remove playbook
+
+**In plain English:** We create `task2.yml`, which first updates DNS, then (commented step) shows the removal with `state: absent`.
+
+```yaml
+---
+- name: "Lab 31b Task 2 — update then remove the profile"
   hosts: localhost
   connection: local
   gather_facts: false
+  become: true
   tasks:
-    - name: Read connection details
-      ansible.builtin.command: nmcli -f NAME,IP4.ADDRESS,IPV4.METHOD con show lab31test
-      register: con_show
-      changed_when: false
+    - name: "Update the DNS server on lab-static"
+      community.general.nmcli:
+        conn_name: lab-static
+        type: dummy
+        method4: manual
+        ip4: 10.99.99.2/24
+        dns4:
+          - 10.99.99.54
+        state: present
+      register: upd
 
-    - name: Fail when ipv4.addresses missing
-      ansible.builtin.fail:
-        msg: "lab31test missing ipv4.addresses in nmcli output"
-      when: con_show.stdout is not regex('IP4.ADDRESS')
-
-    - name: Debug connection output
+    - name: "Show the change status"
       ansible.builtin.debug:
-        var: con_show.stdout_lines
-EOF
+        msg: "changed: {{ upd.changed }}"
 
-ansible-playbook --check --diff "${PLAY}" 2>&1 | tee "${SANDBOX}/task2-check.txt"
-ansible-playbook "${PLAY}"                 2>&1 | tee "${SANDBOX}/task2-apply.txt"
-nmcli -f NAME,IP4.ADDRESS,IPV4.METHOD con show lab31test 2>&1 | tee "${SANDBOX}/task2-verify.txt"
-
-sudo -u "${USER}" bash -c 'echo "Task2 validation reviewed at $(date -Is)" >> /tmp/lab31b/task2-reviewed-by-user.txt'
-stat -c '%U:%G %a %n' /tmp/lab31b/task2-reviewed-by-user.txt | tee -a "${SANDBOX}/task2-verify.txt"
-echo "exit was: $?"
+    - name: "Remove the profile (cleanup demo)"
+      community.general.nmcli:
+        conn_name: lab-static
+        type: dummy
+        state: absent
+      register: rm
+      # Comment this task out if you want to keep the profile for Lab 31c.
 ```
 
-### Breakdown
+**Expected output:**
 
-- reads profile output with `nmcli`.
-- fails fast if address field is absent.
-- keeps task read-only with `changed_when: false`.
-
-### L->R
-
-`when: con_show.stdout is not regex('IP4.ADDRESS')`
-
-- `when` conditional gate
-- `con_show.stdout` prior command output
-- `regex(...)` required marker test
-- `is not` invert match to trigger fail path
-
-### Story
-
-Automation without assertions hides silent failure. `failed_when`-style logic converts hidden drift into immediate, actionable failures.
-
-### Expected Output
-
-- successful play when address field exists.
-- explicit fail message if field missing.
-
-### Switches
-
-| Token | Meaning |
-|---|---|
-| `changed_when: false` | keep read-only command from counting as change |
-| `when:` | conditional task execution |
-| `ansible.builtin.fail` | explicit failure with custom message |
-| `regex()` | pattern match in Ansible expression |
-
-### Concept Card
-
-| ✅ | Concept | What it does |
-|---|---|---|
-| ✅ | validation gate | blocks progression on missing static field |
-| ✅ | read-only probe task | avoids false drift in output |
-| ✅ | debug output lines | provides operator-facing evidence |
-| 🪤 Trap Risk | `T31-B`: profile modified but not activated | enforce `con up` in setup path and verify runtime each run |
-
-### PERSISTENCE CHECK
-
-| What was configured | Verification command | Why it matters |
-|---|---|---|
-| validation playbook saved | `ls /root/rhcsa_journal/lab-31b/playbooks/task2.yml` | keeps reproducible control artifact |
-| static field present | `nmcli -f IP4.ADDRESS con show lab31test` | confirms persisted address metadata |
-
-### Journal Write
-
-```bash
-LAB=lab-31b
-TASK=task2
-JDIR="/root/rhcsa_journal/${LAB}/${TASK}"
-mkdir -p "${JDIR}"
-cp /tmp/lab31b/task2-check.txt  "${JDIR}/check.txt"
-cp /tmp/lab31b/task2-apply.txt  "${JDIR}/apply.txt"
-cp /tmp/lab31b/task2-verify.txt "${JDIR}/verify.txt"
-cat > "${JDIR}/done.txt" <<EOF
-LAB: ${LAB}
-TASK: ${TASK}
-DATE: $(date -Is)
-USER: $(whoami)@$(hostname)
-STATUS: COMPLETE
-EOF
-cat > "${JDIR}/notes.txt" <<EOF
-TOPIC: failed_when-style assertion for IPv4 field presence
-COMMANDS: ansible.builtin.command, fail, debug, nmcli con show
-TRAPS: T31-B reinforced
-NEXT: lab-31c audit and destroy-restore
-EOF
-ls -la "${JDIR}"
-echo "exit was: $?"
+```
+(this is the saved playbook file — no output until you run it in Step 2)
 ```
 
-### Cleanup
+**Line-by-line breakdown:**
 
-```bash
-rm -f /tmp/lab31b/task2-reviewed-by-user.txt
-echo "exit was: $?"
-```
+- update task → Re-declares the profile with a new `dns4`; only the DNS change is `changed`.
+- `state: absent` → Deletes the profile — the declarative `nmcli con delete`.
 
-### Troubleshoot
+**New words in this step:**
 
-| Symptom | Fix |
-|---|---|
-| false failure on regex check | inspect exact `nmcli` output columns and adjust pattern |
-| command task shows changed | keep `changed_when: false` for read operations |
-| missing playbook files | re-create under `/root/rhcsa_journal/lab-31b/playbooks` |
-
-### STOP
-
-Stop and paste Task 2 output before final closeout.
+- **`state: absent`** — declaratively remove a connection profile.
 
 ---
 
-## Section 6 Closeout (after Task 2)
+### Step 2 of 2 — Run it and confirm removal
+
+**In plain English:** We run the play and confirm the profile was updated then removed.
 
 ```bash
-set +e
-export SANDBOX=/tmp/lab31b
-export GROUP=labgrp_31_staticip
-export USER=labuser_31_staticip
-export CON_NAME=lab31test
-
-nmcli con delete "${CON_NAME}" 2>/dev/null || true
-if getent passwd "${USER}" >/dev/null 2>&1; then userdel -r "${USER}" 2>/dev/null; fi
-if getent group "${GROUP}" >/dev/null 2>&1; then groupdel "${GROUP}" 2>/dev/null; fi
-rm -rf "${SANDBOX}"
-
-echo "── cleanup audit ──"
-getent passwd "${USER}" >/dev/null && echo "❌ user remains" || echo "✅ user gone"
-getent group "${GROUP}" >/dev/null && echo "❌ group remains" || echo "✅ group gone"
-nmcli con show | grep -w "${CON_NAME}" >/dev/null && echo "❌ connection remains" || echo "✅ connection gone"
-test -d "${SANDBOX}" && echo "❌ sandbox remains" || echo "✅ sandbox gone"
-
-set -e
-echo "Cleanup complete by $(whoami) at $(date -Is)"
+ansible-playbook /root/rhcsa_journal/lab-31b/playbooks/task2.yml
+nmcli con show | grep -q lab-static && echo "still present" || echo "REMOVED (OK)"
 echo "exit was: $?"
+```
+
+**Expected output:**
+
+```
+PLAY RECAP : ok=3  changed=2  ...
+REMOVED (OK)
+exit was: 0
+```
+
+**Line-by-line breakdown:**
+
+- `ansible-playbook ...` → Update DNS (changed) then delete the profile (changed).
+- `nmcli con show | grep -q lab-static` → No match confirms removal.
+
+**New words in this step:**
+
+- **declarative removal** — deleting infrastructure by declaring it absent.
+
+---
+
+### Concept card (Task 2)
+
+| Concept | What it does | Exam trap |
+|---|---|---|
+| update via present | reconcile change | only diff is changed |
+| `state: absent` | delete profile | idempotent removal |
+| cleanup | leaves no trace | safe re-runs |
+
+---
+
+### Troubleshoot (Task 2)
+
+| Symptom | Likely cause | Fix |
+|---|---|---|
+| Profile lingers | `absent` task skipped | Run/uncomment it |
+| Update no-op | Same value | Change the value to see `changed` |
+
+---
+
+## ✅ Lab Checklist
+
+- [ ] Task 1 · Step 1 — Write the nmcli playbook
+- [ ] Task 1 · Step 2 — Run it twice and watch `changed=0`
+- [ ] Task 2 · Step 1 — Write the update/remove playbook
+- [ ] Task 2 · Step 2 — Run it and confirm removal
+- [ ] Every 🎯 Focus Coverage row (Anchor + NEW) mapped to a step
+- [ ] 🧹 Teardown run — sandbox + **profile and dummy interface removed**
+
+---
+
+## 🧹 Teardown
+
+**In plain English:** Ensure the test profile and dummy interface are gone, then delete the sandbox.
+
+> This lab changed system state. These commands **reverse** it (idempotent even if Task 2 already removed the profile).
+
+```bash
+sudo nmcli con delete lab-static 2>/dev/null || true
+sudo ip link delete dummy0 2>/dev/null || true
+nmcli con show | grep -q lab-static && echo "still present (FAIL)" || echo "lab-static removed"
+bash lab_teardown.sh "$LAB_ROOT"     # = /tmp/lab-31
+rm -rf /root/rhcsa_journal/lab-31b
+```
+
+**Expected output:**
+
+```
+lab-static removed
+✅ Removed /tmp/lab-31 — lab workspace is clean.
 ```
 
 ---
 
-## Author
+## ⚠️ Common Pitfalls
 
-Kelvin R. Tobias
+| Mistake | Symptom | Fix |
+|---|---|---|
+| `dns4` as string | Always `changed` | Use a YAML list |
+| Missing collection | Module not found | Install `community.general` |
+| Real NIC in `ifname` | Lose connectivity | Keep `type: dummy`/`dummy0` |
+
+---
+
+## 📌 Exam Strategy
+
+Use `community.general.nmcli` for idempotent static-IP config: declare `method4: manual` with `ip4`/`gw4`/`dns4`, use `state: present`/`absent`, and re-run to confirm `changed=0`. It's the automation of the whole Lab 31a workflow.
+
+- `dns4` is a list, not a string.
+- `state: absent` for clean, idempotent removal.
+- Re-run to prove convergence.
+
+---
+
+## 🔗 Related Labs
+
+- [Lab 31a — Configure a Static IP (RHCSA)](../lab-31a-static-ip-nmcli-rhcsa/) — the `nmcli` this automates
+- [Lab 31c — Configure a Static IP (Verify)](../lab-31c-static-ip-nmcli-verify/) — prove the address and persistence
+- [Lab 33b — Display IP and Routing Info (Ansible)](../lab-33b-ip-addr-route-show-ansible/) — reading network facts
+
+---
+
+## 👤 Author
+
+**Kelvin R. Tobias**  
+[kelvinintech.com](https://kelvinintech.com) · [GitHub](https://github.com/kelvintechnical) · [LinkedIn](https://www.linkedin.com/in/kelvin-r-tobias-211949219)

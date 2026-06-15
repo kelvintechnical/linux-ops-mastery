@@ -1,0 +1,26 @@
+---
+# Lab 20b Task 1 — extract a page range
+#
+# Run:
+#   ansible-playbook /root/rhcsa_journal/lab-20b/playbooks/task1.yml
+#
+# Automation cannot "scroll" a pager; instead it extracts an exact range.
+# sed -n 'A,Bp' prints only the requested lines, and changed_when:false marks
+# the read as a no-op so the play stays idempotent.
+
+- name: "Lab 20b Task 1 — extract a page range"
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars:
+    log: /tmp/lab-20/big.log
+
+  tasks:
+    - name: "Read lines 748-752 (a 'page')"
+      ansible.builtin.command: "sed -n '748,752p' {{ log }}"
+      register: page
+      changed_when: false
+
+    - name: "Show the extracted page"
+      ansible.builtin.debug:
+        var: page.stdout_lines

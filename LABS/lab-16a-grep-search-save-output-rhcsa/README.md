@@ -1,444 +1,343 @@
-# Lab 16a: Search for a String and Save Output (RHCSA) — `grep`, `tee`, `>`, `>>`
+# Lab 16a: Search for a String and Save Output (RHCSA) — `grep`, `tee`
 
-- **Series:** linux-ops-mastery — Shell Search and Output Capture
-- **Trilogy:** `16a` (RHCSA hand-typed) → [`16b`](../lab-16b-grep-search-save-output-ansible/) (Ansible) → [`16c`](../lab-16c-grep-search-save-output-verify/) (Verify)
-- **Tasks:** 2 (Task 1 = `grep ... | tee` basic save with Tier B `sudo -u` weave; Task 2 = regex + root-owned target with `sudo tee` and broken contrast)
-- **Practice Directory (rotation slot):** `/sbin`
-- **Sandbox (Tier B):** `/tmp/lab16a`, `USER=labuser_16_grepsave`, `GROUP=labgrp_16_grepsave`
-- **Traps rehearsed this lab:** `T16-A` (greedy regex matches more than expected) · `T16-B` (`sudo cmd > file` fails for root file writes) · `T41` · `T44`
-
-> **This lab's practice directory is: `/sbin`** — admin command namespace (usually symlinked to `/usr/sbin` on modern RHEL-family systems). We reference it directly in each task while writing artifacts only under `/tmp/lab16a`.
+**Series:** linux-ops-mastery — Text Processing & Filters · **Lab 16a of the Novice → RHCA path**  
+**Certifications covered:** RHCSA EX200 (searching files and saving results), RHCE EX294 (the search-and-capture behind reporting tasks), SRE/DevOps (log triage, evidence capture)  
+**Prerequisite:** [Lab 15c](../lab-15c-searching-with-locate-verify/) completed  
+**Time Estimate:** 20–30 minutes  
+**Difficulty:** Beginner
 
 ---
 
-## LAB HEADER BLOCK
+## 🎯 Today's Focus Coverage
 
-```bash
-echo "🖥️  ENV:   ${ENV:-DECLARE_ME}"
-echo "💿  DISK:  $(lsblk 2>/dev/null | awk '$NF=="disk"{print "/dev/"$1}' | paste -sd, -)"
-echo "🌐  NIC:   $(ip -o addr show 2>/dev/null | awk '$2!="lo"{print $2}' | sort -u | paste -sd, -)"
-echo "🔐  SE:    $(getenforce 2>/dev/null || echo n/a)"
-echo "📦  OS:    $(cat /etc/redhat-release 2>/dev/null || grep PRETTY_NAME /etc/os-release)"
-echo "🕒  TIME:  $(date -Is)"
-echo "👤  USER:  $(whoami)@$(hostname)"
-echo "⚠️  TRAP REMINDERS THIS LAB: T16-A T16-B T41 T44"
-echo "📁  PRACTICE DIR: /sbin"
-```
+> Stay on-subject via the ANCHOR rows; expand vocabulary via the NEW rows. Every row is exercised by a STEP below.
 
-> **STOP — paste header output before setup.**
+**⚓ Anchor — already learned (on-topic reuse)**
 
----
-
-## Lab-Wide Setup — Tier B Sandbox Stack
-
-```bash
-sudo -i
-
-export LAB_NUM=16
-export LAB_SLUG=grepsave
-export SANDBOX=/tmp/lab16a
-export GROUP=labgrp_16_grepsave
-export USER=labuser_16_grepsave
-export USER_HOME=${SANDBOX}/home_${USER}
-
-mkdir -p "${SANDBOX}" "${USER_HOME}"
-mkdir -p /root/rhcsa_journal/lab-16a/task1
-mkdir -p /root/rhcsa_journal/lab-16a/task2
-
-getent group  "${GROUP}" >/dev/null || groupadd "${GROUP}"
-getent passwd "${USER}"  >/dev/null || useradd -d "${USER_HOME}" -M -s /bin/bash -g "${GROUP}" "${USER}"
-chown -R "${USER}:${GROUP}" "${SANDBOX}"
-
-cat > "${SANDBOX}/THIS_DIRECTORY.txt" <<'EOF'
-/sbin contains administration-focused binaries (service control, system tools, low-level maintenance).
-On modern systems, /sbin is commonly a symlink to /usr/sbin, but exam tasks still reference /sbin paths.
-Using /sbin here builds muscle memory for admin-command search scopes while keeping writes in /tmp sandbox.
-EOF
-
-id "${USER}"
-ls -ld /sbin "${SANDBOX}" "${USER_HOME}"
-echo "Sandbox built by $(whoami) at $(date -Is)"
-echo "exit was: $?"
-```
-
-> **STOP — paste `id`, `ls -ld`, and final exit line before Task 1.**
-
----
-
-## Task 1 — Basic save: `grep PATTERN FILE | tee output.txt`
-
-**Practice directory this task:** `/sbin` — we search command names from `/sbin` and save matches into sandbox artifacts.
-
-### Warm-Up
-
-```bash
-ls -ld /sbin
-find /sbin -maxdepth 1 -type l -o -type f 2>/dev/null | head -5
-echo "networking dns service restart" > /tmp/lab16a/source1.txt
-grep -n "service" /tmp/lab16a/source1.txt
-echo "Warm-up done by $(whoami) at $(date -Is)"
-echo "exit was: $?"
-```
-
-### Purpose
-
-Capture grep matches to screen and file simultaneously using `tee`, then append an audit line with `tee -a`. Include Tier B weave by writing one search line as `${USER}` and proving ownership.
-
-### WEAVE TRACE
-
-| Warm-up / setup command | Role inside Task 1 |
-|---|---|
-| `ls -ld /sbin` | Confirms practice directory before search commands |
-| `find /sbin ...` | Supplies command names to grep pipeline |
-| `grep -n` | Same flag appears in main block evidence grep |
-| `echo ... > file` | Seeds searchable content before tee capture |
-| `id "${USER}"` (setup) | Verifies Tier B actor used in `sudo -u` write |
-
-### Main Command Block
-
-```bash
-TASKLOG=/tmp/lab16a/task1.txt
-
-# Build a searchable list from /sbin and local sample
-ls -1 /sbin 2>/dev/null | tee /tmp/lab16a/sbin-list.txt
-printf "service\nsocket\ntimer\nservice-account\n" > /tmp/lab16a/source1.txt
-
-# Canonical pattern: grep -> tee
-grep -n "service" /tmp/lab16a/source1.txt | tee /tmp/lab16a/output.txt
-grep -n "sh" /tmp/lab16a/sbin-list.txt 2>/dev/null | tee -a /tmp/lab16a/output.txt
-
-# Tier B weave: user writes one line; root verifies ownership/content
-sudo -u "${USER}" bash -c 'echo "service-user-line" > '"${USER_HOME}"'/task1-user.txt'
-grep -n "service" "${USER_HOME}/task1-user.txt" | tee -a /tmp/lab16a/output.txt
-stat -c '%U:%G %a %n' "${USER_HOME}/task1-user.txt" | tee -a /tmp/lab16a/output.txt
-
-# Add timestamped audit line with append-mode tee
-echo "audit $(date -Is) by $(whoami)" | tee -a /tmp/lab16a/output.txt >/dev/null
-
-wc -l /tmp/lab16a/output.txt | tee "$TASKLOG"
-echo "exit was: $?"
-```
-
-### Human-Readable Breakdown
-
-- `grep -n ... | tee output.txt` prints matches and saves the same lines.
-- `tee -a` appends without truncating prior evidence.
-- `/sbin` listing gives real admin-command search input.
-- `sudo -u "${USER}" ...` creates a user-owned artifact for Tier B repetition.
-- `stat -c '%U:%G'` proves user/group ownership actually changed.
-
-### Reading It Left to Right
-
-```text
-grep -n "service" /tmp/lab16a/source1.txt | tee /tmp/lab16a/output.txt
-│    │              │                       │
-│    │              │                       └─ writes same stream to file + terminal
-│    │              └─ source file
-│    └─ show line numbers with each match
-└─ search for matching lines
-```
-
-### The Story
-
-RHCSA tasks often say "save the output" and learners default to only `>` redirection. `tee` is better when you must both see and preserve output for evidence. This task builds that reflex while rehearsing user/group ownership checks.
-
-### Expected Output
-
-```text
-1:service
-4:service-account
-<zero or more /sbin 'sh' matches>
-1:service-user-line
-labuser_16_grepsave:labgrp_16_grepsave 644 /tmp/lab16a/home_labuser_16_grepsave/task1-user.txt
-```
-
-### Switches
-
-| Token | Meaning |
-|---|---|
-| `grep -n` | Show matching line numbers |
-| `tee` | Copy stdin to stdout and file |
-| `tee -a` | Append instead of overwrite |
-| `sudo -u USER` | Run command as specific user |
-| `stat -c` | Custom ownership/permission output |
-
-### Concept Card
-
-| ✅ | Concept | What it does |
+| # | Command / switch | Covered by |
 |---|---|---|
-| ✅ | `grep pattern file` | Filters lines containing pattern |
-| ✅ | `| tee file` | Saves and displays same stream |
-| ✅ | `tee -a file` | Preserves earlier lines and appends |
-| ✅ | Tier B `sudo -u` write | Forces user/group/file ownership practice |
-| 🪤 Trap Risk | What goes wrong | How to avoid |
-| ⚠️ `T16-A` | Loose pattern (like `serv.*`) can match too broadly | Start with exact text, then widen intentionally |
+| A1 | `>` (redirect) | _Task 1 · Step 1_ |
+| A2 | `tee` | _Task 2 · Step 1_ |
 
-### 🔁 PERSISTENCE CHECK
+**🆕 NEW this lab — introduced for the first time** (minimum 3)
 
-| What was configured | Verification command | Why it matters |
-|---|---|---|
-| Match file saved | `test -s /tmp/lab16a/output.txt && wc -l /tmp/lab16a/output.txt` | Proves capture landed on disk |
-| Tier B ownership | `stat -c '%U:%G' "${USER_HOME}/task1-user.txt"` | Confirms user/group weave |
-| Practice dir inspected | `ls -ld /sbin` | Confirms target scope used |
-
-### Journal Write
-
-```bash
-LAB=lab-16a
-TASK=task1
-JDIR="/root/rhcsa_journal/${LAB}/${TASK}"
-mkdir -p "$JDIR"
-
-cp /tmp/lab16a/output.txt "$JDIR/output.txt"
-cp /tmp/lab16a/task1.txt  "$JDIR/evidence.txt"
-
-cat > "$JDIR/done.txt" <<EOF
-LAB:    ${LAB}
-TASK:   ${TASK}
-DATE:   $(date -Is)
-USER:   $(whoami)@$(hostname)
-STATUS: COMPLETE
-EOF
-
-cat > "$JDIR/notes.txt" <<EOF
-TOPIC:    grep + tee capture to file while displaying output
-COMMANDS: grep -n, tee, tee -a, sudo -u ${USER}, stat -c
-TRAPS:    T16-A rehearsed (pattern breadth awareness)
-NEXT:     task2 regex + root-owned write with sudo tee
-EOF
-
-echo "Journal written: $(ls -la "$JDIR")"
-echo "exit was: $?"
-```
-
-### Cleanup
-
-```bash
-rm -f /tmp/lab16a/source1.txt /tmp/lab16a/sbin-list.txt /tmp/lab16a/output.txt /tmp/lab16a/task1.txt
-rm -f "${USER_HOME}/task1-user.txt"
-echo "exit was: $?"
-```
-
-### Troubleshoot
-
-| Symptom | Fix |
-|---|---|
-| Output file is empty | Confirm source file has matching lines and rerun grep |
-| No `/sbin` list produced | Use `ls -1 /sbin 2>/dev/null` and verify permissions |
-| Tier B file is root-owned | Re-run write via `sudo -u "${USER}" ...` |
-
-> **STOP — paste grep + stat evidence before Task 2.**
+| # | Command / switch | First taught in | Covered by |
+|---|---|---|---|
+| N1 | `grep -n` / `-i` | Task 1 · Step 1 | _Task 1 · Step 1_ |
+| N2 | `grep -r` / `-l` | Task 1 · Step 2 | _Task 1 · Step 2_ |
+| N3 | `grep -c` / `-o` | Task 2 · Step 2 | _Task 2 · Step 2_ |
+| N4 | `tee -a` for append-capture | Task 2 · Step 1 | _Task 2 · Step 1_ |
 
 ---
 
-## Task 2 — Regex into root-owned file: broken `sudo grep >` vs fixed `| sudo tee`
+## 🎯 Objective
 
-**Practice directory this task:** `/sbin` — regex search includes `/sbin` command list to reinforce admin path targeting.
-
-### Warm-Up
-
-```bash
-ls -ld /sbin
-ls -1 /sbin 2>/dev/null | head -10 > /tmp/lab16a/sbin-mini.txt
-grep -E 'sh$|ctl$' /tmp/lab16a/sbin-mini.txt
-echo "Warm-up done by $(whoami) at $(date -Is)"
-echo "exit was: $?"
-```
-
-### Purpose
-
-Use `grep -E` to capture regex matches into a root-owned file correctly with `sudo tee`, and contrast with the broken `sudo grep ... > /root/file` pattern to rehearse `T16-B`.
-
-### WEAVE TRACE
-
-| Warm-up / setup command | Role inside Task 2 |
-|---|---|
-| `ls -ld /sbin` | Verifies practice dir before search |
-| `ls -1 /sbin ... > file` | Builds regex source data |
-| `grep -E ...` | Same regex operator used in final capture |
-| `getent passwd "${USER}"` (setup) | Confirms Tier B identity exists for contrast checks |
-
-### Main Command Block
-
-```bash
-TASKLOG=/tmp/lab16a/task2.txt
-ROOT_OUT=/root/lab16a-regex.txt
-
-ls -1 /sbin 2>/dev/null > /tmp/lab16a/sbin-task2.txt
-
-# T16-A rehearsal: greedy pattern catches more than intended
-grep -E 's.*h' /tmp/lab16a/sbin-task2.txt | head -5 | tee /tmp/lab16a/greedy-preview.txt
-grep -E 'sh$'  /tmp/lab16a/sbin-task2.txt | head -5 | tee /tmp/lab16a/precise-preview.txt
-
-# Broken pattern (demonstration): redirect is done by current shell, not sudo process
-sudo -u "${USER}" grep -E 'sh$' /tmp/lab16a/sbin-task2.txt > "${ROOT_OUT}" 2>/tmp/lab16a/broken.err || true
-
-# Correct pattern: escalate writer via sudo tee
-grep -E 'sh$|ctl$' /tmp/lab16a/sbin-task2.txt | sudo tee "${ROOT_OUT}" >/dev/null
-echo "captured by $(whoami) at $(date -Is)" | sudo tee -a "${ROOT_OUT}" >/dev/null
-
-sudo ls -l "${ROOT_OUT}" | tee "$TASKLOG"
-sudo grep -cE 'sh$|ctl$' "${ROOT_OUT}" | tee -a "$TASKLOG"
-sudo tail -n 1 "${ROOT_OUT}" | tee -a "$TASKLOG"
-echo "exit was: $?"
-```
-
-### Human-Readable Breakdown
-
-- `grep -E` enables extended regex alternation (`|`) and anchors (`$`).
-- Broken form: `sudo grep ... > /root/file` fails because `>` happens in the non-root shell.
-- Fixed form: pipe to `sudo tee /root/file`, so privileged process performs write.
-- `tee -a` appends footer evidence without truncating root output.
-
-### Reading It Left to Right
-
-```text
-grep -E 'sh$|ctl$' /tmp/lab16a/sbin-task2.txt | sudo tee /root/lab16a-regex.txt
-│      │               │                        │
-│      │               │                        └─ privileged writer to root-owned target
-│      │               └─ input list
-│      └─ extended regex: ends with sh OR ctl
-└─ matcher produces selected lines
-```
-
-### The Story
-
-Many admins memorize "add sudo in front" and still fail root-file captures because redirection belongs to the current shell, not the command. `tee` solves this by moving write responsibility into the elevated process. This is a common exam and production pitfall.
-
-### Expected Output
-
-```text
--rw-r--r--. 1 root root <size> <date> /root/lab16a-regex.txt
-<count>
-captured by root at <timestamp>
-```
-
-### Switches
-
-| Token | Meaning |
-|---|---|
-| `grep -E` | Enable extended regex |
-| `$` | Anchor to end of line |
-| `|` (regex) | Alternation (OR) |
-| `sudo tee FILE` | Write file as elevated user |
-| `tee -a` | Append to existing file |
-
-### Concept Card
-
-| ✅ | Concept | What it does |
-|---|---|---|
-| ✅ | `grep -E` | Uses ERE syntax for richer matching |
-| ✅ | Anchored match `sh$` | Reduces accidental overmatch |
-| ✅ | `sudo tee` for root writes | Fixes shell-redirection privilege trap |
-| ✅ | `tee -a` | Adds evidence line safely |
-| 🪤 Trap Risk | What goes wrong | How to avoid |
-| ⚠️ `T16-B` | `sudo cmd > /root/file` still fails write permissions | Pipe output into `sudo tee /root/file` |
-
-### 🔁 PERSISTENCE CHECK
-
-| What was configured | Verification command | Why it matters |
-|---|---|---|
-| Root output created | `sudo test -s /root/lab16a-regex.txt && sudo wc -l /root/lab16a-regex.txt` | Proves elevated write succeeded |
-| Regex scope correct | `sudo grep -cE 'sh$|ctl$' /root/lab16a-regex.txt` | Confirms intended pattern matched |
-| Trap evidence captured | `test -s /tmp/lab16a/broken.err || true` | Shows broken redirect attempt was rehearsed |
-
-### Journal Write
-
-```bash
-LAB=lab-16a
-TASK=task2
-JDIR="/root/rhcsa_journal/${LAB}/${TASK}"
-mkdir -p "$JDIR"
-
-sudo cp /root/lab16a-regex.txt "$JDIR/lab16a-regex.txt"
-cp /tmp/lab16a/task2.txt "$JDIR/evidence.txt"
-
-cat > "$JDIR/done.txt" <<EOF
-LAB:    ${LAB}
-TASK:   ${TASK}
-DATE:   $(date -Is)
-USER:   $(whoami)@$(hostname)
-STATUS: COMPLETE
-EOF
-
-cat > "$JDIR/notes.txt" <<EOF
-TOPIC:    grep -E save to root-owned file using sudo tee
-COMMANDS: grep -E, grep -cE, sudo tee, tee -a
-TRAPS:    T16-B rehearsed (broken redirect vs sudo tee), T16-A previewed
-NEXT:     lab-16b ansible shell + register + failed_when stdout length checks
-EOF
-
-echo "Journal written: $(ls -la "$JDIR")"
-echo "exit was: $?"
-```
-
-### Cleanup
-
-```bash
-rm -f /tmp/lab16a/sbin-mini.txt /tmp/lab16a/sbin-task2.txt /tmp/lab16a/greedy-preview.txt
-rm -f /tmp/lab16a/precise-preview.txt /tmp/lab16a/broken.err /tmp/lab16a/task2.txt
-echo "exit was: $?"
-```
-
-### Troubleshoot
-
-| Symptom | Fix |
-|---|---|
-| `Permission denied` on `/root/lab16a-regex.txt` | Replace redirect with `... | sudo tee /root/lab16a-regex.txt` |
-| Regex count too high | Tighten pattern with anchors (`$`) and explicit alternation |
-| No matches | Inspect source file with `head` and adjust pattern |
-
-> **STOP — paste root-file verification before Lab Closeout.**
+Find a string and keep the result. You will search files with `grep` (case-insensitive, line-numbered, recursive), save the hits to a file with `>`, then use `tee`/`tee -a` to capture results *and* watch them at once. You will also count matches with `grep -c` and extract just the matched text with `grep -o` — the everyday "search, save, summarize" loop.
 
 ---
 
-## Lab Closeout — Section 6 Bulletproof Teardown
+## 🧠 Concept
 
-```bash
-set +e
+`grep PATTERN FILE` prints lines that match. Flags shape the search: `-i` ignores case, `-n` prefixes line numbers, `-r` recurses a directory, `-l` lists only filenames with matches, `-c` counts matches, `-o` prints only the matched substring. To keep results, redirect with `>` (or capture-and-display with `tee`). The pattern is a **basic regular expression** by default; `-E` switches to extended regex.
 
-# 1) Container layer (no-op for this lab)
-podman ps -aq --filter "name=^${CTR}$" 2>/dev/null | xargs -r podman rm -f >/dev/null 2>&1
-
-# 2) Mount layer
-awk -v s="${SANDBOX}" '$2 ~ s {print $2}' /proc/mounts | tac | xargs -r -n1 umount -l 2>/dev/null
-
-# 3) LVM layer (no-op for this lab)
-if vgs "${VG}" >/dev/null 2>&1; then
-    lvremove -fy "${VG}" 2>/dev/null
-    vgremove -fy "${VG}" 2>/dev/null
-    pvremove -ffy /dev/loop* 2>/dev/null
-fi
-
-# 4) Loopback layer (no-op for this lab)
-losetup -j "${SANDBOX}/disk.img" 2>/dev/null | cut -d: -f1 | xargs -r losetup -d 2>/dev/null
-
-# 5) User/group
-if getent passwd "${USER}" >/dev/null 2>&1; then userdel -r "${USER}" 2>/dev/null; fi
-if getent group "${GROUP}" >/dev/null 2>&1; then groupdel "${GROUP}" 2>/dev/null; fi
-
-# 6) Sandbox dir
-rm -rf "${SANDBOX}"
-
-# 7) Audit
-echo "── cleanup audit ──"
-getent passwd "${USER}" && echo "❌ user remains" || echo "✅ user gone"
-getent group "${GROUP}" && echo "❌ group remains" || echo "✅ group gone"
-vgs "${VG}" 2>/dev/null && echo "❌ VG remains" || echo "✅ vg gone"
-losetup -l | grep -q "${SANDBOX}" && echo "❌ loop remains" || echo "✅ loop gone"
-podman ps -a --filter "name=^${CTR}$" --format '{{.Names}}' | grep -q . && echo "❌ ctr remains" || echo "✅ ctr gone"
-test -d "${SANDBOX}" && echo "❌ sandbox remains" || echo "✅ sandbox gone"
-
-set -e
-echo "Cleanup complete by $(whoami) at $(date -Is)"
-echo "exit was: $?"
+```
+grep -in "error" app.log          → 12:ERROR connection refused
+grep -rl "TODO" src/              → src/main.c  (files with matches)
+grep -c "GET" access.log          → 42          (match count)
+grep -o "[0-9]\+" data.txt        → just the numbers
+cmd | tee -a results.txt          → save AND show
 ```
 
-> **STOP — paste all cleanup audit lines. Any `❌` means fix before declaring lab complete.**
+> **Why this matters:** Half of RHCSA log tasks are "find lines containing X and save them." `grep`'s flags plus `>`/`tee` are the fastest path, and `-c`/`-o` turn a search into a usable summary.
 
 ---
 
-## Author
+## 📚 Command Reference
+
+| Command | Purpose | Critical flags |
+|---|---|---|
+| `grep` | Print matching lines | `-i` ignore case, `-n` line numbers |
+| `grep -r` / `-l` | Recurse / list filenames only | `-rl` finds which files match |
+| `grep -c` / `-o` | Count matches / print only the match | `-c` per-file count |
+| `>` / `>>` | Save / append output to a file | one `>` truncates |
+| `tee` / `tee -a` | Save and display | `-a` appends instead of truncating |
+
+---
+
+## 🧰 LAB-WIDE SETUP
+
+**In plain English:** Build a sandbox with a couple of sample log/config files containing searchable patterns.
+
+> Run this block **once** before Task 1. It defines a single sandbox root
+> (`LAB_ROOT`) that every file in this lab lives under, so the Teardown
+> section can wipe it in one safe command.
+
+```bash
+export LAB_ROOT=/tmp/lab-16
+mkdir -p "$LAB_ROOT/conf"
+cd "$LAB_ROOT"
+printf 'INFO start\nERROR disk full\ninfo retry\nERROR timeout\n' > app.log
+printf 'PermitRootLogin no\nPort 22\n#Port 2222\n' > conf/sshd_config
+ls -l
+echo "exit was: $?"
+```
+
+**Expected output:**
+
+```
+-rw-r--r--. 1 root root 41 ... app.log
+drwxr-xr-x. 2 root root 24 ... conf
+exit was: 0
+```
+
+---
+
+## TASK 1 of 2 — Search and save matches
+
+**In plain English:** We find matching lines and write them to a results file, then locate which files contain a pattern.
+
+---
+
+### Step 1 of 2 — Search case-insensitively and save with `>`
+
+**In plain English:** We find every line mentioning "error" regardless of case, number the lines, and save the hits to a file.
+
+```bash
+cd "$LAB_ROOT"
+grep -in "error" app.log
+grep -in "error" app.log > errors.txt
+cat errors.txt
+echo "exit was: $?"
+```
+
+**Expected output:**
+
+```
+2:ERROR disk full
+4:ERROR timeout
+2:ERROR disk full
+4:ERROR timeout
+exit was: 0
+```
+
+**Line-by-line breakdown:**
+
+- `grep -in "error" app.log` → `-i` matches `ERROR` and `error`; `-n` prefixes each hit with its line number.
+- `grep -in "error" app.log > errors.txt` → Re-run the search and save the hits with `>` (truncate-then-write).
+- `cat errors.txt` → Confirm the saved file holds exactly the matched lines.
+
+**New words in this step:**
+
+- **`grep -i`** — case-insensitive matching.
+- **`grep -n`** — prefix each match with its line number.
+
+---
+
+### Step 2 of 2 — Recurse and list matching files with `grep -rl`
+
+**In plain English:** We search a directory tree and list only the filenames that contain the pattern.
+
+```bash
+cd "$LAB_ROOT"
+grep -rl "Port" conf/
+grep -rn "Port" conf/
+echo "exit was: $?"
+```
+
+**Expected output:**
+
+```
+conf/sshd_config
+conf/sshd_config:2:Port 22
+conf/sshd_config:3:#Port 2222
+exit was: 0
+```
+
+**Line-by-line breakdown:**
+
+- `grep -rl "Port" conf/` → `-r` recurses the directory, `-l` prints only the *names* of files that match.
+- `grep -rn "Port" conf/` → Same recursion but with line numbers and the matching lines for detail.
+
+**New words in this step:**
+
+- **`grep -r`** — recurse into a directory tree.
+- **`grep -l`** — print only the filenames containing a match.
+
+---
+
+### Concept card (Task 1)
+
+| Concept | What it does | Exam trap |
+|---|---|---|
+| `grep -i` | case-insensitive | default grep is case-sensitive |
+| `grep -rl` | which files match | `-l` hides the lines themselves |
+| `>` save | truncate then write | one `>` wipes prior results |
+
+---
+
+### Troubleshoot (Task 1)
+
+| Symptom | Likely cause | Fix |
+|---|---|---|
+| No matches but you expected some | Case mismatch | Add `-i` |
+| `grep: conf/: Is a directory` | Missing `-r` | Add `-r` for directories |
+
+---
+
+## TASK 2 of 2 — Capture-and-show, then summarize
+
+**In plain English:** We use `tee` to save results while watching them, then count and extract matches.
+
+---
+
+### Step 1 of 2 — Save and display with `tee -a`
+
+**In plain English:** We append search results to a running report file while still seeing them on screen.
+
+```bash
+cd "$LAB_ROOT"
+grep -i "error" app.log | tee report.txt
+grep -i "info" app.log | tee -a report.txt
+cat report.txt
+echo "exit was: $?"
+```
+
+**Expected output:**
+
+```
+ERROR disk full
+ERROR timeout
+INFO start
+info retry
+ERROR disk full
+ERROR timeout
+INFO start
+info retry
+exit was: 0
+```
+
+**Line-by-line breakdown:**
+
+- `grep -i "error" app.log | tee report.txt` → Pipe the matches to `tee`, which writes them to `report.txt` AND echoes them.
+- `grep -i "info" app.log | tee -a report.txt` → `-a` appends the next batch instead of truncating, building a combined report.
+- `cat report.txt` → Confirm both batches landed in the file.
+
+**New words in this step:**
+
+- **`tee -a`** — write stdout to a file (appending) while also displaying it.
+
+---
+
+### Step 2 of 2 — Count and extract with `grep -c` / `-o`
+
+**In plain English:** We count how many lines match and pull out just the matched words.
+
+```bash
+cd "$LAB_ROOT"
+grep -c "ERROR" app.log
+grep -o "ERROR" app.log
+echo "exit was: $?"
+```
+
+**Expected output:**
+
+```
+2
+ERROR
+ERROR
+exit was: 0
+```
+
+**Line-by-line breakdown:**
+
+- `grep -c "ERROR" app.log` → `-c` prints the *count* of matching lines (2), not the lines.
+- `grep -o "ERROR" app.log` → `-o` prints only the matched text per occurrence, useful for tallying tokens.
+
+**New words in this step:**
+
+- **`grep -c`** — count matching lines.
+- **`grep -o`** — print only the matched substring, one per line.
+
+---
+
+### Concept card (Task 2)
+
+| Concept | What it does | Exam trap |
+|---|---|---|
+| `tee` vs `>` | save AND display | `tee` without `-a` truncates |
+| `grep -c` | count lines, not matches | two matches on one line count once |
+| `grep -o` | extract substrings | counts every occurrence, even same line |
+
+---
+
+### Troubleshoot (Task 2)
+
+| Symptom | Likely cause | Fix |
+|---|---|---|
+| `tee` overwrote the report | Missing `-a` | Use `tee -a` to append |
+| `-c` count seems low | Multiple matches per line | Use `grep -o | wc -l` for occurrences |
+
+---
+
+## ✅ Lab Checklist
+
+- [ ] Task 1 · Step 1 — Search case-insensitively and save with `>`
+- [ ] Task 1 · Step 2 — Recurse and list matching files with `grep -rl`
+- [ ] Task 2 · Step 1 — Save and display with `tee -a`
+- [ ] Task 2 · Step 2 — Count and extract with `grep -c` / `-o`
+- [ ] Every 🎯 Focus Coverage row (Anchor + NEW) mapped to a step
+- [ ] 🧹 Teardown run — sandbox + any system state removed
+
+---
+
+## 🧹 Teardown
+
+**In plain English:** Delete everything this lab created so the box is clean for the next run.
+
+> Run this after you've verified the lab. `lab_teardown.sh` safely removes the single sandbox root — it refuses to touch `/`, `$HOME`, or any protected path. This lab changed **no** system state.
+
+```bash
+cd /tmp
+bash lab_teardown.sh "$LAB_ROOT"     # = /tmp/lab-16
+```
+
+**Expected output:**
+
+```
+✅ Removed /tmp/lab-16 — lab workspace is clean.
+```
+
+---
+
+## ⚠️ Common Pitfalls
+
+| Mistake | Symptom | Fix |
+|---|---|---|
+| `tee` without `-a` | Earlier results lost | Use `tee -a` to append |
+| Forgetting `-r` on a dir | "Is a directory" error | Add `-r` |
+| Confusing `-c` and `-o` counts | Wrong totals | `-c` lines vs `-o`+`wc -l` occurrences |
+
+---
+
+## 📌 Exam Strategy
+
+"Find lines containing X and save them to /path" is a stock task. Reach for `grep -i`/`-n` to search and `>` to save; use `tee -a` when you must both keep and observe. `grep -rl` quickly answers "which file holds this setting?"
+
+- `grep -rl` is the fastest "which config has this?" answer.
+- `tee -a` builds reports without losing earlier output.
+- `grep -c` gives an instant pass/fail count for assertions.
+
+---
+
+## 🔗 Related Labs
+
+- [Lab 16b — Search and Save Output (Ansible)](../lab-16b-grep-search-save-output-ansible/) — capture matches with `command:`/`lineinfile`
+- [Lab 16c — Search and Save Output (Verify)](../lab-16c-grep-search-save-output-verify/) — prove the saved results are correct
+- [Lab 22a — Filtering Text with grep and Regex (RHCSA)](../lab-22a-grep-regex-rhcsa/) — deeper regex with `grep -E`
+
+---
+
+## 👤 Author
 
 **Kelvin R. Tobias**  
 [kelvinintech.com](https://kelvinintech.com) · [GitHub](https://github.com/kelvintechnical) · [LinkedIn](https://www.linkedin.com/in/kelvin-r-tobias-211949219)

@@ -1,215 +1,362 @@
-# Lab 28b: Exploring Manual Pages (Ansible) — Boundary Artifact for Trap Practice
+# Lab 28b: Exploring Manual Pages (Ansible) — capturing docs in a play
 
-- **Series:** linux-ops-mastery — Documentation & Networking
-- **Trilogy:** [`28a`](../lab-28a-man-pages-rhcsa/) → **`28b`** (Ansible — you are here) → [`28c`](../lab-28c-man-pages-verify/)
-- **Career arcs covered:** RHCE EX294 (declarative package state + assertions), SRE (baseline host documentation availability checks)
-- **Time Estimate:** 25–35 minutes
-- **Tasks:** 2 (Task 1 = declarative install of man tooling; Task 2 = assertions that `/usr/share/man` content exists)
-- **Practice Directory (rotation slot):** `/dev` (read-only context checks)
-- **Playbooks:** `/root/rhcsa_journal/lab-28b/playbooks/`
-- **Sandbox (Tier B):** `/tmp/lab28b` with `USER=labuser_28_man`, `GROUP=labgrp_28_man`
-- **Traps rehearsed:** **T28-B** (missing man pages on minimal images) · **T41** (can you rebuild after wipe?) · **T44** (closeout discipline)
-
-> **Section 18 boundary note:** manual-page navigation itself is a shell/pager skill. This b-lab is intentionally kept as a trap-rehearsal artifact to practice declarative remediation (`ansible.builtin.dnf`) and validation, not to replace interactive `man` usage.
+**Series:** linux-ops-mastery — Documentation · **Lab 28b of the Novice → RHCA path**  
+**Certifications covered:** RHCE EX294 (capturing/asserting command facts), RHCSA EX200 (the `man` behavior underneath), DevOps (documenting managed nodes)  
+**Prerequisite:** [Lab 28a](../lab-28a-man-pages-rhcsa/) completed and a working control node  
+**Time Estimate:** 20–30 minutes  
+**Difficulty:** Beginner → Intermediate
 
 ---
 
-## LAB HEADER BLOCK
+## 🎯 Today's Focus Coverage
 
-```bash
-ansible --version | head -n 3
-ansible localhost -m ping --connection=local
-ls -ld /dev
-echo "exit was: $?"
+> Stay on-subject via the ANCHOR rows; expand vocabulary via the NEW rows. Every row is exercised by a STEP below.
+
+**⚓ Anchor — already learned (on-topic reuse)**
+
+| # | Command / switch | Covered by |
+|---|---|---|
+| A1 | `man -w` / `man -f` | _Task 1 · Step 1_ |
+| A2 | `changed_when: false` for reads | _Task 1 · Step 1_ |
+
+**🆕 NEW this lab — introduced for the first time** (minimum 3)
+
+| # | Command / switch | First taught in | Covered by |
+|---|---|---|---|
+| N1 | the pager boundary (`man -P cat`) | Task 1 · Step 1 | _Task 1 · Step 1_ |
+| N2 | `man -w` existence check in-play | Task 1 · Step 1 | _Task 1 · Step 1_ |
+| N3 | capture man summary to a file | Task 2 · Step 1 | _Task 2 · Step 1_ |
+| N4 | `assert` on doc content | Task 2 · Step 1 | _Task 2 · Step 1_ |
+
+---
+
+## 🎯 Objective
+
+Read documentation from automation. Since `man` is an interactive pager, you'll run it non-interactively (`man -P cat` / `man -f`), confirm a page exists with `man -w` inside a play, capture a command's one-line summary to a file on the node, and assert the documentation contains what you expect. This is how a play documents or validates the tools on a managed host.
+
+---
+
+## 🧠 Concept
+
+`man` normally opens `less`, which has no place in automation. Force non-interactive output with `man -P cat` (use `cat` as the pager) or just use the non-paged subcommands `man -f`/`man -w`/`man -k`. In a play you run these via `ansible.builtin.command`, read-only (`changed_when: false`). `man -w name` is the cleanest *existence* check: rc 0 and a path mean the page (and usually the package) is present. To save documentation, capture `man -f`/`man -P cat` output and write it with `copy`/`lineinfile`. Then `assert` on the captured text to validate the node ships the expected tooling.
+
+```
+SHELL (28a, interactive)            ANSIBLE (28b, deterministic)
+─────────────────────────────       ──────────────────────────────────────
+man ls (opens less)                  command: man -P cat ls   (changed_when:false)
+man -w ls                            command: man -w ls  → existence check
+man -f ls                            command: man -f ls  → capture summary, assert
 ```
 
+> **Why this matters:** "Is the documentation/tool installed?" is a real fleet question. `man -w` answers it cleanly in a play, and capturing summaries gives you per-node documentation artifacts.
+
 ---
 
-## Lab-Wide Setup (Tier B)
+## 📚 Command Reference
+
+| Command | Purpose | Critical flags |
+|---|---|---|
+| `man -P cat` | Non-interactive page | pager = `cat` |
+| `man -w` | Page path / existence | rc 0 = present |
+| `man -f` | One-line summary | capturable |
+| `changed_when: false` | Mark reads | for all `man` runs |
+| `assert` | Validate doc content | `that:` checks |
+
+---
+
+## 🧰 LAB-WIDE SETUP
+
+**In plain English:** Build the sandbox and playbook folder for captured docs.
+
+> Run this block **once** before Task 1. It builds the clean, private workspace that both tasks depend on.
 
 ```bash
-sudo -i
-
-export LAB_NUM=28
-export LAB_SLUG=man
-export SANDBOX=/tmp/lab28b
-export GROUP=labgrp_${LAB_NUM}_${LAB_SLUG}
-export USER=labuser_${LAB_NUM}_${LAB_SLUG}
-export USER_HOME=${SANDBOX}/home_${USER}
-
-mkdir -p "${SANDBOX}" "${USER_HOME}"
-mkdir -p /root/rhcsa_journal/lab-28b/task1 /root/rhcsa_journal/lab-28b/task2
+export LAB_ROOT=/tmp/lab-28
+mkdir -p "$LAB_ROOT"
 mkdir -p /root/rhcsa_journal/lab-28b/playbooks
-
-getent group  "${GROUP}" >/dev/null || groupadd "${GROUP}"
-getent passwd "${USER}"  >/dev/null || useradd -d "${USER_HOME}" -M -s /bin/bash -g "${GROUP}" "${USER}"
-chown -R "${USER}:${GROUP}" "${SANDBOX}"
+echo "ready"
 echo "exit was: $?"
+```
+
+**Expected output:**
+
+```
+ready
+exit was: 0
 ```
 
 ---
 
-## Task 1 — Declarative man environment via `ansible.builtin.dnf`
+## TASK 1 of 2 — Confirm a page exists
 
-### Main command block
+**In plain English:** We check that a man page resolves, from inside a play.
 
-```bash
-TASKLOG=/tmp/lab28b/task1.txt
-PB=/root/rhcsa_journal/lab-28b/playbooks/task1.yml
-
-cat > "${PB}" << 'PLAYBOOK'
 ---
-- name: "Lab 28b Task 1 — Ensure man infrastructure exists"
+
+### Step 1 of 2 — Write the existence-check playbook
+
+**In plain English:** We create `task1.yml`, which uses `man -w` read-only to prove the `ls` page exists.
+
+```yaml
+---
+- name: "Lab 28b Task 1 — confirm a man page exists"
   hosts: localhost
   connection: local
   gather_facts: false
-
   tasks:
-    - name: "Ensure man packages present (T28-B prevention)"
-      ansible.builtin.dnf:
-        name:
-          - man-db
-          - man-pages
-          - man-pages-extra
-        state: present
-      register: dnf_result
-
-    - name: "Show package task result"
-      ansible.builtin.debug:
-        msg:
-          - "changed={{ dnf_result.changed }}"
-          - "results={{ dnf_result.results | default([]) }}"
-
-    - name: "Check /dev still accessible (rotation slot context)"
-      ansible.builtin.shell: "ls -ld /dev"
-      register: dev_result
+    - name: "Locate the ls man page"
+      ansible.builtin.command: "man -w ls"
+      register: page
       changed_when: false
+      failed_when: page.rc != 0
 
-    - name: "Display /dev check"
+    - name: "Show the page path"
       ansible.builtin.debug:
-        msg: "{{ dev_result.stdout }}"
-PLAYBOOK
+        msg: "ls page at {{ page.stdout }}"
 
-echo "═══ check/diff ═══"                                  2>&1 | tee "${TASKLOG}"
-ansible-playbook --check --diff "${PB}"                   2>&1 | tee -a "${TASKLOG}"
-echo "═══ apply ═══"                                      | tee -a "${TASKLOG}"
-ansible-playbook "${PB}"                                  2>&1 | tee -a "${TASKLOG}"
-echo "═══ re-apply (idempotence) ═══"                     | tee -a "${TASKLOG}"
-ansible-playbook "${PB}"                                  2>&1 | tee -a "${TASKLOG}"
-
-echo "exit was: $?"
+    - name: "Assert it is a section-1 page"
+      ansible.builtin.assert:
+        that:
+          - "'man1/ls' in page.stdout"
+        success_msg: "ls(1) present"
+        fail_msg: "ls man page missing or wrong section"
 ```
 
-### Journal write
+**Expected output:**
 
-```bash
-LAB=lab-28b
-TASK=task1
-JDIR="/root/rhcsa_journal/${LAB}/${TASK}"
-mkdir -p "${JDIR}"
-cp /tmp/lab28b/task1.txt "${JDIR}/evidence.txt"
-cp "${PB}" "${JDIR}/task1.yml"
-echo "exit was: $?"
 ```
+(this is the saved playbook file — no output until you run it in Step 2)
+```
+
+**Line-by-line breakdown:**
+
+- `command: man -w ls` → Print the page path; rc 0 means it exists. No pager, so safe in automation.
+- `failed_when: page.rc != 0` → Treat a missing page as a failure.
+- `assert: 'man1/ls' in page.stdout` → Confirm it's the section-1 page.
+
+**New words in this step:**
+
+- **`man -w` existence check** — using the page path to prove documentation is present.
 
 ---
 
-## Task 2 — Assert man path content exists (`/usr/share/man`)
+### Step 2 of 2 — Run it and read the result
 
-### Main command block
+**In plain English:** We run the play and confirm the page resolves.
 
 ```bash
-TASKLOG=/tmp/lab28b/task2.txt
-PB=/root/rhcsa_journal/lab-28b/playbooks/task2.yml
+ansible-playbook /root/rhcsa_journal/lab-28b/playbooks/task1.yml
+echo "exit was: $?"
+```
 
-cat > "${PB}" << 'PLAYBOOK'
+**Expected output:**
+
+```
+TASK [Show the page path] ************************************************
+ok: [localhost] => {"msg": "ls page at /usr/share/man/man1/ls.1.gz"}
+TASK [Assert it is a section-1 page] ************************************
+ok: [localhost] => {"msg": "ls(1) present"}
+PLAY RECAP **********************************************************
+localhost                  : ok=3    changed=0    unreachable=0    failed=0
+exit was: 0
+```
+
+**Line-by-line breakdown:**
+
+- `ansible-playbook ...` → Locate, display, assert; read-only so `changed=0`.
+
+**New words in this step:**
+
+- **doc presence** — a play-level check that documentation/tooling exists.
+
 ---
-- name: "Lab 28b Task 2 — Validate man content paths"
+
+### Concept card (Task 1)
+
+| Concept | What it does | Exam trap |
+|---|---|---|
+| `man -w` | path/existence | rc 0 = present |
+| `failed_when` | gate on rc | missing = fail |
+| `changed_when: false` | read marker | docs never "change" |
+
+---
+
+### Troubleshoot (Task 1)
+
+| Symptom | Likely cause | Fix |
+|---|---|---|
+| rc non-zero | Page/package missing | Install the package |
+| Hangs | Used bare `man` | Use `man -w`/`-P cat` |
+
+---
+
+## TASK 2 of 2 — Capture and assert a summary
+
+**In plain English:** We save a command's one-line summary and assert its content.
+
+---
+
+### Step 1 of 2 — Write the capture-and-assert playbook
+
+**In plain English:** We create `task2.yml`, which captures `man -f` for `cp`, saves it, and asserts it describes copying.
+
+```yaml
+---
+- name: "Lab 28b Task 2 — capture a man summary"
   hosts: localhost
   connection: local
   gather_facts: false
-
+  vars:
+    out: /tmp/lab-28/cp-summary.txt
   tasks:
-    - name: "Stat core man directories"
-      ansible.builtin.stat:
-        path: "{{ item }}"
-      loop:
-        - /usr/share/man
-        - /usr/share/man/man1
-        - /usr/share/man/man5
-      register: man_stats
-
-    - name: "Assert all core man paths exist"
-      ansible.builtin.assert:
-        that:
-          - item.stat.exists
-          - item.stat.isdir
-        fail_msg: "T28-B hit: missing man content path {{ item.stat.path | default('unknown') }}"
-        success_msg: "Path present: {{ item.stat.path }}"
-      loop: "{{ man_stats.results }}"
-
-    - name: "Count pages in man1 and man5"
-      ansible.builtin.shell: |
-        echo "man1_count=$(ls /usr/share/man/man1 2>/dev/null | wc -l)"
-        echo "man5_count=$(ls /usr/share/man/man5 2>/dev/null | wc -l)"
-        echo "manpath=$(man --path 2>/dev/null || true)"
-      register: count_result
+    - name: "Capture the cp summary (non-interactive)"
+      ansible.builtin.command: "man -f cp"
+      register: summary
       changed_when: false
 
-    - name: "Assert non-zero content present"
+    - name: "Save the summary to a file"
+      ansible.builtin.copy:
+        dest: "{{ out }}"
+        content: "{{ summary.stdout }}\n"
+        mode: '0644'
+      register: saved
+
+    - name: "Assert the summary mentions copying"
       ansible.builtin.assert:
         that:
-          - "(count_result.stdout | regex_search('man1_count=([0-9]+)', '\\1') | first | int) > 0"
-          - "(count_result.stdout | regex_search('man5_count=([0-9]+)', '\\1') | first | int) > 0"
-        fail_msg: "T28-B hit: man section content not populated"
-        success_msg: "man1/man5 both have page files"
+          - "'copy' in summary.stdout"
+        success_msg: "cp summary captured: {{ summary.stdout }}"
+        fail_msg: "unexpected cp summary"
+```
 
-    - name: "Show counters"
-      ansible.builtin.debug:
-        msg: "{{ count_result.stdout_lines }}"
-PLAYBOOK
+**Expected output:**
 
-echo "═══ apply assertions ═══"                            2>&1 | tee "${TASKLOG}"
-ansible-playbook "${PB}"                                   2>&1 | tee -a "${TASKLOG}"
+```
+(this is the saved playbook file — no output until you run it in Step 2)
+```
 
+**Line-by-line breakdown:**
+
+- `command: man -f cp` → Capture the one-line summary, non-interactive.
+- `copy: content: summary.stdout` → Persist the doc snippet to the node.
+- `assert: 'copy' in summary.stdout` → Validate the documentation says what we expect.
+
+**New words in this step:**
+
+- **captured summary** — a saved one-line man description as a documentation artifact.
+
+---
+
+### Step 2 of 2 — Run it and read the file
+
+**In plain English:** We run the play and confirm the saved summary.
+
+```bash
+ansible-playbook /root/rhcsa_journal/lab-28b/playbooks/task2.yml
+cat /tmp/lab-28/cp-summary.txt
 echo "exit was: $?"
 ```
 
-### Journal write
+**Expected output:**
+
+```
+TASK [Assert the summary mentions copying] *****************************
+ok: [localhost] => {"msg": "cp summary captured: cp (1) - copy files and directories"}
+PLAY RECAP **********************************************************
+localhost                  : ok=3    changed=1    unreachable=0    failed=0
+cp (1)               - copy files and directories
+exit was: 0
+```
+
+**Line-by-line breakdown:**
+
+- `ansible-playbook ...` → Capture, save, assert; `changed=1` only from writing the file.
+- `cat cp-summary.txt` → The saved documentation snippet.
+
+**New words in this step:**
+
+- **documentation artifact** — captured man output persisted for records.
+
+---
+
+### Concept card (Task 2)
+
+| Concept | What it does | Exam trap |
+|---|---|---|
+| `man -f` capture | summary text | non-interactive |
+| `copy` content | persist doc | only write is `changed` |
+| assert content | validate | quote `in` expression |
+
+---
+
+### Troubleshoot (Task 2)
+
+| Symptom | Likely cause | Fix |
+|---|---|---|
+| Empty summary | mandb stale | `sudo mandb` on node |
+| Assert fails | Wording differs | Loosen the substring |
+
+---
+
+## ✅ Lab Checklist
+
+- [ ] Task 1 · Step 1 — Write the existence-check playbook
+- [ ] Task 1 · Step 2 — Run it and read the result
+- [ ] Task 2 · Step 1 — Write the capture-and-assert playbook
+- [ ] Task 2 · Step 2 — Run it and read the file
+- [ ] Every 🎯 Focus Coverage row (Anchor + NEW) mapped to a step
+- [ ] 🧹 Teardown run — sandbox + any system state removed
+
+---
+
+## 🧹 Teardown
+
+**In plain English:** Delete everything this lab created so the box is clean for the next run.
+
+> Run this after you've verified the lab. `lab_teardown.sh` safely removes the single sandbox root — it refuses to touch `/`, `$HOME`, or any protected path. This lab changed **no** system state.
 
 ```bash
-LAB=lab-28b
-TASK=task2
-JDIR="/root/rhcsa_journal/${LAB}/${TASK}"
-mkdir -p "${JDIR}"
-cp /tmp/lab28b/task2.txt "${JDIR}/evidence.txt"
-cp "${PB}" "${JDIR}/task2.yml"
-echo "exit was: $?"
+bash lab_teardown.sh "$LAB_ROOT"     # = /tmp/lab-28
+rm -rf /root/rhcsa_journal/lab-28b
+```
+
+**Expected output:**
+
+```
+✅ Removed /tmp/lab-28 — lab workspace is clean.
 ```
 
 ---
 
-## Lab Closeout (Section 6)
+## ⚠️ Common Pitfalls
 
-```bash
-set +e
-if getent passwd "${USER}" >/dev/null 2>&1; then userdel -r "${USER}" 2>/dev/null; fi
-if getent group "${GROUP}" >/dev/null 2>&1; then groupdel "${GROUP}" 2>/dev/null; fi
-rm -rf "${SANDBOX}" /tmp/lab28b
-
-echo "── Lab 28b cleanup audit ──"
-getent passwd "${USER}" >/dev/null && echo "❌ user remains"   || echo "✅ user gone"
-getent group  "${GROUP}" >/dev/null && echo "❌ group remains"  || echo "✅ group gone"
-test -d "${SANDBOX}"              && echo "❌ sandbox remains" || echo "✅ sandbox gone"
-test -d /tmp/lab28b               && echo "❌ /tmp/lab28b remains" || echo "✅ /tmp/lab28b gone"
-set -e
-```
-
-> **T44 check:** end closeout only after four `✅` audit lines.
+| Mistake | Symptom | Fix |
+|---|---|---|
+| Bare `man` in a play | Task hangs (pager) | `man -P cat` / `-f` / `-w` |
+| Reads marked changed | Missing `changed_when: false` | Add it |
+| Brittle content assert | Wording mismatch | Use a stable substring |
 
 ---
 
-## Author
+## 📌 Exam Strategy
+
+In automation, use `man -w` to check a page/tool exists and `man -f`/`man -P cat` to capture text — never bare `man` (it pagers and hangs). Assert on captured content to validate node tooling.
+
+- `man -w` is the clean existence check.
+- `man -P cat`/`-f` for non-interactive content.
+- `changed_when: false` on every doc read.
+
+---
+
+## 🔗 Related Labs
+
+- [Lab 28a — Exploring Manual Pages (RHCSA)](../lab-28a-man-pages-rhcsa/) — the `man` this automates
+- [Lab 28c — Exploring Manual Pages (Verify)](../lab-28c-man-pages-verify/) — prove pages exist and resolve
+- [Lab 18b — Locate Command Documentation (Ansible)](../lab-18b-locate-command-docs-ansible/) — package-doc capture with `rpm -qd`
+
+---
+
+## 👤 Author
 
 **Kelvin R. Tobias**  
 [kelvinintech.com](https://kelvinintech.com) · [GitHub](https://github.com/kelvintechnical) · [LinkedIn](https://www.linkedin.com/in/kelvin-r-tobias-211949219)

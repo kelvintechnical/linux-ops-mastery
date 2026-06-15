@@ -1,269 +1,366 @@
-# Lab 06b: Listing Files and SELinux (Ansible) — `community.general.sefcontext`
+# Lab 06b: Listing Files and SELinux (Ansible) — `community.general.sefcontext`, `restorecon`
 
-- **Series:** linux-ops-mastery — Essential Tools & File Operations
-- **Trilogy:** [`06a`](../lab-06a-listing-files-selinux-rhcsa/) (RHCSA hand-typed) → **`06b`** (Ansible — you are here) → [`06c`](../lab-06c-listing-files-selinux-verify/) (Verify capstone)
-- **Career arcs covered:** RHCE EX294 (`community.general.sefcontext` is the declarative `semanage fcontext`)
-- **Prerequisite:** [`Lab 06a`](../lab-06a-listing-files-selinux-rhcsa/) and [`Lab 00b`](../lab-00b-ansible-control-node-setup-ansible/) completed
-- **Time Estimate:** 25–35 minutes
-- **Tasks:** 2 (Task 1 = sefcontext rule + restorecon via Ansible · Task 2 = idempotence + drift correction)
-- **Practice Directory:** `/tmp/lab06b/web` (mock webroot)
-- **Playbooks:** `/root/rhcsa_journal/lab-06b/playbooks/`
-- **Traps rehearsed:** **T02** (sefcontext alone doesn't relabel — must call `command: restorecon` after) · **T02-X** (using `ansible.builtin.command: chcon` instead of sefcontext — temporary label, no persistence)
+**Series:** linux-ops-mastery — Essential Tools & File Operations · **Lab 06b of the Novice → RHCA path**  
+**Certifications covered:** RHCE EX294 (managing SELinux contexts declaratively — a listed objective), RHCSA EX200 (the `semanage`/`restorecon` behavior underneath), DevOps (security labels as code)  
+**Prerequisite:** [Lab 06a](../lab-06a-listing-files-selinux-rhcsa/) completed; `community.general` collection installed  
+**Time Estimate:** 25–35 minutes  
+**Difficulty:** Intermediate
 
 ---
 
-## LAB HEADER BLOCK
+## 🎯 Today's Focus Coverage
 
-```bash
-ansible --version | head -n 3
-ansible-galaxy collection list | grep community.general
-echo ""
-echo "--- 06a prereq ---"
-ls /root/rhcsa_journal/lab-06a/task2/done.txt 2>/dev/null \
-    && echo "✅ 06a journal present" \
-    || echo "❌ 06a journal missing — complete Lab 06a first"
-echo "exit was: $?"
+> Stay on-subject via the ANCHOR rows; expand vocabulary via the NEW rows. Every row is exercised by a STEP below.
+
+**⚓ Anchor — already learned (on-topic reuse)**
+
+| # | Command / switch | Covered by |
+|---|---|---|
+| A1 | `restorecon` | _Task 2 · Step 1_ |
+| A2 | `ansible.builtin.copy` | _Task 1 · Step 1_ |
+
+**🆕 NEW this lab — introduced for the first time** (minimum 3)
+
+| # | Command / switch | First taught in | Covered by |
+|---|---|---|---|
+| N1 | `community.general.sefcontext` | Task 2 · Step 1 | _Task 2 · Step 1_ |
+| N2 | `ansible.builtin.file` (state=directory) | Task 1 · Step 1 | _Task 1 · Step 1_ |
+| N3 | `command:` + `register` + `changed_when` | Task 2 · Step 1 | _Task 2 · Step 1_ |
+| N4 | `setype:` option | Task 2 · Step 1 | _Task 2 · Step 1_ |
+
+---
+
+## 🎯 Objective
+
+Express Lab 06a's "set the label persistently, then apply it" loop as idempotent automation: `community.general.sefcontext` records the policy rule (the `semanage fcontext` equivalent) and a guarded `restorecon` applies it. You will run the play twice to watch the rule converge to `changed=0`, the same persistence you achieved by hand — now repeatable across every host.
+
+---
+
+## 🧠 Concept
+
+There is a real module for the policy rule (`community.general.sefcontext`) but **not** for applying it — `restorecon` is still a command you run. So the idiomatic play is two tasks: declare the rule with `sefcontext` (idempotent: `changed=0` once the rule exists), then run `restorecon` via `command:` and tell Ansible when that counts as a change with `changed_when:`. This mirrors the hand pattern exactly: rule first, relabel second.
+
+```
+SHELL (06a)                          ANSIBLE (06b)
+─────────────────────────────       ──────────────────────────────────────
+semanage fcontext -a -t T 'P(/.*)?'  community.general.sefcontext: target/setype/state=present
+restorecon -Rv P                     ansible.builtin.command: restorecon -Rv P  (changed_when:)
 ```
 
-> **STOP — paste header.**
+> **Why this matters:** Graders re-run your play. `sefcontext` is idempotent, so the rule task settles to `changed=0`; only the `restorecon` task may still report change. Knowing which task can and cannot be idempotent is the exam-level nuance.
 
 ---
 
-## Lab-Wide Setup
+## 📚 Command Reference
+
+| Command | Purpose | Critical flags |
+|---|---|---|
+| `community.general.sefcontext` | Manage persistent fcontext rules | `target`, `setype`, `state: present` |
+| `ansible.builtin.file` | Create/manage paths | `state: directory` makes folders idempotently |
+| `ansible.builtin.command` | Run `restorecon` (no module exists) | guard with `changed_when:` |
+| `register:` | Capture `restorecon` output | inspect `stdout` to decide `changed_when` |
+| `become: true` | Run as root | required for SELinux policy changes |
+
+---
+
+## 🧰 LAB-WIDE SETUP
+
+**In plain English:** Build the sandbox and the durable playbook folder, and confirm the `community.general` collection is reachable.
+
+> Run this block **once** before Task 1. It builds the clean, private workspace that both tasks depend on.
 
 ```bash
-sudo -i
-
-mkdir -p /tmp/lab06b/web
-echo "<h1>Lab 06b</h1>" > /tmp/lab06b/web/index.html
+export LAB_ROOT=/tmp/lab-06
+mkdir -p "$LAB_ROOT"
 mkdir -p /root/rhcsa_journal/lab-06b/playbooks
-mkdir -p /root/rhcsa_journal/lab-06b/task1 /root/rhcsa_journal/lab-06b/task2
-
-ls -ldZ /tmp/lab06b/web
-echo "Setup complete at $(date -Is)"
+ansible-galaxy collection list 2>/dev/null | grep community.general || \
+  ansible-galaxy collection install community.general
 echo "exit was: $?"
+```
+
+**Expected output:**
+
+```
+community.general 8.6.0
+exit was: 0
 ```
 
 ---
 
-## Task 1 — sefcontext rule + restorecon via Ansible
+## TASK 1 of 2 — Build the content directory declaratively
 
-### 🔁 Warm-Up
+**In plain English:** We create the webroot and an index file with real modules so the structure exists idempotently before we label it.
 
-```bash
-ls -lZ /tmp/lab06b/web/index.html
-matchpathcon /tmp/lab06b/web/index.html
-ansible-doc community.general.sefcontext | head -n 20
-echo "Warm-up done by $(whoami) at $(date -Is)"
-echo "exit was: $?"
-```
-
-### Main command block
-
-```bash
-TASKLOG=/tmp/lab06b/task1.txt
-PB=/root/rhcsa_journal/lab-06b/playbooks/task1.yml
-
-cat > "${PB}" << 'PLAYBOOK'
 ---
-- name: "Lab 06b Task 1 — declarative SELinux fcontext"
+
+### Step 1 of 2 — Write the directory + file playbook
+
+**In plain English:** We create `task1.yml`, which makes the webroot with `ansible.builtin.file` and writes an index page with `ansible.builtin.copy`.
+
+```yaml
+---
+- name: "Lab 06b Task 1 — build the content directory"
   hosts: localhost
   connection: local
   gather_facts: false
-
+  vars:
+    webroot: /tmp/lab-06/webroot
   tasks:
-    - name: "Add fcontext rule for the lab webroot"
+    - name: "Ensure the webroot exists"
+      ansible.builtin.file:
+        path: "{{ webroot }}"
+        state: directory
+        mode: '0755'
+
+    - name: "Write the index page"
+      ansible.builtin.copy:
+        dest: "{{ webroot }}/index.html"
+        content: "<h1>lab 06</h1>\n"
+        mode: '0644'
+```
+
+**Expected output:**
+
+```
+(this is the saved playbook file — no output until you run it in Step 2)
+```
+
+**Line-by-line breakdown:**
+
+- `ansible.builtin.file: state: directory` → Create the folder idempotently; re-runs report `changed=0`.
+- `ansible.builtin.copy: content:` → Declare the index file's exact contents.
+
+**New words in this step:**
+
+- **`ansible.builtin.file`** — the module for paths: directories, symlinks, ownership, and deletion.
+
+---
+
+### Step 2 of 2 — Run it and confirm the structure
+
+**In plain English:** We run the play twice and confirm the directory and file converge to `changed=0`.
+
+```bash
+ansible-playbook /root/rhcsa_journal/lab-06b/playbooks/task1.yml
+ansible-playbook /root/rhcsa_journal/lab-06b/playbooks/task1.yml
+ls -lZ /tmp/lab-06/webroot
+echo "exit was: $?"
+```
+
+**Expected output:**
+
+```
+PLAY RECAP ********************************************************************
+localhost                  : ok=2    changed=2    unreachable=0    failed=0
+PLAY RECAP ********************************************************************
+localhost                  : ok=2    changed=0    unreachable=0    failed=0
+-rw-r--r--. 1 root root unconfined_u:object_r:tmp_t:s0 16 ... index.html
+exit was: 0
+```
+
+**Line-by-line breakdown:**
+
+- two `ansible-playbook` runs → First creates the dir + file (`changed=2`), second is fully idempotent (`changed=0`).
+- `ls -lZ ...` → Confirm the file exists with the default `tmp_t` type, ready to relabel in Task 2.
+
+**New words in this step:**
+
+- **state: directory** → declares a folder should exist, creating it only when missing.
+
+---
+
+### Concept card (Task 1)
+
+| Concept | What it does | Exam trap |
+|---|---|---|
+| `file: state: directory` | idempotent mkdir | `state: touch` is NOT idempotent (updates mtime) |
+| `copy: content:` | exact file content | newline drift keeps `changed=1` |
+| default `tmp_t` | `/tmp` files inherit temp type | services may be denied until relabeled |
+
+---
+
+### Troubleshoot (Task 1)
+
+| Symptom | Likely cause | Fix |
+|---|---|---|
+| `changed=1` every run | Used `state: touch` | Use `state: directory`/`copy` for idempotence |
+| Wrong perms | `mode:` omitted | Set `mode:` explicitly |
+
+---
+
+## TASK 2 of 2 — Label persistently with `sefcontext` + `restorecon`
+
+**In plain English:** We declare the fcontext rule with the module and apply it with a guarded `restorecon`, then prove idempotence.
+
+---
+
+### Step 1 of 2 — Write the sefcontext + restorecon playbook
+
+**In plain English:** We create `task2.yml`, which records the web-content rule with `community.general.sefcontext` and runs `restorecon` only when relabeling is needed.
+
+```yaml
+---
+- name: "Lab 06b Task 2 — persistent SELinux label"
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  become: true
+  vars:
+    webroot: /tmp/lab-06/webroot
+  tasks:
+    - name: "Record the fcontext rule for the webroot"
       community.general.sefcontext:
-        target: '/tmp/lab06b/web(/.*)?'
+        target: "{{ webroot }}(/.*)?"
         setype: httpd_sys_content_t
         state: present
-      register: fc_result
 
-    - name: "Apply contexts on the filesystem (sefcontext does NOT do this)"
-      ansible.builtin.command: restorecon -Rv /tmp/lab06b/web
-      register: rc_result
-      changed_when: rc_result.stdout | length > 0
+    - name: "Apply the rule by relabeling"
+      ansible.builtin.command: "restorecon -Rv {{ webroot }}"
+      register: relabel
+      changed_when: "'Relabeled' in relabel.stdout"
 
-    - name: "Show results"
+    - name: "Show what was relabeled"
       ansible.builtin.debug:
-        msg:
-          - "fcontext changed: {{ fc_result.changed }}"
-          - "restorecon changed: {{ rc_result.changed }}"
-          - "restorecon stdout: {{ rc_result.stdout_lines | default([]) }}"
-PLAYBOOK
-
-echo "═══ Part A: --check --diff ═══"                    2>&1 | tee $TASKLOG
-ansible-playbook --check --diff "${PB}"                  2>&1 | tee -a $TASKLOG
-
-echo "═══ Part B: apply ═══"                              | tee -a $TASKLOG
-ansible-playbook "${PB}"                                  2>&1 | tee -a $TASKLOG
-
-echo "═══ Part C: verify on disk ═══"                     | tee -a $TASKLOG
-ls -lZ /tmp/lab06b/web/index.html                        | tee -a $TASKLOG
-semanage fcontext -l | grep '/tmp/lab06b/web'            | tee -a $TASKLOG
-echo "exit was: $?"
+        msg: "{{ relabel.stdout_lines }}"
 ```
 
-### Expected output
+**Expected output:**
 
-```text
-═══ Part A: --check --diff ═══
-TASK [Add fcontext rule for the lab webroot]
-changed: [localhost]
-TASK [Apply contexts on the filesystem (sefcontext does NOT do this)]
-skipping (check mode)
-═══ Part B: apply ═══
-TASK [Add fcontext rule for the lab webroot]
-changed: [localhost]
-TASK [Apply contexts on the filesystem (sefcontext does NOT do this)]
-changed: [localhost]
-═══ Part C: verify on disk ═══
--rw-r--r--. ... httpd_sys_content_t ... index.html
-/tmp/lab06b/web(/.*)? all files system_u:object_r:httpd_sys_content_t:s0
+```
+(this is the saved playbook file — no output until you run it in Step 2)
 ```
 
-### 🧠 Concept Card
+**Line-by-line breakdown:**
 
-| Concept | What it does |
-|---|---|
-| `community.general.sefcontext` | Declarative `semanage fcontext -a/-d` |
-| `state: present`/`absent` | Add or remove the rule |
-| **🪤 Trap Risk T02** | sefcontext alone records the rule but does NOT relabel — you must follow with `restorecon`. **Fix:** combine the two tasks. |
+- `community.general.sefcontext: target/setype/state: present` → Declare the persistent rule; idempotent, so a re-run reports `changed=0`.
+- `ansible.builtin.command: restorecon -Rv ...` → Apply the rule (no module exists for this step).
+- `changed_when: "'Relabeled' in relabel.stdout"` → Only count the task as changed when `restorecon` actually relabeled something.
 
-### Journal write
+**New words in this step:**
 
-```bash
-LAB=lab-06b
-TASK=task1
-JDIR="/root/rhcsa_journal/${LAB}/${TASK}"
-mkdir -p "$JDIR"
-cp /tmp/lab06b/task1.txt "$JDIR/evidence.txt"
-cp "${PB}" "$JDIR/task1.yml"
-ls -lZ /tmp/lab06b/web/index.html > "$JDIR/lsZ.txt"
-
-cat > "$JDIR/done.txt" <<EOF
-LAB:    ${LAB}
-TASK:   ${TASK}
-DATE:   $(date -Is)
-USER:   $(whoami)@$(hostname)
-STATUS: COMPLETE
-EOF
-
-cat > "$JDIR/notes.txt" <<EOF
-TOPIC:    community.general.sefcontext + ansible.builtin.command restorecon
-COMMANDS: ansible-playbook --check --diff, sefcontext target/setype/state
-TRAPS:    T02 rehearsed
-NEXT:     task2 — idempotence + drift correction
-EOF
-
-ls -la "$JDIR"
-echo "exit was: $?"
-```
-
-### 🧹 Cleanup
-
-```bash
-rm -f /tmp/lab06b/task1.txt
-ls /tmp/lab06b
-echo "exit was: $?"
-```
-
-> **STOP — paste the apply PLAY RECAP and the `httpd_sys_content_t` line before Task 2.**
+- **`community.general.sefcontext`** — the module that manages SELinux file-context rules, the `semanage fcontext` equivalent.
+- **`setype:`** — the SELinux type to assign in the rule.
 
 ---
 
-## Task 2 — Idempotence + drift correction
+### Step 2 of 2 — Run it twice and watch it converge
 
-### 🔁 Warm-Up
+**In plain English:** We run the play twice; the first relabels (`changed`), and the second finds nothing to do once the rule and labels already match.
 
 ```bash
-ls -lZ /tmp/lab06b/web/index.html
-ansible-playbook --syntax-check /root/rhcsa_journal/lab-06b/playbooks/task1.yml
-echo "Warm-up done by $(whoami) at $(date -Is)"
+ansible-playbook /root/rhcsa_journal/lab-06b/playbooks/task2.yml
+ansible-playbook /root/rhcsa_journal/lab-06b/playbooks/task2.yml
+ls -lZ /tmp/lab-06/webroot/index.html
 echo "exit was: $?"
 ```
 
-### Main command block
+**Expected output:**
 
-```bash
-TASKLOG=/tmp/lab06b/task2.txt
-PB=/root/rhcsa_journal/lab-06b/playbooks/task1.yml
-
-echo "═══ Part A: re-apply (idempotence) ═══"             2>&1 | tee $TASKLOG
-ansible-playbook "${PB}"                                  2>&1 | tee -a $TASKLOG
-CHG_A=$(grep -oP 'changed=\K[0-9]+' "$TASKLOG" | tail -n 1)
-echo "Pass A changed=${CHG_A}"                            | tee -a $TASKLOG
-
-echo "═══ Part B: introduce drift via chcon ═══"          | tee -a $TASKLOG
-chcon -R -t user_tmp_t /tmp/lab06b/web
-ls -lZ /tmp/lab06b/web/index.html                         | tee -a $TASKLOG
-
-echo "═══ Part C: re-apply — drift corrected ═══"          | tee -a $TASKLOG
-ansible-playbook "${PB}"                                  2>&1 | tee -a $TASKLOG
-ls -lZ /tmp/lab06b/web/index.html                         | tee -a $TASKLOG
-
-echo "═══ Part D: re-apply (idempotent again) ═══"         | tee -a $TASKLOG
-ansible-playbook "${PB}"                                  2>&1 | tee -a $TASKLOG
-CHG_D=$(grep -oP 'changed=\K[0-9]+' "$TASKLOG" | tail -n 1)
-echo "Pass D changed=${CHG_D}"                            | tee -a $TASKLOG
-
-CTX=$(stat -c '%C' /tmp/lab06b/web/index.html)
-echo "${CTX}" | grep -q 'httpd_sys_content_t' \
-    && echo "✅ drift corrected; context restored" \
-    || echo "❌ drift not corrected" \
-    | tee -a $TASKLOG
-
-echo "exit was: $?"
+```
+PLAY RECAP ********************************************************************
+localhost                  : ok=3    changed=2    unreachable=0    failed=0
+PLAY RECAP ********************************************************************
+localhost                  : ok=3    changed=0    unreachable=0    failed=0
+-rw-r--r--. 1 root root system_u:object_r:httpd_sys_content_t:s0 16 ... index.html
+exit was: 0
 ```
 
-### Journal write
+**Line-by-line breakdown:**
 
-```bash
-LAB=lab-06b
-TASK=task2
-JDIR="/root/rhcsa_journal/${LAB}/${TASK}"
-mkdir -p "$JDIR"
-cp /tmp/lab06b/task2.txt "$JDIR/evidence.txt"
+- first run → Records the rule and relabels the tree; both tasks report change.
+- second run → Rule already present and files already labeled, so `changed=0` — convergence.
+- `ls -lZ ...` → Confirm the file now carries `httpd_sys_content_t`.
 
-cat > "$JDIR/done.txt" <<EOF
-LAB:    ${LAB}
-TASK:   ${TASK}
-DATE:   $(date -Is)
-USER:   $(whoami)@$(hostname)
-STATUS: COMPLETE
-EOF
+**New words in this step:**
 
-cat > "$JDIR/notes.txt" <<EOF
-TOPIC:    Idempotence proof; drift via chcon corrected by re-apply
-COMMANDS: ansible-playbook re-apply, chcon (drift), restorecon (correction via apply)
-TRAPS:    T02 rehearsed again
-NEXT:     lab-06c — verify capstone
-EOF
-
-ls -la "$JDIR"
-echo "exit was: $?"
-```
-
-### 🧹 Cleanup (per-task — keep webroot + rule for 06c)
-
-```bash
-rm -f /tmp/lab06b/task2.txt
-ls /tmp/lab06b
-echo "exit was: $?"
-```
-
-> **STOP — paste both `Pass A changed=` and `Pass D changed=` lines before moving to Lab 06c.**
+- **convergence** — re-running the play reaches a steady `changed=0` state.
 
 ---
 
-## Lab 06b Checklist
+### Concept card (Task 2)
 
-- [ ] Task 1 — `--check --diff` previewed; apply added rule + relabeled; on-disk shows `httpd_sys_content_t`
-- [ ] Task 2 — Pass A changed=0; chcon-induced drift corrected on next apply; Pass D changed=0
+| Concept | What it does | Exam trap |
+|---|---|---|
+| `sefcontext` | idempotent rule | does NOT relabel — you still need `restorecon` |
+| `changed_when:` | custom change logic | without it, `command` is always `changed` |
+| `become: true` | root for policy | omit and SELinux changes fail |
 
 ---
 
-## Author
+### Troubleshoot (Task 2)
 
-**Kelvin R. Tobias**
+| Symptom | Likely cause | Fix |
+|---|---|---|
+| `module not found` | Collection missing | `ansible-galaxy collection install community.general` |
+| `restorecon` always `changed` | No `changed_when:` | Gate on `'Relabeled' in stdout` |
+
+---
+
+## ✅ Lab Checklist
+
+- [ ] Task 1 · Step 1 — Write the directory + file playbook
+- [ ] Task 1 · Step 2 — Run it and confirm the structure
+- [ ] Task 2 · Step 1 — Write the sefcontext + restorecon playbook
+- [ ] Task 2 · Step 2 — Run it twice and watch it converge
+- [ ] Every 🎯 Focus Coverage row (Anchor + NEW) mapped to a step
+- [ ] 🧹 Teardown run — sandbox + any system state removed
+
+---
+
+## 🧹 Teardown
+
+**In plain English:** Delete everything this lab created so the box is clean for the next run.
+
+> Run this after you've verified the lab. `lab_teardown.sh` safely removes the single sandbox root — it refuses to touch `/`, `$HOME`, or any protected path.
+
+```bash
+bash lab_teardown.sh "$LAB_ROOT"     # = /tmp/lab-06
+rm -rf /root/rhcsa_journal/lab-06b
+```
+
+**This lab created SYSTEM state (an SELinux fcontext rule) — reverse it explicitly:**
+
+```bash
+sudo semanage fcontext -d "/tmp/lab-06/webroot(/.*)?"
+```
+
+**Expected output:**
+
+```
+✅ Removed /tmp/lab-06 — lab workspace is clean.
+```
+
+---
+
+## ⚠️ Common Pitfalls
+
+| Mistake | Symptom | Fix |
+|---|---|---|
+| Expecting `sefcontext` to relabel | Files keep old type | Follow with a `restorecon` task |
+| No `changed_when:` on `restorecon` | Recap never settles | Gate on the `Relabeled` string |
+| Forgetting `become: true` | SELinux task fails | Add it to the play |
+
+---
+
+## 📌 Exam Strategy
+
+For SELinux on the RHCE, pair `community.general.sefcontext` (the rule) with a guarded `restorecon` (the apply). Mark `restorecon` with `changed_when:` so the recap is honest, and always re-run to prove the rule converges to `changed=0`.
+
+- The rule module is idempotent; the relabel command needs `changed_when:`.
+- Use `state: absent` in `sefcontext` to remove rules cleanly.
+- Re-run twice — convergence is the acceptance test.
+
+---
+
+## 🔗 Related Labs
+
+- [Lab 06a — Listing Files and SELinux (RHCSA)](../lab-06a-listing-files-selinux-rhcsa/) — the hand-typed `semanage`/`restorecon` pattern
+- [Lab 06c — Listing Files and SELinux (Verify)](../lab-06c-listing-files-selinux-verify/) — prove the label matches policy
+- [Lab 00b — Ansible Control Node (Ansible)](../lab-00b-ansible-control-node-ansible/) — installing the `community.general` collection used here
+
+---
+
+## 👤 Author
+
+**Kelvin R. Tobias**  
 [kelvinintech.com](https://kelvinintech.com) · [GitHub](https://github.com/kelvintechnical) · [LinkedIn](https://www.linkedin.com/in/kelvin-r-tobias-211949219)

@@ -1,207 +1,341 @@
-# Lab 30a: Navigating `info` Pages (RHCSA)
+# Lab 30a: Navigating info Pages (RHCSA) — `info`, nodes, `n`/`p`/`u`
 
-- **Series:** linux-ops-mastery — Documentation Navigation and Discovery
-- **Trilogy:** `30a` (RHCSA hand-typed) -> `30b` (Ansible mirror) -> `30c` (Verify capstone)
-- **Time Estimate:** 25-35 minutes
-- **Tasks:** 2
-- **Practice Directory (rotation #30):** `/sys` (read-only orientation path)
-- **Sandbox (Tier B):** `/tmp/lab30a` with `USER=labuser_30_info`, `GROUP=labgrp_30_info`
-- **Traps rehearsed this lab:** **T30-A** (`info` is Texinfo docs, not `man` roff pages) · **T30-B** (minimal install may not include `info` package) · **T41** · **T44**
-
-> **This lab's topic:** navigating GNU info pages with `info`, the `info` command, `n/p/u` movement keys, `/search`, and `q` to quit.
+**Series:** linux-ops-mastery — Documentation · **Lab 30a of the Novice → RHCA path**  
+**Certifications covered:** RHCSA EX200 (using the second documentation system), SRE/DevOps (deep GNU-tool reference)  
+**Prerequisite:** [Lab 29c](../lab-29c-apropos-whatis-verify/) completed  
+**Time Estimate:** 20–30 minutes  
+**Difficulty:** Beginner
 
 ---
 
-## LAB HEADER BLOCK
+## 🎯 Today's Focus Coverage
 
-```bash
-echo "🖥️  ENV:   ${ENV:-DECLARE_ME}"
-echo "📦  OS:    $(cat /etc/redhat-release 2>/dev/null || grep PRETTY_NAME /etc/os-release)"
-echo "🕒  TIME:  $(date -Is)"
-echo "👤  USER:  $(whoami)@$(hostname)"
-echo "📁  PRACTICE DIR: /sys"
-echo "⚠️  TRAP REMINDERS THIS LAB: T30-A T30-B T41 T44"
-ls -ld /sys /usr/share/info 2>/dev/null || true
-command -v info >/dev/null && info --version | head -n 1 || echo "info command missing"
+> Stay on-subject via the ANCHOR rows; expand vocabulary via the NEW rows. Every row is exercised by a STEP below.
+
+**⚓ Anchor — already learned (on-topic reuse)**
+
+| # | Command / switch | Covered by |
+|---|---|---|
+| A1 | `man` as the other doc system | _Task 1 · Step 1_ |
+| A2 | pager-style search (`/`) | _Task 2 · Step 1_ |
+
+**🆕 NEW this lab — introduced for the first time** (minimum 3)
+
+| # | Command / switch | First taught in | Covered by |
+|---|---|---|---|
+| N1 | `info COMMAND` + nodes | Task 1 · Step 1 | _Task 1 · Step 1_ |
+| N2 | `n` / `p` / `u` navigation | Task 1 · Step 2 | _Task 1 · Step 2_ |
+| N3 | menu items + `Enter` / `l` | Task 2 · Step 1 | _Task 2 · Step 1_ |
+| N4 | `info --output` / `s` search | Task 2 · Step 2 | _Task 2 · Step 2_ |
+
+---
+
+## 🎯 Objective
+
+Use `info`, the GNU documentation system that's often richer than `man` for GNU tools (coreutils, bash, gawk). You will open an info document, understand its tree of **nodes**, move between sibling nodes (`n`/`p`), go up to the parent (`u`), follow menu items into subtopics, and search. By the end you can read the long-form GNU manuals that `man` only summarizes.
+
+> **Note:** `info` is interactive. Keys: `n` next, `p` previous, `u` up, `Enter` follow menu item, `l` back, `s` search, `q` quit.
+
+---
+
+## 🧠 Concept
+
+Where `man` shows one flat page, `info` organizes documentation as a tree of **nodes** linked like a mini-website. The top node has a **menu** (`* Item::` lines); pressing `Enter` on a menu item descends into that node. Navigation keys: `n` (next sibling node), `p` (previous sibling), `u` (up to parent), `l` (last — go back where you came from), `Enter`/`m` (follow a menu item by selecting it). `s` searches the whole document; `q` quits. Many GNU tools ship a brief `man` page that says "the full documentation is in the info manual" — `info coreutils 'ls invocation'` jumps straight to that section. Think `man` = quick reference, `info` = the book.
+
+```
+info ls               → the ls info node (often via coreutils)
+n / p                 → next / previous sibling node
+u                     → up to the parent node
+Enter (on * Item::)   → descend into that menu item
+s pattern             → search the document
+q                     → quit
 ```
 
-> **STOP — paste header output before setup.**
+> **Why this matters:** For GNU coreutils and bash, the `info` manual is the authoritative, complete reference. When a `man` page ends with "see the info manual," `info` is where the real answer lives.
 
 ---
 
-## Objective
+## 📚 Command Reference
 
-Build exam-safe reflexes for GNU documentation lookup:
-
-1. Export and inspect the `coreutils` node for **ls invocation** using non-interactive `info ... -o`.
-2. Explain interactive movement keys (`n`, `p`, `u`, `/`, `q`) in evidence notes because automated tests cannot press TTY keys.
-3. Install and verify the `info` package pathing (`/usr/share/info`) to avoid minimal-install surprises (T30-B).
-
----
-
-## Core Reference
-
-| Command | Meaning |
-|---|---|
-| `info` | Launch interactive info browser |
-| `info coreutils` | Open top node of the coreutils manual |
-| `info coreutils 'ls invocation'` | Jump directly to the `ls` node |
-| `info coreutils -o FILE` | Write rendered output to file (non-interactive evidence path) |
-| `n` / `p` / `u` | Next node / previous node / up node |
-| `/pattern` | Search within the current info document |
-| `q` | Quit info browser |
-| `rpm -ql info` | List files shipped by the `info` package |
-| `install-info` | Maintains directory entries for info docs |
+| Key / command | Purpose | Notes |
+|---|---|---|
+| `info NAME` | Open info doc | tree of nodes |
+| `n` / `p` | Next / previous node | siblings |
+| `u` | Up to parent | one level |
+| `Enter` / `m` | Follow menu item | descend |
+| `l` | Back (last node) | history |
+| `s` | Search document | `q` to quit |
 
 ---
 
-## Lab-Wide Setup — Tier B Sandbox
+## 🧰 LAB-WIDE SETUP
+
+**In plain English:** Make a sandbox for notes; info docs come from the system.
+
+> Run this block **once** before Task 1. `LAB_ROOT` holds any notes you save.
 
 ```bash
-sudo -i
-
-export LAB_NUM=30
-export LAB_SLUG=info
-export SANDBOX=/tmp/lab30a
-export GROUP=labgrp_30_info
-export USER=labuser_30_info
-export USER_HOME=${SANDBOX}/home_${USER}
-
-mkdir -p "${SANDBOX}" "${USER_HOME}" /root/rhcsa_journal/lab-30a/task1 /root/rhcsa_journal/lab-30a/task2
-getent group "${GROUP}" >/dev/null || groupadd "${GROUP}"
-getent passwd "${USER}" >/dev/null || useradd -d "${USER_HOME}" -M -s /bin/bash -g "${GROUP}" "${USER}"
-chown -R "${USER}:${GROUP}" "${SANDBOX}"
-
-id "${USER}"
-ls -ld "${SANDBOX}" "${USER_HOME}"
+export LAB_ROOT=/tmp/lab-30
+mkdir -p "$LAB_ROOT"
+cd "$LAB_ROOT"
+echo "ready"
+echo "exit was: $?"
 ```
 
-> **STOP — paste `id` and `ls -ld` outputs before Task 1.**
+**Expected output:**
 
----
-
-## Task 1 — Export `coreutils` info node for `ls invocation`
-
-### Purpose
-
-Execute the required non-interactive pattern:
-
-- `info coreutils 'ls invocation'`
-- `info coreutils -o /tmp/.../ls.txt`
-- `cat` the exported file for evidence
-
-Also record the interactive key map (`n/p/u`, `/`, `q`) in notes since keypresses are not directly testable in automation.
-
-### Main command block
-
-```bash
-TASKLOG=/tmp/lab30a/task1.txt
-OUT=/tmp/lab30a/ls.txt
-
-# Required non-interactive evidence flow
-info coreutils 'ls invocation' -o "${OUT}"          2>&1 | tee "${TASKLOG}"
-test -s "${OUT}" && echo "✅ ls.txt populated"      | tee -a "${TASKLOG}"
-cat "${OUT}"                                        | tee -a "${TASKLOG}"
-
-# Interactive key documentation (TTY behavior note)
-cat >> "${TASKLOG}" <<'EOF'
-KEY_NAV_NOTES:
-- n = next node
-- p = previous node
-- u = up node
-- /pattern = search within info document
-- q = quit info browser
-EOF
-
-echo "exit was: $?"                                 | tee -a "${TASKLOG}"
 ```
-
-### Trap callout
-
-- **T30-A:** `info` and `man` are different formats and ecosystems (`Texinfo` vs `roff`).
-- Do not claim "man output proves info navigation"; they are related references, not the same document tree.
-
-### Journal write
-
-```bash
-JDIR=/root/rhcsa_journal/lab-30a/task1
-cp /tmp/lab30a/task1.txt "${JDIR}/evidence.txt"
-cp /tmp/lab30a/ls.txt "${JDIR}/ls.txt"
+ready
+exit was: 0
 ```
 
 ---
 
-## Task 2 — Install and verify `info` docs tree
+## TASK 1 of 2 — Open and move between nodes
 
-### Purpose
+**In plain English:** We open an info document and navigate its nodes.
 
-Rehearse minimal-install recovery flow for T30-B:
+---
 
-1. Install `info` package with `dnf`.
-2. Validate shipped files contain `share` paths.
-3. Confirm `/usr/share/info` exists and is populated.
+### Step 1 of 2 — Open an info document
 
-### Main command block
+**In plain English:** We open the coreutils info manual at the `ls` section.
 
 ```bash
-TASKLOG=/tmp/lab30a/task2.txt
-
-dnf install -y info                                 2>&1 | tee "${TASKLOG}"
-rpm -q info                                         2>&1 | tee -a "${TASKLOG}"
-rpm -ql info | grep share                           2>&1 | tee -a "${TASKLOG}"
-ls -la /usr/share/info                              2>&1 | tee -a "${TASKLOG}"
-
-command -v install-info >/dev/null \
-  && echo "✅ install-info present"                 | tee -a "${TASKLOG}" \
-  || echo "❌ install-info missing"                 | tee -a "${TASKLOG}"
-
-echo "exit was: $?"                                 | tee -a "${TASKLOG}"
+info coreutils 'ls invocation'
+# Inside info:
+#   read the node; note the top line shows Next:, Prev:, Up:
+#   q   → quit
+echo "exit was: $?"
 ```
 
-### Journal write
+**Expected output (on screen):**
+
+```
+Next: dir invocation,  Prev: ...,  Up: Directory listing
+
+10.1 'ls': List directory contents
+==================================
+... (full ls documentation) ...
+```
+
+**Line-by-line breakdown:**
+
+- `info coreutils 'ls invocation'` → Open the coreutils manual directly at the `ls` node.
+- the header `Next:/Prev:/Up:` → Shows the node's neighbors in the tree — your navigation map.
+
+**New words in this step:**
+
+- **node** — a single page in the info tree, linked to Next/Prev/Up neighbors.
+
+---
+
+### Step 2 of 2 — Move with `n`, `p`, `u`
+
+**In plain English:** We step to the next node, back, and up to the parent.
 
 ```bash
-JDIR=/root/rhcsa_journal/lab-30a/task2
-cp /tmp/lab30a/task2.txt "${JDIR}/evidence.txt"
+info coreutils 'ls invocation'
+# Inside info:
+#   n   → jump to the Next node (e.g. "dir invocation")
+#   p   → jump to the Previous node
+#   u   → go Up to the parent (e.g. "Directory listing")
+#   q   → quit
+```
+
+**Expected output (on screen):**
+
+```
+(after n) 10.2 'dir': ...
+(after p) 10.1 'ls': ...
+(after u) Directory listing  (the parent node with its menu)
+```
+
+**Line-by-line breakdown:**
+
+- `n` / `p` → Move to the next / previous *sibling* node at the same level.
+- `u` → Move *up* to the parent node, which usually shows a menu of its children.
+
+**New words in this step:**
+
+- **`n` / `p` / `u`** — next / previous sibling / up to parent navigation.
+
+---
+
+### Concept card (Task 1)
+
+| Concept | What it does | Exam trap |
+|---|---|---|
+| node tree | linked pages | not one flat page |
+| `n`/`p` | siblings | same level only |
+| `u` | parent | shows the menu |
+
+---
+
+### Troubleshoot (Task 1)
+
+| Symptom | Likely cause | Fix |
+|---|---|---|
+| `info ls` shows man text | No info manual for it | Try `info coreutils` |
+| Lost in nodes | Forgot the map | Read the `Next/Prev/Up` header |
+
+---
+
+## TASK 2 of 2 — Menus and search
+
+**In plain English:** We follow a menu item into a subtopic, then search the document.
+
+---
+
+### Step 1 of 2 — Follow a menu item
+
+**In plain English:** We open the top of a manual and descend into a menu item with `Enter`.
+
+```bash
+info coreutils
+# Inside info (top node shows a menu of "* Item::" lines):
+#   move the cursor to a menu line like "* ls invocation::"
+#   Enter   → descend into that node
+#   l       → go back (last node)
+#   q       → quit
+```
+
+**Expected output (on screen):**
+
+```
+* Menu:
+* Common options::
+* Output of entire files::    cat tac nl ...
+* ls invocation::             ls
+... (Enter on "* ls invocation::" opens that node) ...
+```
+
+**Line-by-line breakdown:**
+
+- `info coreutils` → Open the manual's top node, which lists `* Item::` menu entries.
+- `Enter` on a menu line → Descend into that subtopic node; `l` returns to where you were.
+
+**New words in this step:**
+
+- **menu item** — a `* Item::` link you follow with `Enter` to descend the tree.
+
+---
+
+### Step 2 of 2 — Search and export with `s` / `--output`
+
+**In plain English:** We search inside a document, then dump a node to a file non-interactively.
+
+```bash
+cd "$LAB_ROOT"
+# Interactive search:
+info coreutils 'ls invocation'
+#   s   → type "human-readable" then Enter to jump to that text; q to quit
+# Non-interactive export of the node to a file:
+info --output=ls-node.txt coreutils 'ls invocation'
+head -5 ls-node.txt
+echo "exit was: $?"
+```
+
+**Expected output:**
+
+```
+(interactive: s jumps to the --human-readable description)
+10.1 'ls': List directory contents
+==================================
+... (first lines of the exported node) ...
+exit was: 0
+```
+
+**Line-by-line breakdown:**
+
+- `s` (inside info) → Search the whole document for text and jump to it.
+- `info --output=ls-node.txt ...` → Write the node to a file non-interactively — handy for saving or grepping.
+
+**New words in this step:**
+
+- **`s`** — search within an info document.
+- **`--output`** — dump an info node to a file without the interactive UI.
+
+---
+
+### Concept card (Task 2)
+
+| Concept | What it does | Exam trap |
+|---|---|---|
+| `* Item::` | menu link | `Enter` to follow |
+| `s` | doc search | different from man `/` |
+| `--output` | export node | non-interactive |
+
+---
+
+### Troubleshoot (Task 2)
+
+| Symptom | Likely cause | Fix |
+|---|---|---|
+| `Enter` does nothing | Cursor not on menu line | Move onto `* Item::` |
+| Export empty | Wrong node name | Quote the exact node |
+
+---
+
+## ✅ Lab Checklist
+
+- [ ] Task 1 · Step 1 — Open an info document
+- [ ] Task 1 · Step 2 — Move with `n`, `p`, `u`
+- [ ] Task 2 · Step 1 — Follow a menu item
+- [ ] Task 2 · Step 2 — Search and export with `s` / `--output`
+- [ ] Every 🎯 Focus Coverage row (Anchor + NEW) mapped to a step
+- [ ] 🧹 Teardown run — sandbox + any system state removed
+
+---
+
+## 🧹 Teardown
+
+**In plain English:** Delete everything this lab created so the box is clean for the next run.
+
+> Run this after you've verified the lab. `lab_teardown.sh` safely removes the single sandbox root — it refuses to touch `/`, `$HOME`, or any protected path. This lab changed **no** system state.
+
+```bash
+cd /tmp
+bash lab_teardown.sh "$LAB_ROOT"     # = /tmp/lab-30
+```
+
+**Expected output:**
+
+```
+✅ Removed /tmp/lab-30 — lab workspace is clean.
 ```
 
 ---
 
-## Lab Closeout — Bulletproof Teardown (Section 6)
+## ⚠️ Common Pitfalls
 
-```bash
-set +e
-
-if getent passwd "${USER}" >/dev/null 2>&1; then
-  userdel -r "${USER}" 2>/dev/null
-fi
-if getent group "${GROUP}" >/dev/null 2>&1; then
-  groupdel "${GROUP}" 2>/dev/null
-fi
-
-rm -rf "${SANDBOX}"
-
-echo "── Lab 30a cleanup audit ──"
-getent passwd "${USER}" >/dev/null && echo "❌ user remains" || echo "✅ user gone"
-getent group "${GROUP}" >/dev/null && echo "❌ group remains" || echo "✅ group gone"
-test -d "${SANDBOX}" && echo "❌ sandbox remains" || echo "✅ sandbox gone"
-test -d "${USER_HOME}" && echo "❌ home remains" || echo "✅ home gone"
-
-set -e
-```
+| Mistake | Symptom | Fix |
+|---|---|---|
+| Treating info like man | Confused by nodes | Learn `n`/`p`/`u` |
+| Ignoring info for GNU tools | Missing full docs | `info coreutils` |
+| Can't quit | In the reader | Press `q` |
 
 ---
 
-## Lab 30a Checklist
+## 📌 Exam Strategy
 
-- [ ] Task 1 completed (`info coreutils 'ls invocation'` exported to `/tmp/lab30a/ls.txt` and key-map notes recorded)
-- [ ] Task 2 completed (`dnf install info`, `rpm -ql info | grep share`, `ls /usr/share/info`)
-- [ ] T30-A and T30-B trap notes recorded in evidence
-- [ ] Section 6 closeout audit shows four `✅` lines
+When a `man` page says "see the info manual," use `info`. Navigate with `n`/`p`/`u`, follow `* Item::` menus with `Enter`, and `s` to search. `info --output` lets you dump a node to grep it.
+
+- `info coreutils 'X invocation'` jumps straight to a tool.
+- `u` then read the menu to orient yourself.
+- `--output` for non-interactive extraction.
 
 ---
 
-## Author
+## 🔗 Related Labs
 
-**Kelvin R. Tobias**
+- [Lab 30b — Navigating info Pages (Ansible)](../lab-30b-info-pages-ansible/) — extracting info content in a play
+- [Lab 30c — Navigating info Pages (Verify)](../lab-30c-info-pages-verify/) — prove nodes exist and resolve
+- [Lab 28a — Exploring Manual Pages (RHCSA)](../lab-28a-man-pages-rhcsa/) — the `man` system info complements
+
+---
+
+## 👤 Author
+
+**Kelvin R. Tobias**  
 [kelvinintech.com](https://kelvinintech.com) · [GitHub](https://github.com/kelvintechnical) · [LinkedIn](https://www.linkedin.com/in/kelvin-r-tobias-211949219)

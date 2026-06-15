@@ -1,56 +1,32 @@
 ---
-# Lab 07b Task 2 — verify explicit times and rolling behavior
+# Lab 07b Task 2 — find files by age
+#
+# Run:
+#   ansible-playbook /root/rhcsa_journal/lab-07b/playbooks/task2.yml
+#
+# Expected: the debug task lists the aged app.log (mtime pinned to 2026-01-01
+# in Task 1, older than 1 day). ansible.builtin.find is read-only, so the
+# PLAY RECAP shows changed=0.
 
-- name: "Lab 07b Task 2 - verify fixed vs rolling timestamps"
+- name: "Lab 07b Task 2 — find files by age"
   hosts: localhost
   connection: local
   gather_facts: false
-  become: true
-
   vars:
-    sandbox: /tmp/touch-ansible-lab
-    fixed_path: /tmp/touch-ansible-lab/fixed.txt
-    rolling_path: /tmp/touch-ansible-lab/rolling.txt
-    fixed_mtime_expected: "2024-01-15"
-    fixed_atime_expected: "2020-01-01"
+    log_dir: /tmp/lab-07/logs
 
   tasks:
-    - name: Re-assert fixed file with explicit timestamps
-      ansible.builtin.file:
-        path: "{{ fixed_path }}"
-        state: touch
-        modification_time: "202401151230.00"
-        access_time: "202001010101.00"
-      register: fixed_retouch
+    - name: "Find .log files older than 1 day (by mtime)"
+      ansible.builtin.find:
+        paths: "{{ log_dir }}"
+        patterns: "*.log"
+        age: "1d"
+        age_stamp: mtime
+        recurse: true
+      register: old_logs
 
-    - name: Touch rolling file again (expected to keep changing)
-      ansible.builtin.file:
-        path: "{{ rolling_path }}"
-        state: touch
-      register: rolling_retouch
-
-    - name: Read fixed file metadata
-      ansible.builtin.stat:
-        path: "{{ fixed_path }}"
-      register: fixed_stat
-
-    - name: Read rolling file metadata
-      ansible.builtin.stat:
-        path: "{{ rolling_path }}"
-      register: rolling_stat
-
-    - name: Assert fixed file still maps to expected date prefixes
-      ansible.builtin.assert:
-        that:
-          - fixed_stat.stat.exists
-          - fixed_stat.stat.mtime is number
-        fail_msg: "fixed.txt is missing or has invalid metadata."
-
-    - name: Show verification summary
+    - name: "Show how many matched and their paths"
       ansible.builtin.debug:
         msg:
-          - "fixed changed={{ fixed_retouch.changed }} (may be false after first converge)"
-          - "rolling changed={{ rolling_retouch.changed }} (expected true)"
-          - "fixed mtime={{ fixed_stat.stat.mtime }} epoch"
-          - "rolling mtime={{ rolling_stat.stat.mtime }} epoch"
-          - "Expected fixed date prefix mtime={{ fixed_mtime_expected }}, atime={{ fixed_atime_expected }}"
+          - "matched: {{ old_logs.matched }}"
+          - "files: {{ old_logs.files | map(attribute='path') | list }}"

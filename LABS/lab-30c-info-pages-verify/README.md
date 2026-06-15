@@ -1,190 +1,316 @@
-# Lab 30c: Verifying `info` Pages — audit + destroy/restore
+# Lab 30c: Navigating info Pages (Verify) — `info --output`, node checks
 
-- **Series:** linux-ops-mastery — Documentation Navigation and Discovery
-- **Trilogy:** `30a` (RHCSA) -> `30b` (Ansible) -> `30c` (Verify — you are here)
-- **Time Estimate:** 25-35 minutes
-- **Tasks:** 2 (Task 1 = audit info package state + journal evidence, Task 2 = destroy-restore drill)
-- **Practice Directory (rotation #30):** `/sys` (orientation)
-- **Sandbox (Tier B):** `/tmp/lab30c` with `USER=labuser_30_info`, `GROUP=labgrp_30_info`
-- **Traps rehearsed this lab:** **T30-A** · **T30-B** · **T41** · **T44**
-
-> **This lab verifies** that info-page tooling is truly present and recoverable, not just "recently installed."
+**Series:** linux-ops-mastery — Documentation · **Lab 30c of the Novice → RHCA path**  
+**Certifications covered:** RHCSA EX200 (proving info docs resolve), SRE (doc-availability checks), DevOps (artifact validation)  
+**Prerequisite:** [Lab 30a](../lab-30a-info-pages-rhcsa/) and [Lab 30b](../lab-30b-info-pages-ansible/) completed  
+**Time Estimate:** 15–25 minutes  
+**Difficulty:** Beginner
 
 ---
 
-## LAB HEADER BLOCK
+## 🎯 Today's Focus Coverage
 
-```bash
-echo "🖥️  ENV:   ${ENV:-DECLARE_ME}"
-echo "📦  OS:    $(cat /etc/redhat-release 2>/dev/null || grep PRETTY_NAME /etc/os-release)"
-echo "🕒  TIME:  $(date -Is)"
-echo "👤  USER:  $(whoami)@$(hostname)"
-echo "📁  PRACTICE DIR: /sys"
-echo "⚠️  TRAP REMINDERS THIS LAB: T30-A T30-B T41 T44"
-ls -ld /sys /usr/share/info 2>/dev/null || true
-rpm -q info 2>/dev/null || echo "info package not currently installed"
+> Stay on-subject via the ANCHOR rows; expand vocabulary via the NEW rows. Every row is exercised by a STEP below.
+
+**⚓ Anchor — already learned (on-topic reuse)**
+
+| # | Command / switch | Covered by |
+|---|---|---|
+| A1 | `info --output` | _Task 1 · Step 1_ |
+| A2 | `grep -q` / `wc -l` | _Task 1 · Step 2_ |
+
+**🆕 NEW this lab — introduced for the first time** (minimum 3)
+
+| # | Command / switch | First taught in | Covered by |
+|---|---|---|---|
+| N1 | node-resolves rc check | Task 1 · Step 1 | _Task 1 · Step 1_ |
+| N2 | non-empty render proof | Task 1 · Step 2 | _Task 1 · Step 2_ |
+| N3 | content presence in node | Task 2 · Step 1 | _Task 2 · Step 1_ |
+| N4 | `install-info` / dir file check | Task 2 · Step 2 | _Task 2 · Step 2_ |
+
+---
+
+## 🎯 Objective
+
+Prove an info node resolves and carries the content you expect. You will confirm a node renders (exit code), check the render is non-empty and substantial, verify it documents a specific option, and confirm the info directory (`dir`) registers the manual. These checks certify that the long-form GNU documentation you depend on is actually installed and findable.
+
+---
+
+## 🧠 Concept
+
+Info verification has the same shape as man verification but targets nodes. `info --output=- NODE` exits 0 and emits text when the node resolves, non-zero when it doesn't — a boolean for "does this node exist?" A render that's suspiciously short may indicate a missing manual, so check the line count is substantial. Content checks (`grep -q OPTION`) confirm the node documents what you need. Finally, the info **dir** file (`/usr/share/info/dir`) is the top-level menu that `install-info` maintains; a manual listed there is properly registered and discoverable by `info NAME` without a full path.
+
+```
+info --output=- coreutils 'ls invocation'; echo $? → 0 = resolves
+... | wc -l  (substantial, not ~0)              → real content
+... | grep -q -- --human-readable               → documents the option
+grep -q coreutils /usr/share/info/dir           → manual registered
 ```
 
-> **STOP — paste header output before setup.**
+> **Why this matters:** A role that points users to `info coreutils` assumes the manual is installed and registered. Proving the node resolves, has content, and is in the `dir` index is what backs that assumption.
 
 ---
 
-## Objective
+## 📚 Command Reference
 
-1. Audit package state, command availability, docs tree content, and journal evidence quality.
-2. Perform a destroy-restore cycle to prove operational recovery when `info` pages disappear.
+| Command | Purpose | Critical flags |
+|---|---|---|
+| `info --output=-` | Render to stdout | rc 0 = resolves |
+| `wc -l` | Render size | substantial check |
+| `grep -q` | Content presence | exit-code only |
+| `/usr/share/info/dir` | Top-level index | registration |
+| `install-info` | Manage `dir` | registers manuals |
 
 ---
 
-## Lab-Wide Setup — Tier B Sandbox
+## 🧰 LAB-WIDE SETUP
+
+**In plain English:** Make a sandbox for saved renders; info docs come from the system.
+
+> Run this block **once** before Task 1. `LAB_ROOT` holds rendered nodes.
 
 ```bash
-sudo -i
-
-export SANDBOX=/tmp/lab30c
-export GROUP=labgrp_30_info
-export USER=labuser_30_info
-export USER_HOME=${SANDBOX}/home_${USER}
-
-mkdir -p "${SANDBOX}" "${USER_HOME}" /root/rhcsa_journal/lab-30c/task1 /root/rhcsa_journal/lab-30c/task2
-getent group "${GROUP}" >/dev/null || groupadd "${GROUP}"
-getent passwd "${USER}" >/dev/null || useradd -d "${USER_HOME}" -M -s /bin/bash -g "${GROUP}" "${USER}"
-chown -R "${USER}:${GROUP}" "${SANDBOX}"
+export LAB_ROOT=/tmp/lab-30
+mkdir -p "$LAB_ROOT"
+cd "$LAB_ROOT"
+echo "ready"
+echo "exit was: $?"
 ```
 
----
+**Expected output:**
 
-## Task 1 — Audit info package state and journal-grade evidence
-
-### Purpose
-
-Run direct system checks without trusting past output:
-
-- Package installed state (`rpm -q info`)
-- Binary presence (`command -v info`, `command -v install-info`)
-- Docs tree populated (`/usr/share/info`)
-- Journal evidence captures all checks for replay
-
-### Main command block
-
-```bash
-TASKLOG=/tmp/lab30c/task1.txt
-
-echo "═══ package + binary audit ═══"                     | tee "${TASKLOG}"
-rpm -q info                                              2>&1 | tee -a "${TASKLOG}"
-command -v info                                          2>&1 | tee -a "${TASKLOG}"
-command -v install-info                                  2>&1 | tee -a "${TASKLOG}"
-
-echo "═══ docs tree audit ═══"                           | tee -a "${TASKLOG}"
-ls -la /usr/share/info                                   2>&1 | tee -a "${TASKLOG}"
-ls -1 /usr/share/info 2>/dev/null | wc -l               2>&1 | tee -a "${TASKLOG}"
-
-echo "═══ non-interactive info export audit ═══"         | tee -a "${TASKLOG}"
-info coreutils 'ls invocation' -o /tmp/lab30c/ls.txt     2>&1 | tee -a "${TASKLOG}"
-test -s /tmp/lab30c/ls.txt \
-  && echo "✅ exported ls invocation text exists"        | tee -a "${TASKLOG}" \
-  || echo "❌ missing exported ls invocation text"        | tee -a "${TASKLOG}"
-
-echo "═══ journal evidence hooks ═══"                    | tee -a "${TASKLOG}"
-journalctl --since "today" --no-pager 2>/dev/null \
-  | grep -Ei 'dnf|info' | tail -n 20                     2>&1 | tee -a "${TASKLOG}" || true
-
-echo "exit was: $?"                                      | tee -a "${TASKLOG}"
 ```
-
-### Journal write
-
-```bash
-JDIR=/root/rhcsa_journal/lab-30c/task1
-cp /tmp/lab30c/task1.txt "${JDIR}/audit.txt"
-cp /tmp/lab30c/ls.txt "${JDIR}/ls.txt"
+ready
+exit was: 0
 ```
 
 ---
 
-## Task 2 — Destroy-restore drill (T30-B recovery)
+## TASK 1 of 2 — Prove the node resolves
 
-### Purpose
+**In plain English:** We confirm the node renders and produces real content.
 
-Simulate failure and recover cleanly:
+---
 
-1. Remove `info` package (destroy).
-2. Prove `/usr/share/info` and `info` command are missing/broken.
-3. Reinstall and re-audit (restore).
+### Step 1 of 2 — Resolve check via exit code
 
-### Main command block
+**In plain English:** We confirm the `ls` node renders successfully and a bogus node fails.
 
 ```bash
-TASKLOG=/tmp/lab30c/task2.txt
-
-echo "═══ DESTROY phase ═══"                             | tee "${TASKLOG}"
-dnf remove -y info                                       2>&1 | tee -a "${TASKLOG}" || true
-rpm -q info                                              2>&1 | tee -a "${TASKLOG}" || true
-command -v info                                          2>&1 | tee -a "${TASKLOG}" || true
-ls -la /usr/share/info                                   2>&1 | tee -a "${TASKLOG}" || true
-
-echo "═══ RESTORE phase ═══"                             | tee -a "${TASKLOG}"
-dnf install -y info                                      2>&1 | tee -a "${TASKLOG}"
-rpm -q info                                              2>&1 | tee -a "${TASKLOG}"
-command -v info                                          2>&1 | tee -a "${TASKLOG}"
-ls -1 /usr/share/info 2>/dev/null | wc -l               2>&1 | tee -a "${TASKLOG}"
-info coreutils 'ls invocation' -o /tmp/lab30c/ls-restored.txt 2>&1 | tee -a "${TASKLOG}"
-test -s /tmp/lab30c/ls-restored.txt \
-  && echo "✅ restore verified"                          | tee -a "${TASKLOG}" \
-  || echo "❌ restore failed"                            | tee -a "${TASKLOG}"
-
-echo "exit was: $?"                                      | tee -a "${TASKLOG}"
+cd "$LAB_ROOT"
+info --output=- coreutils 'ls invocation' >/dev/null 2>&1 && echo "NODE OK" || echo "NODE MISSING (FAIL)"
+info --output=- coreutils 'no such node xyz' >/dev/null 2>&1 && echo "unexpected" || echo "BOGUS DETECTED (OK)"
 ```
 
-### Trap callout
+**Expected output:**
 
-- **T30-B:** failing to install `info` on minimal images means every `info ...` operation fails.
-- This drill forces the failure first, then proves recovery path under pressure.
+```
+NODE OK
+BOGUS DETECTED (OK)
+```
 
-### Journal write
+**Line-by-line breakdown:**
+
+- `info --output=- coreutils 'ls invocation' >/dev/null 2>&1 && ...` → Exit 0 means the node resolved; output discarded.
+- the bogus node → Non-zero exit confirms the failure path works.
+
+**New words in this step:**
+
+- **node resolves** — `info --output` exit code as a node-exists boolean.
+
+---
+
+### Step 2 of 2 — Prove the render is substantial
+
+**In plain English:** We confirm the rendered node has real content, not a stub.
 
 ```bash
-JDIR=/root/rhcsa_journal/lab-30c/task2
-cp /tmp/lab30c/task2.txt "${JDIR}/destroy-restore.txt"
-cp /tmp/lab30c/ls-restored.txt "${JDIR}/ls-restored.txt"
+cd "$LAB_ROOT"
+info --output=- coreutils 'ls invocation' > ls-node.txt
+N=$(wc -l < ls-node.txt)
+echo "node lines: $N"
+[ "$N" -gt 20 ] && echo "SUBSTANTIAL (OK)" || echo "TOO SHORT (FAIL)"
+```
+
+**Expected output:**
+
+```
+node lines: 200
+SUBSTANTIAL (OK)
+```
+
+**Line-by-line breakdown:**
+
+- `info --output=- ... > ls-node.txt` → Save the rendered node.
+- `wc -l < ls-node.txt` → Count its lines.
+- `[ "$N" -gt 20 ]` → A real node has many lines; a tiny render hints at a missing manual.
+
+**New words in this step:**
+
+- **substantial render** — a node with real content, not a near-empty stub.
+
+---
+
+### Concept card (Task 1)
+
+| Concept | What it does | Exam trap |
+|---|---|---|
+| `--output` rc | resolves | 0 found |
+| line count | content | tiny = suspect |
+| bogus node | failure path | non-zero rc |
+
+---
+
+### Troubleshoot (Task 1)
+
+| Symptom | Likely cause | Fix |
+|---|---|---|
+| Node fails | Manual not installed | Install the package |
+| Render too short | Wrong/empty node | Check node name |
+
+---
+
+## TASK 2 of 2 — Prove content and registration
+
+**In plain English:** We confirm the node documents an option and the manual is registered.
+
+---
+
+### Step 1 of 2 — Content presence in the node
+
+**In plain English:** We confirm the rendered node documents the `--human-readable` option.
+
+```bash
+cd "$LAB_ROOT"
+grep -q -- '--human-readable' ls-node.txt && echo "OPTION DOCUMENTED (OK)" || echo "MISSING (FAIL)"
+grep -c -- '-l' ls-node.txt
+```
+
+**Expected output:**
+
+```
+OPTION DOCUMENTED (OK)
+12
+```
+
+**Line-by-line breakdown:**
+
+- `grep -q -- '--human-readable' ls-node.txt` → `--` stops option parsing; rc 0 means the option is documented in the node.
+- `grep -c -- '-l'` → Count references to the `-l` option as a sanity signal.
+
+**New words in this step:**
+
+- **node content check** — confirming a rendered node documents a needed feature.
+
+---
+
+### Step 2 of 2 — Manual registration in `dir`
+
+**In plain English:** We confirm the coreutils manual is listed in the info directory index.
+
+```bash
+grep -qi coreutils /usr/share/info/dir 2>/dev/null && echo "REGISTERED (OK)" || echo "NOT IN DIR (info)"
+ls /usr/share/info/coreutils* >/dev/null 2>&1 && echo "INFO FILE PRESENT (OK)" || echo "NO INFO FILE (FAIL)"
+echo "exit was: $?"
+```
+
+**Expected output:**
+
+```
+REGISTERED (OK)
+INFO FILE PRESENT (OK)
+exit was: 0
+```
+
+**Line-by-line breakdown:**
+
+- `grep -qi coreutils /usr/share/info/dir` → The `dir` file is info's top-level menu; a match means `info coreutils` resolves without a path.
+- `ls /usr/share/info/coreutils*` → Confirm the actual info source file is installed.
+
+**New words in this step:**
+
+- **`dir` registration** — a manual listed in info's top-level index, kept by `install-info`.
+
+---
+
+### Concept card (Task 2)
+
+| Concept | What it does | Exam trap |
+|---|---|---|
+| `grep -q --` | option present | `--` ends options |
+| `dir` file | top index | registration |
+| info file | the manual | path varies |
+
+---
+
+### Troubleshoot (Task 2)
+
+| Symptom | Likely cause | Fix |
+|---|---|---|
+| Not in `dir` | `install-info` not run | Reinstall/register |
+| No info file | Package missing | Install the package |
+
+---
+
+## ✅ Lab Checklist
+
+- [ ] Task 1 · Step 1 — Resolve check via exit code
+- [ ] Task 1 · Step 2 — Prove the render is substantial
+- [ ] Task 2 · Step 1 — Content presence in the node
+- [ ] Task 2 · Step 2 — Manual registration in `dir`
+- [ ] Every 🎯 Focus Coverage row (Anchor + NEW) mapped to a step
+- [ ] 🧹 Teardown run — sandbox + any system state removed
+
+---
+
+## 🧹 Teardown
+
+**In plain English:** Delete everything this lab created so the box is clean for the next run.
+
+> Run this after you've verified the lab. `lab_teardown.sh` safely removes the single sandbox root — it refuses to touch `/`, `$HOME`, or any protected path. This verify lab changed **no** system state.
+
+```bash
+cd /tmp
+bash lab_teardown.sh "$LAB_ROOT"     # = /tmp/lab-30
+```
+
+**Expected output:**
+
+```
+✅ Removed /tmp/lab-30 — lab workspace is clean.
 ```
 
 ---
 
-## Lab Closeout — Bulletproof Teardown (Section 6)
+## ⚠️ Common Pitfalls
 
-```bash
-set +e
-
-if getent passwd "${USER}" >/dev/null 2>&1; then
-  userdel -r "${USER}" 2>/dev/null
-fi
-if getent group "${GROUP}" >/dev/null 2>&1; then
-  groupdel "${GROUP}" 2>/dev/null
-fi
-
-rm -rf "${SANDBOX}"
-
-echo "── Lab 30c cleanup audit ──"
-getent passwd "${USER}" >/dev/null && echo "❌ user remains" || echo "✅ user gone"
-getent group "${GROUP}" >/dev/null && echo "❌ group remains" || echo "✅ group gone"
-test -d "${SANDBOX}" && echo "❌ sandbox remains" || echo "✅ sandbox gone"
-test -d "${USER_HOME}" && echo "❌ home remains" || echo "✅ home gone"
-
-set -e
-```
+| Mistake | Symptom | Fix |
+|---|---|---|
+| Assuming node exists | Runbook breaks | Test with `--output` rc |
+| Trusting tiny render | Missing manual | Check line count |
+| `grep` eats `--opt` | Error | Use `grep -q --` |
 
 ---
 
-## Lab 30c Checklist
+## 📌 Exam Strategy
 
-- [ ] Task 1 completed (package/binary/docs-tree audit + journal evidence capture)
-- [ ] Task 2 completed (destroy-restore drill proved T30-B recovery)
-- [ ] Section 6 closeout audit shows four `✅` lines
+Certify info docs by node resolution (`--output` rc), substantial content (line count), option presence (`grep -q --`), and `dir` registration. If `info NAME` should work and doesn't, confirm the manual is installed and registered.
+
+- `info --output=-` rc is your node-exists boolean.
+- A real node is many lines, not a stub.
+- The `dir` file proves `info NAME` will resolve.
 
 ---
 
-## Author
+## 🔗 Related Labs
 
-**Kelvin R. Tobias**
+- [Lab 30a — Navigating info Pages (RHCSA)](../lab-30a-info-pages-rhcsa/) — the `info` reader this audits
+- [Lab 30b — Navigating info Pages (Ansible)](../lab-30b-info-pages-ansible/) — the node-capture plays you verify
+- [Lab 28c — Exploring Manual Pages (Verify)](../lab-28c-man-pages-verify/) — the parallel man-page checks
+
+---
+
+## 👤 Author
+
+**Kelvin R. Tobias**  
 [kelvinintech.com](https://kelvinintech.com) · [GitHub](https://github.com/kelvintechnical) · [LinkedIn](https://www.linkedin.com/in/kelvin-r-tobias-211949219)

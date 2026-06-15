@@ -1,282 +1,324 @@
-# Lab 21c: Verifying Live Log Monitoring (Capstone) — Audit + Destroy-Restore
+# Lab 21c: Monitoring Live Logs (Verify) — `tail -n`, `wc -l`, `grep -c`
 
-- **Series:** linux-ops-mastery — Logging, Troubleshooting, and Real-Time Observability
-- **Trilogy:** [`21a`](../lab-21a-tail-f-live-logs-rhcsa/) (RHCSA hand-typed) → [`21b`](../lab-21b-tail-f-live-logs-ansible/) (Ansible automation) → **`21c`** (Verify capstone)
-- **Career arcs covered:** RHCSA exam verification discipline, SRE evidence audits, incident replay reliability
-- **Prerequisite:** Lab 21a complete with `/root/rhcsa_journal/lab-21a/task1/` and `task2/`
-- **Time Estimate:** 25–35 minutes
-- **Tasks:** 2 (Task 1 = audit 21a evidence set; Task 2 = destroy-restore + re-run bounded follower as verify user)
-- **Practice Directory (rotation #21):** `/boot` (context), writes in `/tmp/lab21c`
-- **Sandbox (Tier B):** `/tmp/lab21c` with `USER=labuser_21_livelog`, `GROUP=labgrp_21_livelog`, `USER_HOME=/tmp/lab21c/home_labuser_21_livelog`
-- **Traps rehearsed this lab:** **T21-A** (verify rotate-safe capture exists) · **T21-B** (verify bounded tails) · **T41** (mandatory destroy-restore) · **T44** (closeout audit must end with four `✅`)
-
-> **This lab's practice directory is: `/boot`** — audit references this context while all verification artifacts are produced under `/tmp/lab21c` and `/root/rhcsa_journal/lab-21c/`.
+**Series:** linux-ops-mastery — Text Processing & Filters · **Lab 21c of the Novice → RHCA path**  
+**Certifications covered:** RHCSA EX200 (proving a tail captured the right lines), SRE (log-snapshot validation), DevOps (alert-rule testing)  
+**Prerequisite:** [Lab 21a](../lab-21a-tail-f-live-logs-rhcsa/) and [Lab 21b](../lab-21b-tail-f-live-logs-ansible/) completed  
+**Time Estimate:** 15–25 minutes  
+**Difficulty:** Beginner
 
 ---
 
-## LAB HEADER BLOCK
+## 🎯 Today's Focus Coverage
+
+> Stay on-subject via the ANCHOR rows; expand vocabulary via the NEW rows. Every row is exercised by a STEP below.
+
+**⚓ Anchor — already learned (on-topic reuse)**
+
+| # | Command / switch | Covered by |
+|---|---|---|
+| A1 | `tail -n N` | _Task 1 · Step 1_ |
+| A2 | `grep -c` | _Task 2 · Step 1_ |
+
+**🆕 NEW this lab — introduced for the first time** (minimum 3)
+
+| # | Command / switch | First taught in | Covered by |
+|---|---|---|---|
+| N1 | `tail -n | wc -l` count proof | Task 1 · Step 1 | _Task 1 · Step 1_ |
+| N2 | `tail` vs `awk` last-line check | Task 1 · Step 2 | _Task 1 · Step 2_ |
+| N3 | `grep -c` on a snapshot | Task 2 · Step 1 | _Task 2 · Step 1_ |
+| N4 | `diff` snapshot vs expectation | Task 2 · Step 2 | _Task 2 · Step 2_ |
+
+---
+
+## 🎯 Objective
+
+Prove a log snapshot captured exactly what it should. You will confirm `tail -n N` returns N lines, that the captured last line really is the file's last line, count the alerts in the snapshot with `grep -c`, and diff a snapshot against an expected window. These checks validate the monitoring logic a playbook depends on.
+
+---
+
+## 🧠 Concept
+
+A monitoring snapshot is only trustworthy if it captured the right window. Two things to verify: **size** — `tail -n N | wc -l` should equal N (or the file length if shorter); and **content** — the snapshot's last line must equal the file's actual last line (`tail -1` vs `awk 'END{print}'`). For alerting, `grep -c PATTERN` on the snapshot must match the known number of events, and a `diff` between the snapshot and an expected window catches drift exactly.
+
+```
+tail -n 10 f | wc -l → 10            → window size correct
+tail -1 f == awk 'END{print}' f      → last line agrees
+grep -c ERROR snapshot → 1           → alert count correct
+diff snapshot expected → (empty)     → snapshot matches expectation
+```
+
+> **Why this matters:** If a remediation play fires on "ERROR in the last 20 lines," you must prove that window is the right size and that your match count is correct — otherwise you alert on the wrong data.
+
+---
+
+## 📚 Command Reference
+
+| Command | Purpose | Critical flags |
+|---|---|---|
+| `tail -n N | wc -l` | Window size | equals N or file length |
+| `tail -1` | Last line | compare with `awk END` |
+| `awk 'END{print}'` | Last line, independently | cross-check |
+| `grep -c` | Count alerts | match lines, not occurrences |
+| `diff` | Snapshot vs expected | empty = identical |
+
+---
+
+## 🧰 LAB-WIDE SETUP
+
+**In plain English:** Rebuild the log with a known last line and one alert.
+
+> Run this block **once** before Task 1. It builds the clean, private workspace that both tasks depend on.
 
 ```bash
-echo "🖥️  ENV:   ${ENV:-DECLARE_ME}"
-echo "📁  PRACTICE DIR: /boot"
-ls -ld /boot
-echo ""
-echo "📓 21a journal presence check:"
-ls -la /root/rhcsa_journal/lab-21a/task1 /root/rhcsa_journal/lab-21a/task2
-echo "🕒  TIME:  $(date -Is)"
-echo "👤  USER:  $(whoami)@$(hostname)"
-echo "⚠️  TRAP REMINDERS THIS LAB: T21-A T21-B T41 T44"
+export LAB_ROOT=/tmp/lab-21
+mkdir -p "$LAB_ROOT"
+cd "$LAB_ROOT"
+seq 1 49 | sed 's/^/event /' > app.log
+echo "ERROR disk pressure" >> app.log
+echo "event 50" >> app.log
+wc -l app.log
 echo "exit was: $?"
 ```
 
----
+**Expected output:**
 
-## Objective
-
-Audit whether 21a produced correct and persistent evidence, then prove the workflow survives loss of `/tmp` artifacts:
-
-1. Confirm required journal captures exist and are non-empty.
-2. Validate key markers from Task 1 and Task 2 evidence.
-3. Destroy ephemeral copies and restore from journal.
-4. Re-run bounded follower as verify user and confirm ownership.
+```
+51 app.log
+exit was: 0
+```
 
 ---
 
-## Lab-Wide Setup — Tier B Stack
+## TASK 1 of 2 — Prove the window
+
+**In plain English:** We confirm the snapshot is the right size and ends on the right line.
+
+---
+
+### Step 1 of 2 — Prove the window size
+
+**In plain English:** We capture 10 lines and confirm we got exactly 10.
 
 ```bash
-sudo -i
+cd "$LAB_ROOT"
+N=$(tail -n 10 app.log | wc -l)
+echo "window: $N"
+[ "$N" -eq 10 ] && echo "WINDOW SIZE OK" || echo "WRONG SIZE (FAIL)"
+```
 
-export LAB_NUM=21
-export LAB_SLUG=livelog
-export SANDBOX=/tmp/lab21c
-export GROUP=labgrp_${LAB_NUM}_${LAB_SLUG}
-export USER=labuser_${LAB_NUM}_${LAB_SLUG}
-export USER_HOME=${SANDBOX}/home_${USER}
+**Expected output:**
 
-mkdir -p "${SANDBOX}" "${USER_HOME}" /root/rhcsa_journal/lab-21c/task1 /root/rhcsa_journal/lab-21c/task2
-getent group  "${GROUP}" >/dev/null || groupadd "${GROUP}"
-getent passwd "${USER}"  >/dev/null || useradd -d "${USER_HOME}" -M -s /bin/bash -g "${GROUP}" "${USER}"
-chown -R "${USER}:${GROUP}" "${SANDBOX}"
+```
+window: 10
+WINDOW SIZE OK
+```
 
-id "${USER}"
-ls -ld "${SANDBOX}" "${USER_HOME}" /boot
-getent group "${GROUP}"
-getent passwd "${USER}"
-echo "setup complete: $(date -Is)"
+**Line-by-line breakdown:**
+
+- `tail -n 10 app.log | wc -l` → Count the snapshot's lines.
+- `[ "$N" -eq 10 ]` → A 10-line request on a 51-line file must yield exactly 10.
+
+**New words in this step:**
+
+- **window size** — the number of lines a snapshot is supposed to capture.
+
+---
+
+### Step 2 of 2 — Prove the last line
+
+**In plain English:** We confirm the snapshot's last line is the file's true last line, using two tools.
+
+```bash
+cd "$LAB_ROOT"
+T=$(tail -1 app.log)
+A=$(awk 'END{print}' app.log)
+echo "tail: $T"
+echo "awk:  $A"
+[ "$T" = "$A" ] && echo "LAST LINE OK" || echo "MISMATCH (FAIL)"
+```
+
+**Expected output:**
+
+```
+tail: event 50
+awk:  event 50
+LAST LINE OK
+```
+
+**Line-by-line breakdown:**
+
+- `tail -1` / `awk 'END{print}'` → Get the last line two independent ways.
+- `[ "$T" = "$A" ]` → Agreement proves the tail truly captured the file's end.
+
+**New words in this step:**
+
+- **`awk 'END{print}'`** — print the final line; `END` runs after the last record.
+
+---
+
+### Concept card (Task 1)
+
+| Concept | What it does | Exam trap |
+|---|---|---|
+| `tail -n | wc -l` | size proof | short files yield fewer |
+| `tail -1` vs `awk END` | last-line cross-check | both must agree |
+| snapshot end | newest event | not necessarily an alert |
+
+---
+
+### Troubleshoot (Task 1)
+
+| Symptom | Likely cause | Fix |
+|---|---|---|
+| Window < N | File shorter than N | Expected for short logs |
+| Last lines differ | File changed mid-check | Re-snapshot |
+
+---
+
+## TASK 2 of 2 — Prove the alert detection
+
+**In plain English:** We count alerts in a snapshot and diff it against an expected window.
+
+---
+
+### Step 1 of 2 — Count alerts with `grep -c`
+
+**In plain English:** We snapshot the tail and confirm exactly one ERROR is present.
+
+```bash
+cd "$LAB_ROOT"
+tail -n 20 app.log > snap.txt
+C=$(grep -c ERROR snap.txt)
+echo "alerts: $C"
+[ "$C" -eq 1 ] && echo "ALERT COUNT OK" || echo "WRONG COUNT (FAIL)"
+```
+
+**Expected output:**
+
+```
+alerts: 1
+ALERT COUNT OK
+```
+
+**Line-by-line breakdown:**
+
+- `tail -n 20 app.log > snap.txt` → Save a snapshot to a file.
+- `grep -c ERROR snap.txt` → Count alert lines in the snapshot.
+- `[ "$C" -eq 1 ]` → Assert the known alert count.
+
+**New words in this step:**
+
+- **alert count** — number of matching events inside the captured window.
+
+---
+
+### Step 2 of 2 — Diff against an expected window
+
+**In plain English:** We build the expected last-20 window directly and confirm the snapshot matches it.
+
+```bash
+cd "$LAB_ROOT"
+tail -n 20 app.log > expected.txt
+diff snap.txt expected.txt && echo "SNAPSHOT MATCHES (OK)" || echo "DRIFT (FAIL)"
 echo "exit was: $?"
 ```
 
+**Expected output:**
+
+```
+SNAPSHOT MATCHES (OK)
+exit was: 0
+```
+
+**Line-by-line breakdown:**
+
+- `tail -n 20 app.log > expected.txt` → Independently build the expected window.
+- `diff snap.txt expected.txt` → No output (exit 0) means the snapshot is exactly the expected window.
+
+**New words in this step:**
+
+- **drift check** — diffing a captured snapshot against a freshly computed expectation.
+
 ---
 
-## Task 1 — Audit Lab 21a captures in journal
+### Concept card (Task 2)
 
-**Practice directory this task:** `/boot` context + `/root/rhcsa_journal/lab-21a/` audit source.
+| Concept | What it does | Exam trap |
+|---|---|---|
+| `grep -c` | alert count | counts lines, not hits |
+| `diff` | exact comparison | empty output = identical |
+| snapshot vs expected | drift detection | rebuild expected the same way |
 
-### Warm-Up
+---
+
+### Troubleshoot (Task 2)
+
+| Symptom | Likely cause | Fix |
+|---|---|---|
+| Wrong alert count | Window too small/large | Match `tail -n` to the rule |
+| `diff` shows changes | File grew mid-test | Snapshot both at once |
+
+---
+
+## ✅ Lab Checklist
+
+- [ ] Task 1 · Step 1 — Prove the window size
+- [ ] Task 1 · Step 2 — Prove the last line
+- [ ] Task 2 · Step 1 — Count alerts with `grep -c`
+- [ ] Task 2 · Step 2 — Diff against an expected window
+- [ ] Every 🎯 Focus Coverage row (Anchor + NEW) mapped to a step
+- [ ] 🧹 Teardown run — sandbox + any system state removed
+
+---
+
+## 🧹 Teardown
+
+**In plain English:** Delete everything this lab created so the box is clean for the next run.
+
+> Run this after you've verified the lab. `lab_teardown.sh` safely removes the single sandbox root — it refuses to touch `/`, `$HOME`, or any protected path. This verify lab changed **no** system state.
 
 ```bash
-ls -la /root/rhcsa_journal/lab-21a/task1                 2>&1 | tee /tmp/lab21c/warmup.txt
-ls -la /root/rhcsa_journal/lab-21a/task2                 2>&1 | tee -a /tmp/lab21c/warmup.txt
-find /root/rhcsa_journal/lab-21a -type f | sort          2>&1 | tee -a /tmp/lab21c/warmup.txt
-echo "exit was: $?"
+cd /tmp
+bash lab_teardown.sh "$LAB_ROOT"     # = /tmp/lab-21
 ```
 
-### Purpose
+**Expected output:**
 
-Verify the complete evidence chain from 21a:
-
-- Task 1 bounded follow captures exist.
-- Task 2 rotate comparison outputs exist (`out-f.txt`, `out-F.txt`).
-- Rotate-safe marker appears in `out-F.txt`.
-
-### Main command block
-
-```bash
-TASKLOG=/tmp/lab21c/task1.txt
-A=/root/rhcsa_journal/lab-21a
-
-echo "═══ Part A: required files presence and size ═══" 2>&1 | tee "${TASKLOG}"
-REQ=(
-  "${A}/task1/evidence.txt"
-  "${A}/task1/messages-live-capture.txt"
-  "${A}/task1/journal-follow.txt"
-  "${A}/task1/user-producer-follow.txt"
-  "${A}/task2/evidence.txt"
-  "${A}/task2/out-f.txt"
-  "${A}/task2/out-F.txt"
-)
-MISS=0
-for f in "${REQ[@]}"; do
-  if test -s "$f"; then
-    echo "✅ $f ($(wc -l < "$f") lines)" | tee -a "${TASKLOG}"
-  else
-    echo "❌ $f missing-or-empty" | tee -a "${TASKLOG}"
-    MISS=$((MISS+1))
-  fi
-done
-echo "missing count: ${MISS}" | tee -a "${TASKLOG}"
-
-echo "═══ Part B: semantic checks for T21-A/T21-B evidence ═══" | tee -a "${TASKLOG}"
-grep -c "after-rotate-newfile-2" "${A}/task2/out-F.txt" | tee -a "${TASKLOG}"
-grep -c "after-rotate-newfile-1" "${A}/task2/out-f.txt" | tee -a "${TASKLOG}"
-grep -c "lab21a-task1 event-" "${A}/task1/messages-live-capture.txt" | tee -a "${TASKLOG}"
-
-if grep -q "after-rotate-newfile-2" "${A}/task2/out-F.txt"; then
-  echo "✅ T21-A avoided path proven in out-F.txt" | tee -a "${TASKLOG}"
-else
-  echo "❌ missing rotate-safe marker in out-F.txt" | tee -a "${TASKLOG}"
-fi
-
-echo "exit was: $?"
 ```
-
-### Journal write
-
-```bash
-LAB=lab-21c
-TASK=task1
-JDIR="/root/rhcsa_journal/${LAB}/${TASK}"
-mkdir -p "$JDIR"
-cp /tmp/lab21c/task1.txt "$JDIR/evidence.txt"
-
-cat > "$JDIR/done.txt" <<EOF
-LAB:    ${LAB}
-TASK:   ${TASK}
-DATE:   $(date -Is)
-USER:   $(whoami)@$(hostname)
-STATUS: COMPLETE
-EOF
+✅ Removed /tmp/lab-21 — lab workspace is clean.
 ```
 
 ---
 
-## Task 2 — Destroy-Restore + re-run tail with timeout as verify user
+## ⚠️ Common Pitfalls
 
-**Practice directory this task:** `/tmp/lab21c` with `/boot` context.
-
-### Warm-Up
-
-```bash
-df -h /tmp | tail -n 1                                 2>&1 | tee /tmp/lab21c/warmup2.txt
-findmnt /tmp 2>/dev/null || echo "/tmp not separately mounted" | tee -a /tmp/lab21c/warmup2.txt
-echo "exit was: $?"
-```
-
-### Purpose
-
-Run the T41 destroy-restore drill, then prove a fresh bounded tail capture still works as the verify user.
-
-### Main command block
-
-```bash
-TASKLOG=/tmp/lab21c/task2.txt
-A=/root/rhcsa_journal/lab-21a
-
-echo "═══ Part A: snapshot journal source hashes ═══" 2>&1 | tee "${TASKLOG}"
-sha256sum "${A}/task2/out-F.txt" | tee -a "${TASKLOG}"
-sha256sum "${A}/task1/messages-live-capture.txt" | tee -a "${TASKLOG}"
-
-echo "═══ Part B: destroy ephemeral tree (T41) ═══" | tee -a "${TASKLOG}"
-rm -rf /tmp/lab21a /tmp/lab21c
-if test ! -d /tmp/lab21a -a ! -d /tmp/lab21c; then
-  echo "✅ destroy clean" | tee -a "${TASKLOG}"
-else
-  echo "❌ destroy incomplete" | tee -a "${TASKLOG}"
-fi
-
-echo "═══ Part C: restore into verify sandbox ═══" | tee -a "${TASKLOG}"
-mkdir -p "${SANDBOX}" "${USER_HOME}" "${SANDBOX}/restore"
-chown -R "${USER}:${GROUP}" "${SANDBOX}"
-cp "${A}/task2/out-F.txt" "${SANDBOX}/restore/out-F-restored.txt"
-cp "${A}/task1/messages-live-capture.txt" "${SANDBOX}/restore/messages-restored.txt"
-sha256sum "${SANDBOX}/restore/out-F-restored.txt" | tee -a "${TASKLOG}"
-sha256sum "${SANDBOX}/restore/messages-restored.txt" | tee -a "${TASKLOG}"
-
-echo "═══ Part D: re-run bounded tail as verify user ═══" | tee -a "${TASKLOG}"
-sudo -u "${USER}" bash -c '
-  LOG=/tmp/lab21c/home_labuser_21_livelog/verify.log
-  (
-    sleep 1; echo "verify-ev-1 $(date -Is)" >> "$LOG"
-    sleep 1; echo "verify-ev-2 $(date -Is)" >> "$LOG"
-  ) &
-  timeout 5 tail -n 0 -F "$LOG" > /tmp/lab21c/home_labuser_21_livelog/verify-follow.txt
-'
-
-wc -l "${USER_HOME}/verify-follow.txt" | tee -a "${TASKLOG}"
-grep -c "verify-ev-" "${USER_HOME}/verify-follow.txt" | tee -a "${TASKLOG}"
-stat -c '%U:%G %a %n' "${USER_HOME}/verify.log" "${USER_HOME}/verify-follow.txt" | tee -a "${TASKLOG}"
-
-echo "exit was: $?"
-```
-
-### Trap callout
-
-- **T41 rehearsed:** ephemeral `/tmp` artifacts destroyed and restored from journal.
-- **T21-B avoided:** re-run uses bounded `timeout 5`.
-- **Tier B proven:** verify artifacts are owned by `labuser_21_livelog:labgrp_21_livelog`.
-
-### Journal write
-
-```bash
-LAB=lab-21c
-TASK=task2
-JDIR="/root/rhcsa_journal/${LAB}/${TASK}"
-mkdir -p "$JDIR"
-cp /tmp/lab21c/task2.txt                       "$JDIR/evidence.txt"
-cp "${USER_HOME}/verify-follow.txt"            "$JDIR/verify-follow.txt"
-cp "${SANDBOX}/restore/out-F-restored.txt"     "$JDIR/out-F-restored.txt"
-
-cat > "$JDIR/done.txt" <<EOF
-LAB:    ${LAB}
-TASK:   ${TASK}
-DATE:   $(date -Is)
-USER:   $(whoami)@$(hostname)
-STATUS: COMPLETE
-EOF
-```
+| Mistake | Symptom | Fix |
+|---|---|---|
+| Trusting tail size blindly | Short file fools you | Compare to file length |
+| One last-line tool only | Hidden capture bug | Cross-check `tail` vs `awk` |
+| Mismatched windows | False drift | Build expected identically |
 
 ---
 
-## Lab Closeout — Bulletproof Teardown (Section 6)
+## 📌 Exam Strategy
 
-```bash
-set +e
+Validate monitoring logic by proving window size, last-line agreement, alert count, and snapshot-versus-expected equality. If these hold, the play that reacts to the tail is acting on correct data.
 
-awk -v s="${SANDBOX}" '$2 ~ s {print $2}' /proc/mounts | tac | xargs -r -n1 umount -l 2>/dev/null
-
-if getent passwd "${USER}" >/dev/null 2>&1; then
-  userdel -r "${USER}" 2>/dev/null
-fi
-if getent group "${GROUP}" >/dev/null 2>&1; then
-  groupdel "${GROUP}" 2>/dev/null
-fi
-
-rm -rf "${SANDBOX}"
-
-echo "── Lab 21c cleanup audit ──"
-getent passwd "${USER}" >/dev/null && echo "❌ user remains" || echo "✅ user gone"
-getent group  "${GROUP}" >/dev/null && echo "❌ group remains" || echo "✅ group gone"
-test -d "${SANDBOX}" && echo "❌ sandbox remains" || echo "✅ sandbox gone"
-test -d "${USER_HOME}" && echo "❌ home remains" || echo "✅ home gone"
-
-set -e
-echo "Cleanup complete at $(date -Is)"
-echo "exit was: $?"
-```
+- `tail -n N | wc -l` proves the window captured N lines.
+- Cross-check the last line with `awk 'END{print}'`.
+- `diff` a snapshot against a freshly built window to detect drift.
 
 ---
 
-## Lab 21c Checklist (2 tasks + closeout)
+## 🔗 Related Labs
 
-- [ ] Task 1 audit: required 21a evidence files all present and non-empty
-- [ ] Task 1 semantic checks: rotate-safe marker appears in `out-F.txt`
-- [ ] Task 2: destroy-restore complete; re-run bounded follow as verify user succeeds
-- [ ] Closeout: four `✅` audit lines
+- [Lab 21a — Monitoring Live Logs (RHCSA)](../lab-21a-tail-f-live-logs-rhcsa/) — the `tail -f` this audits
+- [Lab 21b — Monitoring Live Logs (Ansible)](../lab-21b-tail-f-live-logs-ansible/) — the snapshot plays you verify
+- [Lab 22c — Filtering with grep and Regex (Verify)](../lab-22c-grep-regex-verify/) — deeper match validation
 
 ---
 
-## Author
+## 👤 Author
 
 **Kelvin R. Tobias**  
 [kelvinintech.com](https://kelvinintech.com) · [GitHub](https://github.com/kelvintechnical) · [LinkedIn](https://www.linkedin.com/in/kelvin-r-tobias-211949219)

@@ -1,387 +1,330 @@
-# Lab 31a: Configure a Static IP Address (RHCSA) - nmcli
+# Lab 31a: Configure a Static IP Address (RHCSA) — `nmcli con add/mod`, `ip addr`
 
-- **Series:** linux-ops-mastery
-- **Trilogy:** `31a` (RHCSA hand-typed) -> `31b` (Ansible) -> `31c` (Verify)
-- **Practice Directory:** `/run`
-- **Tier B Sandbox:** `/tmp/lab31a`
-- **Lab User/Group:** `labuser_31_staticip` / `labgrp_31_staticip`
-- **Test Connection:** `lab31test` only (never modify real management NIC)
-- **Traps rehearsed:** `T31-A`, `T31-B`, `T41`, `T44`
-
-This lab's practice directory is: `/run`
+**Series:** linux-ops-mastery — Networking · **Lab 31a of the Novice → RHCA path**  
+**Certifications covered:** RHCSA EX200 (persistent static IP with NetworkManager), RHCE EX294 (the `nmcli` module work), SRE/DevOps (host network config)  
+**Prerequisite:** [Lab 30c](../lab-30c-info-pages-verify/) completed · **root/sudo required**  
+**Time Estimate:** 30–40 minutes  
+**Difficulty:** Intermediate
 
 ---
 
-## LAB HEADER
+## 🎯 Today's Focus Coverage
 
-```bash
-echo "ENV CHECK"
-echo "TIME: $(date -Is)"
-echo "USER: $(whoami)@$(hostname)"
-echo "PRACTICE DIR: /run"
-echo "TEST CONNECTION: lab31test"
-ip -br link | tee /tmp/lab31a_header_links.txt
-nmcli con show | tee /tmp/lab31a_header_connections.txt
-echo "TRAPS: T31-A T31-B T41 T44"
-echo "exit was: $?"
-```
+> Stay on-subject via the ANCHOR rows; expand vocabulary via the NEW rows. Every row is exercised by a STEP below.
 
-> STOP and confirm header output before continuing.
+**⚓ Anchor — already learned (on-topic reuse)**
 
----
-
-## Lab-Wide Tier B Setup (run before Task 1)
-
-```bash
-sudo -i
-export LAB_NUM=31
-export LAB_SLUG=staticip
-export SANDBOX=/tmp/lab31a
-export GROUP=labgrp_31_staticip
-export USER=labuser_31_staticip
-export USER_HOME=${SANDBOX}/home_${USER}
-export CON_NAME=lab31test
-
-mkdir -p "${SANDBOX}" "${USER_HOME}" /root/rhcsa_journal/lab-31a/task1 /root/rhcsa_journal/lab-31a/task2
-getent group "${GROUP}" >/dev/null || groupadd "${GROUP}"
-getent passwd "${USER}" >/dev/null || useradd -d "${USER_HOME}" -M -s /bin/bash -g "${GROUP}" "${USER}"
-chown -R "${USER}:${GROUP}" "${SANDBOX}"
-
-cat > "${SANDBOX}/THIS_DIRECTORY.txt" <<'EOF'
-/run is tmpfs runtime state rebuilt on boot. It stores pid files, sockets,
-and transient daemon metadata. Practicing here trains safe handling of
-runtime-only data and reinforces reboot-persistence checks.
-EOF
-
-id "${USER}"
-ls -ld /run "${SANDBOX}" "${USER_HOME}"
-echo "Sandbox built by $(whoami) at $(date -Is)"
-echo "exit was: $?"
-```
-
----
-
-## Task 1 - Build Static IPv4 Profile with `nmcli con add/mod`
-
-Practice directory this task: `/run`
-
-### Warm-Up
-
-```bash
-pwd
-ls -ld /run
-ip -br addr show
-nmcli con show | head -n 10
-echo "Warm-up done by $(whoami) at $(date -Is)"
-echo "exit was: $?"
-```
-
-### WEAVE TRACE
-
-- `ip -br addr show` -> baseline before static config.
-- `nmcli con show` -> verifies profile creation and persistence fields.
-- `ls -ld /run` -> confirms runtime target context before evidence writes.
-
-### Purpose
-
-Create a safe test-only NetworkManager profile (`lab31test`) on loopback, set static IPv4 fields with `nmcli con mod`, and capture evidence with `tee` without touching real interfaces.
-
-### Main Block
-
-```bash
-export SANDBOX=/tmp/lab31a
-export CON_NAME=lab31test
-export TEST_IP=198.51.100.31/24
-export TEST_GW=198.51.100.1
-export TEST_DNS="1.1.1.1 8.8.8.8"
-
-nmcli con delete "${CON_NAME}" 2>/dev/null || true
-nmcli con add type ethernet ifname lo con-name "${CON_NAME}" 2>&1 | tee "${SANDBOX}/task1.txt"
-
-nmcli con mod "${CON_NAME}" ipv4.addresses "${TEST_IP}"      2>&1 | tee -a "${SANDBOX}/task1.txt"
-nmcli con mod "${CON_NAME}" ipv4.gateway  "${TEST_GW}"       2>&1 | tee -a "${SANDBOX}/task1.txt"
-nmcli con mod "${CON_NAME}" ipv4.dns      "${TEST_DNS}"      2>&1 | tee -a "${SANDBOX}/task1.txt"
-nmcli con mod "${CON_NAME}" ipv4.method   manual             2>&1 | tee -a "${SANDBOX}/task1.txt"
-nmcli con mod "${CON_NAME}" connection.autoconnect no        2>&1 | tee -a "${SANDBOX}/task1.txt"
-nmcli con up  "${CON_NAME}"                                  2>&1 | tee -a "${SANDBOX}/task1.txt"
-
-nmcli -f NAME,TYPE,DEVICE,IP4.ADDRESS,IP4.GATEWAY,IP4.DNS,IPV4.METHOD con show "${CON_NAME}" \
-    2>&1 | tee -a "${SANDBOX}/task1.txt"
-
-sudo -u "${USER}" bash -c 'echo "Task1 evidence reviewed at $(date -Is)" >> /tmp/lab31a/task1-reviewed-by-user.txt'
-stat -c '%U:%G %a %n' /tmp/lab31a/task1-reviewed-by-user.txt | tee -a "${SANDBOX}/task1.txt"
-echo "exit was: $?"
-```
-
-### Breakdown
-
-- `nmcli con add ... ifname lo` creates a test profile on loopback to avoid production impact.
-- `nmcli con mod` writes persistent profile settings in NetworkManager config.
-- `nmcli con up` is required so modified values become active now (`T31-B`).
-- `tee` captures transcript for verification and journal evidence.
-
-### L->R
-
-`nmcli con mod lab31test ipv4.addresses 198.51.100.31/24`
-
-- `nmcli` NetworkManager CLI
-- `con mod` edit connection profile fields
-- `lab31test` target profile
-- `ipv4.addresses` static address property
-- `198.51.100.31/24` CIDR address and prefix
-
-### Story
-
-Real outages happen when admins edit the wrong connection or forget activation. Using a dedicated test profile plus `con up` builds safe muscle memory and isolates risk.
-
-### Expected Output
-
-- `nmcli con add` prints successful connection creation.
-- `nmcli con up lab31test` reports activated connection.
-- `nmcli con show lab31test` shows manual method, static IP, gateway, and DNS.
-
-### Switches
-
-| Token | Meaning |
-|---|---|
-| `con add` | create a new NetworkManager profile |
-| `type ethernet` | ethernet profile type |
-| `ifname lo` | bind to loopback device for safe lab |
-| `con-name` | explicit profile name |
-| `con mod` | update profile settings |
-| `con up` | apply profile now |
-| `-f` | select display fields in `nmcli con show` |
-
-### Concept Card
-
-| ✅ | Concept | What it does |
+| # | Command / switch | Covered by |
 |---|---|---|
-| ✅ | `nmcli con mod` | persists static IPv4 settings in profile |
-| ✅ | `nmcli con up` | applies profile changes at runtime |
-| ✅ | `ipv4.method manual` | prevents silent DHCP fallback |
-| ✅ | `tee -a` | preserves evidence transcript |
-| 🪤 Trap Risk | `T31-B`: forgot `nmcli con up` | profile changed but active state unchanged; always run `con up` then verify |
+| A1 | `ip addr show` | _Task 2 · Step 1_ |
+| A2 | `ip route` | _Task 2 · Step 2_ |
 
-### PERSISTENCE CHECK
+**🆕 NEW this lab — introduced for the first time** (minimum 3)
 
-| What was configured | Verification command | Why it matters |
-|---|---|---|
-| Static profile fields | `nmcli con show lab31test` | proves profile stores static values |
-| Active runtime state | `nmcli con up lab31test && ip addr show lo` | confirms applied now |
-| Reboot-safe profile | `nmcli -f NAME,IPV4.METHOD con show lab31test` | confirms manual method persists |
-
-### Journal Write
-
-```bash
-LAB=lab-31a
-TASK=task1
-JDIR="/root/rhcsa_journal/${LAB}/${TASK}"
-mkdir -p "${JDIR}"
-cp /tmp/lab31a/task1.txt "${JDIR}/evidence.txt"
-cat > "${JDIR}/done.txt" <<EOF
-LAB: ${LAB}
-TASK: ${TASK}
-DATE: $(date -Is)
-USER: $(whoami)@$(hostname)
-STATUS: COMPLETE
-EOF
-cat > "${JDIR}/notes.txt" <<EOF
-TOPIC: nmcli con add/mod static IPv4 on test profile
-COMMANDS: nmcli con add, con mod, con up, nmcli con show
-TRAPS: T31-B rehearsed
-NEXT: task2 capture ip addr/ip route and teardown
-EOF
-ls -la "${JDIR}"
-echo "exit was: $?"
-```
-
-### Cleanup
-
-```bash
-rm -f /tmp/lab31a/task1-reviewed-by-user.txt
-echo "exit was: $?"
-```
-
-### Troubleshoot
-
-| Symptom | Fix |
-|---|---|
-| `con up` fails | verify `ifname lo` exists and connection name is exact |
-| IP values missing in show output | rerun `con mod ...` and confirm `ipv4.method manual` |
-| File ownership wrong | use `sudo -u "${USER}"` for Tier B evidence write |
-
-### STOP
-
-Stop and paste Task 1 output before moving on.
+| # | Command / switch | First taught in | Covered by |
+|---|---|---|---|
+| N1 | `nmcli con add` (profile) | Task 1 · Step 1 | _Task 1 · Step 1_ |
+| N2 | `nmcli con mod` (edit) | Task 1 · Step 2 | _Task 1 · Step 2_ |
+| N3 | `nmcli con up` (activate) | Task 2 · Step 1 | _Task 2 · Step 1_ |
+| N4 | `ipv4.method manual` + addresses/gateway | Task 1 · Step 1 | _Task 1 · Step 1_ |
 
 ---
 
-## Task 2 - Capture `ip addr` and `ip route`, then teardown test profile
+## 🎯 Objective
 
-Practice directory this task: `/run`
+Configure a persistent static IP with NetworkManager — without risking your SSH session. You will create a **dummy interface** profile (so the real NIC is never touched), set a static IPv4 address/gateway/DNS with `nmcli con add`/`mod`, activate it, and inspect it with `ip addr`/`ip route`. By the end you know the exact `nmcli` workflow the exam tests, practiced safely.
 
-### Warm-Up
-
-```bash
-ip addr show lo
-ip route show
-nmcli con show lab31test
-find /run -maxdepth 1 -type d | head -n 5
-echo "Warm-up done by $(whoami) at $(date -Is)"
-echo "exit was: $?"
-```
-
-### WEAVE TRACE
-
-- `ip addr show lo` -> compare before/after activation.
-- `ip route show` -> validates route view from kernel table.
-- `nmcli con show lab31test` -> persistent profile audit before destroy.
-
-### Purpose
-
-Collect runtime networking evidence (`ip addr`, `ip route`) for the test profile and perform controlled teardown with `nmcli con delete lab31test`.
-
-### Main Block
-
-```bash
-export SANDBOX=/tmp/lab31a
-export CON_NAME=lab31test
-
-ip addr show lo     2>&1 | tee "${SANDBOX}/task2.txt"
-ip route show       2>&1 | tee -a "${SANDBOX}/task2.txt"
-nmcli con show "${CON_NAME}" 2>&1 | tee -a "${SANDBOX}/task2.txt"
-
-sudo -u "${USER}" bash -c 'echo "Task2 audit reviewed at $(date -Is)" >> /tmp/lab31a/task2-reviewed-by-user.txt'
-stat -c '%U:%G %a %n' /tmp/lab31a/task2-reviewed-by-user.txt | tee -a "${SANDBOX}/task2.txt"
-
-nmcli con delete "${CON_NAME}" 2>&1 | tee -a "${SANDBOX}/task2.txt"
-nmcli con show | grep -w "${CON_NAME}" 2>&1 | tee -a "${SANDBOX}/task2.txt" || true
-echo "exit was: $?"
-```
-
-### Breakdown
-
-- `ip addr show lo` confirms interface addresses visible to kernel.
-- `ip route show` captures route table state at runtime.
-- `nmcli con delete` removes test profile cleanly so no persistent residue remains.
-
-### L->R
-
-`ip route show`
-
-- `ip` iproute2 command
-- `route` route table object
-- `show` display current entries
-
-### Story
-
-Static configuration is incomplete without verification and cleanup. Operators must both prove state and restore baseline to avoid cross-lab contamination (`T44`).
-
-### Expected Output
-
-- address lines for loopback in `ip addr show lo`
-- route table lines in `ip route show`
-- no `lab31test` profile after deletion
-
-### Switches
-
-| Token | Meaning |
-|---|---|
-| `addr show` | display interface addresses |
-| `route show` | display route table |
-| `con delete` | remove NM profile |
-| `grep -w` | exact-word match for connection name |
-
-### Concept Card
-
-| ✅ | Concept | What it does |
-|---|---|---|
-| ✅ | `ip addr` | runtime interface inspection |
-| ✅ | `ip route` | runtime route inspection |
-| ✅ | `nmcli con delete` | removes persistent profile |
-| 🪤 Trap Risk | `T44`: forgetting teardown | leaves dirty state for next lab; always verify deletion |
-
-### PERSISTENCE CHECK
-
-| What was configured | Verification command | Why it matters |
-|---|---|---|
-| Test profile removed | `nmcli con show | grep -w lab31test || true` | proves no residue persists |
-| Evidence captured | `wc -l /tmp/lab31a/task2.txt` | verifies audit transcript exists |
-
-### Journal Write
-
-```bash
-LAB=lab-31a
-TASK=task2
-JDIR="/root/rhcsa_journal/${LAB}/${TASK}"
-mkdir -p "${JDIR}"
-cp /tmp/lab31a/task2.txt "${JDIR}/evidence.txt"
-cat > "${JDIR}/done.txt" <<EOF
-LAB: ${LAB}
-TASK: ${TASK}
-DATE: $(date -Is)
-USER: $(whoami)@$(hostname)
-STATUS: COMPLETE
-EOF
-cat > "${JDIR}/notes.txt" <<EOF
-TOPIC: ip addr/ip route verification plus connection teardown
-COMMANDS: ip addr show, ip route show, nmcli con delete
-TRAPS: T44 rehearsed
-NEXT: lab-31b ansible implementation
-EOF
-ls -la "${JDIR}"
-echo "exit was: $?"
-```
-
-### Cleanup
-
-```bash
-rm -f /tmp/lab31a/task2-reviewed-by-user.txt
-echo "exit was: $?"
-```
-
-### Troubleshoot
-
-| Symptom | Fix |
-|---|---|
-| `lab31test` still listed | run `nmcli con delete lab31test` again and recheck |
-| no route lines shown | expected minimal output on isolated test setup; capture command output anyway |
-| journal missing files | recreate `JDIR` then rerun copy/write block |
-
-### STOP
-
-Stop and paste Task 2 output before final closeout.
+> **⚠️ System-state lab — done safely.** All changes are on a throwaway `dummy0` interface and a profile named `lab-static`. Your primary connection is never modified. Teardown deletes the profile and interface. Use a practice VM.
 
 ---
 
-## Section 6 Closeout (after Task 2)
+## 🧠 Concept
+
+On RHEL, **NetworkManager** owns the network, and `nmcli` is its CLI. Configuration lives in **connection profiles** (not directly on interfaces): a profile binds settings (IP method, address, gateway, DNS) to a device. `nmcli con add` creates a profile; `nmcli con mod` edits it; `nmcli con up`/`down` activates/deactivates it; changes persist across reboots (unlike a raw `ip addr add`, which is runtime-only). Key static-IP settings: `ipv4.method manual`, `ipv4.addresses 10.x/24`, `ipv4.gateway`, `ipv4.dns`. We practice on a **dummy** interface (`type dummy`) — a safe virtual NIC — so a typo can't knock you offline. `ip addr`/`ip route` then show the live result.
+
+```
+nmcli con add type dummy ifname dummy0 con-name lab-static \
+      ipv4.method manual ipv4.addresses 10.99.99.2/24
+nmcli con mod lab-static ipv4.gateway 10.99.99.1 ipv4.dns 10.99.99.53
+nmcli con up lab-static
+ip addr show dummy0      → the static IP is live
+ip route                 → routes via the profile
+```
+
+> **Why this matters:** "Set a persistent static IP" is a classic RHCSA task. Doing it through `nmcli` profiles (not transient `ip` commands) is what makes it survive reboot — and practicing on a dummy interface means you can't accidentally cut your own connection.
+
+---
+
+## 📚 Command Reference
+
+| Command | Purpose | Notes |
+|---|---|---|
+| `nmcli con add` | Create a profile | `type`, `con-name`, `ifname` |
+| `nmcli con mod` | Edit a profile | `ipv4.*` settings |
+| `nmcli con up/down` | Activate / deactivate | persistent |
+| `nmcli con show` | List/inspect profiles | `--active` for live |
+| `ip addr show DEV` | Live addresses | runtime view |
+| `ip route` | Routing table | runtime view |
+
+---
+
+## 🧰 LAB-WIDE SETUP
+
+**In plain English:** Make a marker sandbox; the network changes live on a dummy interface.
+
+> Run this block **once** before Task 1. `LAB_ROOT` is just a Teardown marker; the real changes are the `lab-static` profile and `dummy0` device, removed in Teardown.
 
 ```bash
-set +e
-export SANDBOX=/tmp/lab31a
-export GROUP=labgrp_31_staticip
-export USER=labuser_31_staticip
-export USER_HOME=${SANDBOX}/home_${USER}
-export CON_NAME=lab31test
-
-nmcli con delete "${CON_NAME}" 2>/dev/null || true
-if getent passwd "${USER}" >/dev/null 2>&1; then userdel -r "${USER}" 2>/dev/null; fi
-if getent group "${GROUP}" >/dev/null 2>&1; then groupdel "${GROUP}" 2>/dev/null; fi
-rm -rf "${SANDBOX}"
-
-echo "── cleanup audit ──"
-getent passwd "${USER}" >/dev/null && echo "❌ user remains" || echo "✅ user gone"
-getent group "${GROUP}" >/dev/null && echo "❌ group remains" || echo "✅ group gone"
-nmcli con show | grep -w "${CON_NAME}" >/dev/null && echo "❌ connection remains" || echo "✅ connection gone"
-test -d "${SANDBOX}" && echo "❌ sandbox remains" || echo "✅ sandbox gone"
-
-set -e
-echo "Cleanup complete by $(whoami) at $(date -Is)"
+export LAB_ROOT=/tmp/lab-31
+mkdir -p "$LAB_ROOT"
+sudo modprobe dummy 2>/dev/null || true
+echo "ready"
 echo "exit was: $?"
+```
+
+**Expected output:**
+
+```
+ready
+exit was: 0
 ```
 
 ---
 
-## Author
+## TASK 1 of 2 — Create and edit a static profile
 
-Kelvin R. Tobias
+**In plain English:** We create a dummy-interface profile with a static IP, then refine it.
+
+---
+
+### Step 1 of 2 — Create the profile with `nmcli con add`
+
+**In plain English:** We create a connection on a safe dummy interface with a manual IPv4 address.
+
+```bash
+sudo nmcli con add type dummy ifname dummy0 con-name lab-static \
+  ipv4.method manual ipv4.addresses 10.99.99.2/24
+nmcli con show lab-static | grep -E 'ipv4.method|ipv4.addresses'
+echo "exit was: $?"
+```
+
+**Expected output:**
+
+```
+Connection 'lab-static' (...) successfully added.
+ipv4.method:                            manual
+ipv4.addresses:                         10.99.99.2/24
+exit was: 0
+```
+
+**Line-by-line breakdown:**
+
+- `nmcli con add type dummy ifname dummy0 con-name lab-static` → Create a profile bound to a safe dummy device.
+- `ipv4.method manual ipv4.addresses 10.99.99.2/24` → Static (manual) addressing with a private test address.
+
+**New words in this step:**
+
+- **connection profile** — the named bundle of network settings NetworkManager applies to a device.
+- **`ipv4.method manual`** — static addressing (vs `auto`/DHCP).
+
+---
+
+### Step 2 of 2 — Refine with `nmcli con mod`
+
+**In plain English:** We add a gateway and DNS server to the profile.
+
+```bash
+sudo nmcli con mod lab-static ipv4.gateway 10.99.99.1 ipv4.dns 10.99.99.53
+nmcli con show lab-static | grep -E 'ipv4.gateway|ipv4.dns'
+echo "exit was: $?"
+```
+
+**Expected output:**
+
+```
+ipv4.gateway:                           10.99.99.1
+ipv4.dns:                               10.99.99.53
+exit was: 0
+```
+
+**Line-by-line breakdown:**
+
+- `nmcli con mod lab-static ipv4.gateway ... ipv4.dns ...` → Edit the existing profile to add gateway and DNS.
+- `nmcli con show ... | grep` → Confirm the new settings are stored in the profile.
+
+**New words in this step:**
+
+- **`nmcli con mod`** — modify settings on an existing profile.
+
+---
+
+### Concept card (Task 1)
+
+| Concept | What it does | Exam trap |
+|---|---|---|
+| profile vs device | settings bound to NIC | edit the profile, not `ip` |
+| `manual` | static IP | `auto` = DHCP |
+| `con mod` | persistent edit | survives reboot |
+
+---
+
+### Troubleshoot (Task 1)
+
+| Symptom | Likely cause | Fix |
+|---|---|---|
+| "device not found" | dummy module missing | `sudo modprobe dummy` |
+| Settings not saved | Typo in key | Use exact `ipv4.*` names |
+
+---
+
+## TASK 2 of 2 — Activate and inspect
+
+**In plain English:** We bring the profile up and view the live result.
+
+---
+
+### Step 1 of 2 — Activate with `nmcli con up`
+
+**In plain English:** We activate the profile and confirm the IP is live on the dummy interface.
+
+```bash
+sudo nmcli con up lab-static
+ip addr show dummy0
+echo "exit was: $?"
+```
+
+**Expected output:**
+
+```
+Connection successfully activated (...)
+N: dummy0: <BROADCAST,NOARP,UP,LOWER_UP> ...
+    inet 10.99.99.2/24 brd 10.99.99.255 scope global dummy0
+exit was: 0
+```
+
+**Line-by-line breakdown:**
+
+- `nmcli con up lab-static` → Activate the profile, applying its settings to `dummy0`.
+- `ip addr show dummy0` → The `inet 10.99.99.2/24` line confirms the static IP is live.
+
+**New words in this step:**
+
+- **`nmcli con up`** — activate a profile, applying it to its device.
+
+---
+
+### Step 2 of 2 — Inspect routes with `ip route`
+
+**In plain English:** We confirm a route to the static subnet exists.
+
+```bash
+ip route show dev dummy0
+nmcli -g ipv4.addresses con show lab-static
+echo "exit was: $?"
+```
+
+**Expected output:**
+
+```
+10.99.99.0/24 proto kernel scope link src 10.99.99.2
+10.99.99.2/24
+exit was: 0
+```
+
+**Line-by-line breakdown:**
+
+- `ip route show dev dummy0` → The kernel route for the static subnet, created when the profile came up.
+- `nmcli -g ipv4.addresses con show lab-static` → `-g` prints just the requested field — script-friendly output.
+
+**New words in this step:**
+
+- **`nmcli -g`** — get a single field value (clean, parseable).
+
+---
+
+### Concept card (Task 2)
+
+| Concept | What it does | Exam trap |
+|---|---|---|
+| `con up` | activate | applies to device |
+| `ip addr` | live view | runtime, not config |
+| `nmcli -g` | one field | great for scripts |
+
+---
+
+### Troubleshoot (Task 2)
+
+| Symptom | Likely cause | Fix |
+|---|---|---|
+| No IP after `up` | Profile not active | Re-run `con up` |
+| No route | Address/method wrong | Recheck `ipv4.*` |
+
+---
+
+## ✅ Lab Checklist
+
+- [ ] Task 1 · Step 1 — Create the profile with `nmcli con add`
+- [ ] Task 1 · Step 2 — Refine with `nmcli con mod`
+- [ ] Task 2 · Step 1 — Activate with `nmcli con up`
+- [ ] Task 2 · Step 2 — Inspect routes with `ip route`
+- [ ] Every 🎯 Focus Coverage row (Anchor + NEW) mapped to a step
+- [ ] 🧹 Teardown run — sandbox + **profile and dummy interface removed**
+
+---
+
+## 🧹 Teardown
+
+**In plain English:** Delete the test profile and dummy interface, then the marker sandbox.
+
+> This lab changed system state (added the `lab-static` profile and `dummy0`). These commands **reverse** it; your real connection was never touched.
+
+```bash
+sudo nmcli con down lab-static 2>/dev/null || true
+sudo nmcli con delete lab-static 2>/dev/null || true
+sudo ip link delete dummy0 2>/dev/null || true
+nmcli con show | grep -q lab-static && echo "still present (FAIL)" || echo "lab-static removed"
+cd /tmp
+bash lab_teardown.sh "$LAB_ROOT"     # = /tmp/lab-31
+```
+
+**Expected output:**
+
+```
+lab-static removed
+✅ Removed /tmp/lab-31 — lab workspace is clean.
+```
+
+---
+
+## ⚠️ Common Pitfalls
+
+| Mistake | Symptom | Fix |
+|---|---|---|
+| `ip addr add` instead of nmcli | Not persistent | Use `nmcli con` profiles |
+| Editing the real NIC | Lose SSH | Practice on `dummy0` |
+| Forgetting `con up` | Settings not live | Activate the profile |
+
+---
+
+## 📌 Exam Strategy
+
+Static IP = NetworkManager profile: `nmcli con add ... ipv4.method manual`, set address/gateway/DNS with `con mod`, activate with `con up`. Verify with `ip addr`/`ip route`. Profiles persist; raw `ip` commands do not.
+
+- Always configure via `nmcli con`, never transient `ip addr add`.
+- `ipv4.method manual` + addresses/gateway/dns is the full set.
+- `nmcli -g` gives clean values for scripting.
+
+---
+
+## 🔗 Related Labs
+
+- [Lab 31b — Configure a Static IP (Ansible)](../lab-31b-static-ip-nmcli-ansible/) — the `community.general.nmcli` module
+- [Lab 31c — Configure a Static IP (Verify)](../lab-31c-static-ip-nmcli-verify/) — prove the address and persistence
+- [Lab 33a — Display IP and Routing Info (RHCSA)](../lab-33a-ip-addr-route-show-rhcsa/) — reading what you configured
+
+---
+
+## 👤 Author
+
+**Kelvin R. Tobias**  
+[kelvinintech.com](https://kelvinintech.com) · [GitHub](https://github.com/kelvintechnical) · [LinkedIn](https://www.linkedin.com/in/kelvin-r-tobias-211949219)

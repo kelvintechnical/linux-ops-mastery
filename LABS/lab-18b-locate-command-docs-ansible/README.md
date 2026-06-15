@@ -1,298 +1,364 @@
-# Lab 18b: Locate Command Documentation (Ansible) — `ansible.builtin.find`, `ansible.builtin.shell`, `assert`
+# Lab 18b: Locate Command Documentation (Ansible) — `ansible.builtin.package_facts`, `command: rpm`
 
-- **Series:** linux-ops-mastery — Package Intelligence & Documentation
-- **Trilogy:** [`18a`](../lab-18a-locate-command-docs-rhcsa/) (RHCSA hand-typed) → **`18b`** (Ansible mirror) → [`18c`](../lab-18c-locate-command-docs-verify/) (Verify capstone)
-- **Time Estimate:** 30–40 minutes
-- **Tasks:** 2 (Task 1 = discover docs with `find` + `rpm -qd` in playbook · Task 2 = `register` + `assert` + `failed_when` trap check)
-- **Practice Directory (rotation #18):** `/lib64` (reference context); primary docs tree `/usr/share/doc`
-- **Playbooks:** `/root/rhcsa_journal/lab-18b/playbooks/`
-- **Sandbox (Tier B):** `/tmp/lab18b` with `USER=labuser_18_doclocate`, `GROUP=labgrp_18_doclocate`, `USER_HOME=/tmp/lab18b/home_labuser_18_doclocate`
-- **Traps rehearsed this lab:** **T18-A** (`rpm -qd` vs `rpm -ql`) · **T18-B** (broken naming pattern) · **T41** (restore drill deferred to 18c) · **T44** (closeout audit completeness)
-
-> **Focus:** mirror 18a logic in automation while preserving docs-only intent and trap checks.
+**Series:** linux-ops-mastery — Text Processing & Filters · **Lab 18b of the Novice → RHCA path**  
+**Certifications covered:** RHCE EX294 (querying package state as facts), RHCSA EX200 (the `rpm -q*` behavior underneath), DevOps (software inventory automation)  
+**Prerequisite:** [Lab 18a](../lab-18a-locate-command-docs-rhcsa/) completed and a working control node  
+**Time Estimate:** 25–35 minutes  
+**Difficulty:** Beginner → Intermediate
 
 ---
 
-## LAB HEADER BLOCK
+## 🎯 Today's Focus Coverage
 
-```bash
-echo "🖥️  ENV:   ${ENV:-DECLARE_ME}"
-ansible --version
-ansible localhost -m ping --connection=local
-echo "📁  PRACTICE DIR: /lib64"
-ls -ld /lib64 /usr/share/doc
-echo "⚠️  TRAP REMINDERS THIS LAB: T18-A T18-B T41 T44"
-echo "🕒  TIME: $(date -Is)"
+> Stay on-subject via the ANCHOR rows; expand vocabulary via the NEW rows. Every row is exercised by a STEP below.
+
+**⚓ Anchor — already learned (on-topic reuse)**
+
+| # | Command / switch | Covered by |
+|---|---|---|
+| A1 | `rpm -qd` (via command) | _Task 2 · Step 1_ |
+| A2 | `ansible.builtin.copy` | _Task 2 · Step 1_ |
+
+**🆕 NEW this lab — introduced for the first time** (minimum 3)
+
+| # | Command / switch | First taught in | Covered by |
+|---|---|---|---|
+| N1 | `ansible.builtin.package_facts` | Task 1 · Step 1 | _Task 1 · Step 1_ |
+| N2 | `ansible_facts.packages` lookup | Task 1 · Step 2 | _Task 1 · Step 2_ |
+| N3 | `ansible.builtin.assert` on facts | Task 1 · Step 2 | _Task 1 · Step 2_ |
+| N4 | `command: rpm -qd` capture | Task 2 · Step 1 | _Task 2 · Step 1_ |
+
+---
+
+## 🎯 Objective
+
+Query package state as **facts** instead of parsing CLI text. You will gather installed packages with `ansible.builtin.package_facts`, assert a package is present and read its version from the structured fact tree, then capture its documentation list with a read-only `command: rpm -qd` and save it. Facts make "is this installed and what version?" a clean, scriptable check.
+
+---
+
+## 🧠 Concept
+
+`ansible.builtin.package_facts` populates `ansible_facts.packages`, a dict keyed by package name whose values carry `version`, `release`, and `arch`. Testing membership (`'coreutils' in ansible_facts.packages`) and reading the version is far more robust than scraping `rpm -q`. For listing docs there is no dedicated module, so you run `rpm -qd` via `command:` as a read-only check (`changed_when: false`) and persist the result with `copy`. Facts for state, command for the one-off query.
+
+```
+SHELL (18a)                          ANSIBLE (18b)
+─────────────────────────────       ──────────────────────────────────────
+rpm -qi coreutils | grep Version     package_facts → ansible_facts.packages['coreutils']
+rpm -qd coreutils > docs.txt         command: rpm -qd ... (register) → copy
 ```
 
-> **STOP — paste header output before setup.**
+> **Why this matters:** Grading often checks "package X version Y is installed." `package_facts` answers that as data, not text — the idiomatic, reliable way RHCE expects.
 
 ---
 
-## Objective
+## 📚 Command Reference
 
-1. Use `ansible.builtin.find` to discover grep-related docs files.
-2. Use `ansible.builtin.shell` to execute `rpm -qf` + `rpm -qd` chain.
-3. Capture outputs with `register`.
-4. Enforce correctness with `assert` and explicit `failed_when` guards.
-
----
-
-## Concept: Why `shell` + `assert` Here
-
-- `rpm -qf /usr/bin/grep` produces package name dynamically.
-- `rpm -qd` needs that package value.
-- `register` stores both outputs and return codes.
-- `assert` and `failed_when` make trap violations fail fast.
+| Command | Purpose | Critical flags |
+|---|---|---|
+| `ansible.builtin.package_facts` | Populate installed-package facts | `manager: rpm` (auto-detected) |
+| `ansible_facts.packages` | Dict of installed packages | `[name][0].version` |
+| `ansible.builtin.assert` | Fail unless a fact holds | `that:` with a membership test |
+| `ansible.builtin.command` | Run `rpm -qd` read-only | `changed_when: false` |
+| `ansible.builtin.copy` | Save the doc list | `content:` from stdout |
 
 ---
 
-## Lab-Wide Setup — Tier B Sandbox Stack (Section 1.5)
+## 🧰 LAB-WIDE SETUP
+
+**In plain English:** Build the sandbox and playbook folder; the package data comes from the live RPM database.
+
+> Run this block **once** before Task 1. It builds the clean, private workspace that both tasks depend on.
 
 ```bash
-sudo -i
-
-export LAB_NUM=18
-export LAB_SLUG=doclocate
-export SANDBOX=/tmp/lab18b
-export GROUP=labgrp_${LAB_NUM}_${LAB_SLUG}
-export USER=labuser_${LAB_NUM}_${LAB_SLUG}
-export USER_HOME=${SANDBOX}/home_${USER}
-
-mkdir -p "${SANDBOX}" "${USER_HOME}"
+export LAB_ROOT=/tmp/lab-18
+mkdir -p "$LAB_ROOT"
 mkdir -p /root/rhcsa_journal/lab-18b/playbooks
-mkdir -p /root/rhcsa_journal/lab-18b/task1
-mkdir -p /root/rhcsa_journal/lab-18b/task2
+rpm -q coreutils
+echo "exit was: $?"
+```
 
-getent group  "${GROUP}" >/dev/null || groupadd "${GROUP}"
-getent passwd "${USER}"  >/dev/null || useradd -d "${USER_HOME}" -M -s /bin/bash -g "${GROUP}" "${USER}"
-chown -R "${USER}:${GROUP}" "${SANDBOX}"
+**Expected output:**
 
-id "${USER}"
-ls -ld "${SANDBOX}" "${USER_HOME}" /usr/share/doc /lib64
+```
+coreutils-9.0-...el9.x86_64
+exit was: 0
 ```
 
 ---
 
-## Task 1 — `ansible.builtin.find` + `ansible.builtin.shell rpm -qd`
+## TASK 1 of 2 — Query package state as facts
 
-### Warm-Up
+**In plain English:** We gather package facts and assert `coreutils` is installed, printing its version.
 
-```bash
-rpm -qf /usr/bin/grep
-rpm -qf /usr/bin/grep | xargs rpm -qd | head -n 10
-```
-
-### Purpose
-
-Automate the two manual discovery methods from 18a:
-
-1. Filesystem discovery on `/usr/share/doc`.
-2. RPM metadata discovery via package owner then docs list.
-
-### Main command block
-
-```bash
-TASKLOG=/tmp/lab18b/task1.txt
-PB=/root/rhcsa_journal/lab-18b/playbooks/task1.yml
-
-cat > "${PB}" << 'PLAYBOOK'
 ---
-- name: "Lab 18b Task 1 - locate command docs"
+
+### Step 1 of 2 — Write the package_facts playbook
+
+**In plain English:** We create `task1.yml`, which gathers package facts and asserts the target package is present.
+
+```yaml
+---
+- name: "Lab 18b Task 1 — query package facts"
   hosts: localhost
   connection: local
   gather_facts: false
-
+  vars:
+    pkg: coreutils
   tasks:
-    - name: "Find grep-related docs under /usr/share/doc"
-      ansible.builtin.find:
-        paths: /usr/share/doc
-        recurse: true
-        file_type: file
-        patterns:
-          - "*grep*"
-      register: grep_docs
+    - name: "Gather installed package facts"
+      ansible.builtin.package_facts:
+        manager: rpm
 
-    - name: "Resolve package owning /usr/bin/grep"
-      ansible.builtin.shell: "rpm -qf /usr/bin/grep"
-      register: grep_pkg
-      changed_when: false
-
-    - name: "List docs from owning package using rpm -qd"
-      ansible.builtin.shell: "rpm -qd {{ grep_pkg.stdout | trim }}"
-      register: grep_pkg_docs
-      changed_when: false
-
-    - name: "Write evidence file"
-      ansible.builtin.copy:
-        dest: /tmp/lab18b/task1-output.txt
-        mode: '0644'
-        content: |
-          package={{ grep_pkg.stdout | trim }}
-          find_hits={{ grep_docs.matched | default(0) }}
-          rpm_qd_lines={{ (grep_pkg_docs.stdout_lines | default([])) | length }}
-PLAYBOOK
-
-ansible-playbook "${PB}" 2>&1 | tee "${TASKLOG}"
-cat /tmp/lab18b/task1-output.txt | tee -a "${TASKLOG}"
-echo "exit was: $?" | tee -a "${TASKLOG}"
-```
-
-### Concept Card
-
-| Concept | What it does |
-|---|---|
-| `ansible.builtin.find` | Tree search equivalent of shell `find` |
-| `register` | Captures stdout/stdout_lines/rc for later checks |
-| `ansible.builtin.shell` | Required for RPM command chain |
-| **🪤 T18-A** | Must call `rpm -qd` for docs-only listing |
-
-### Journal write
-
-```bash
-LAB=lab-18b
-TASK=task1
-JDIR="/root/rhcsa_journal/${LAB}/${TASK}"
-mkdir -p "${JDIR}"
-cp /tmp/lab18b/task1.txt        "${JDIR}/evidence.txt"
-cp /tmp/lab18b/task1-output.txt "${JDIR}/task1-output.txt"
-```
-
----
-
-## Task 2 — `register` + `assert` + `failed_when` contains_check trap
-
-### Warm-Up
-
-```bash
-echo "contains_check trap prep"
-test -s /tmp/lab18b/task1-output.txt && echo "task1 evidence present"
-```
-
-### Purpose
-
-Turn trap requirements into hard checks:
-
-- Validate docs list has at least one line.
-- Validate `/usr/share/doc` find hits are not zero.
-- Fail if expected "grep" signal is missing in docs output (`contains_check`).
-
-### Main command block
-
-```bash
-TASKLOG=/tmp/lab18b/task2.txt
-PB=/root/rhcsa_journal/lab-18b/playbooks/task2.yml
-
-cat > "${PB}" << 'PLAYBOOK'
----
-- name: "Lab 18b Task 2 - trap checks with assert"
-  hosts: localhost
-  connection: local
-  gather_facts: false
-
-  tasks:
-    - name: "Get package for /usr/bin/grep"
-      ansible.builtin.shell: "rpm -qf /usr/bin/grep"
-      register: grep_pkg
-      changed_when: false
-
-    - name: "Get docs-only listing"
-      ansible.builtin.shell: "rpm -qd {{ grep_pkg.stdout | trim }}"
-      register: docs_qd
-      changed_when: false
-      failed_when: docs_qd.rc != 0
-
-    - name: "Find grep-related doc files"
-      ansible.builtin.find:
-        paths: /usr/share/doc
-        recurse: true
-        file_type: file
-        patterns:
-          - "*grep*"
-      register: docs_find
-
-    - name: "contains_check trap guard"
-      ansible.builtin.set_fact:
-        contains_check: "{{ (docs_qd.stdout is search('grep')) or ((docs_find.matched | default(0)) | int > 0) }}"
-
-    - name: "Assert trap checks"
+    - name: "Assert the package is installed"
       ansible.builtin.assert:
         that:
-          - (docs_qd.stdout_lines | default([])) | length > 0
-          - (docs_find.matched | default(0)) | int > 0
-          - contains_check | bool
-        fail_msg: "T18 trap check failed: docs were not proven discoverable"
-        success_msg: "✅ docs discovery assertions passed"
+          - "pkg in ansible_facts.packages"
+        success_msg: "{{ pkg }} is installed"
+        fail_msg: "{{ pkg }} is NOT installed"
 
-    - name: "Write verification evidence"
+    - name: "Show the version from facts"
+      ansible.builtin.debug:
+        msg: "{{ pkg }} version: {{ ansible_facts.packages[pkg][0].version }}"
+```
+
+**Expected output:**
+
+```
+(this is the saved playbook file — no output until you run it in Step 2)
+```
+
+**Line-by-line breakdown:**
+
+- `ansible.builtin.package_facts: manager: rpm` → Populate `ansible_facts.packages` from the RPM DB.
+- `assert: that: "pkg in ansible_facts.packages"` → Fail the play unless the package is present.
+- `debug: ... packages[pkg][0].version` → Read the version straight from the fact tree.
+
+**New words in this step:**
+
+- **`package_facts`** — module that builds a structured map of installed packages.
+- **fact lookup** — reading a value like `version` from `ansible_facts`.
+
+---
+
+### Step 2 of 2 — Run it and read the version
+
+**In plain English:** We run the play and confirm the assertion passes and the version prints.
+
+```bash
+ansible-playbook /root/rhcsa_journal/lab-18b/playbooks/task1.yml
+echo "exit was: $?"
+```
+
+**Expected output:**
+
+```
+TASK [Assert the package is installed] *************************************
+ok: [localhost] => {"changed": false, "msg": "coreutils is installed"}
+TASK [Show the version from facts] ****************************************
+ok: [localhost] => {"msg": "coreutils version: 9.0"}
+PLAY RECAP ****************************************************************
+localhost                  : ok=3    changed=0    unreachable=0    failed=0
+exit was: 0
+```
+
+**Line-by-line breakdown:**
+
+- `ansible-playbook ...` → Gather facts, assert presence, print version; everything is read-only so `changed=0`.
+
+**New words in this step:**
+
+- **read-only play** — a play that only inspects state, never changing it.
+
+---
+
+### Concept card (Task 1)
+
+| Concept | What it does | Exam trap |
+|---|---|---|
+| `package_facts` | inventory as data | must run before reading `packages` |
+| `[pkg][0].version` | first entry's version | a name can have multiple installs |
+| `assert` | gate on a fact | quote the `that:` expression |
+
+---
+
+### Troubleshoot (Task 1)
+
+| Symptom | Likely cause | Fix |
+|---|---|---|
+| `packages is undefined` | Facts not gathered | Run `package_facts` first |
+| Assertion fails | Package absent | Install it or fix the name |
+
+---
+
+## TASK 2 of 2 — Capture the documentation list
+
+**In plain English:** We run `rpm -qd` read-only and save the doc paths idempotently.
+
+---
+
+### Step 1 of 2 — Write the doc-capture playbook
+
+**In plain English:** We create `task2.yml`, which lists a package's docs and writes them to a file.
+
+```yaml
+---
+- name: "Lab 18b Task 2 — capture package documentation"
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars:
+    pkg: coreutils
+    out: /tmp/lab-18/coreutils-docs.txt
+  tasks:
+    - name: "List the package's documentation files (read-only)"
+      ansible.builtin.command: "rpm -qd {{ pkg }}"
+      register: docs
+      changed_when: false
+
+    - name: "Save the doc list"
       ansible.builtin.copy:
-        dest: /tmp/lab18b/task2-assertions.txt
+        dest: "{{ out }}"
+        content: "{{ docs.stdout }}\n"
         mode: '0644'
-        content: |
-          docs_qd_count={{ (docs_qd.stdout_lines | default([])) | length }}
-          docs_find_count={{ docs_find.matched | default(0) }}
-          contains_check={{ contains_check }}
-PLAYBOOK
+      register: save_result
 
-ansible-playbook "${PB}" 2>&1 | tee "${TASKLOG}"
-cat /tmp/lab18b/task2-assertions.txt | tee -a "${TASKLOG}"
-echo "exit was: $?" | tee -a "${TASKLOG}"
+    - name: "Show count and changed"
+      ansible.builtin.debug:
+        msg:
+          - "doc files: {{ docs.stdout_lines | length }}"
+          - "changed: {{ save_result.changed }}"
 ```
 
-### Concept Card
+**Expected output:**
 
-| Concept | What it does |
-|---|---|
-| `failed_when` | Force explicit failure condition on shell task |
-| `assert` | Stops play when proof conditions are false |
-| `contains_check` | Trap flag to prove discovery signal is present |
-| **🪤 T18-B** | Broken pattern would make `docs_find.matched` too low/zero |
+```
+(this is the saved playbook file — no output until you run it in Step 2)
+```
 
-### Journal write
+**Line-by-line breakdown:**
+
+- `command: rpm -qd {{ pkg }}` + `changed_when: false` → Read the package's doc files without changing anything.
+- `copy: content: "{{ docs.stdout }}\n"` → Persist the list idempotently.
+
+**New words in this step:**
+
+- **doc capture** — saving a package's documentation paths for offline reference.
+
+---
+
+### Step 2 of 2 — Run it twice and confirm the saved list
+
+**In plain English:** We run the play twice; the command is read-only and the saved list converges to `changed=0`.
 
 ```bash
-LAB=lab-18b
-TASK=task2
-JDIR="/root/rhcsa_journal/${LAB}/${TASK}"
-mkdir -p "${JDIR}"
-cp /tmp/lab18b/task2.txt            "${JDIR}/evidence.txt"
-cp /tmp/lab18b/task2-assertions.txt "${JDIR}/task2-assertions.txt"
+ansible-playbook /root/rhcsa_journal/lab-18b/playbooks/task2.yml
+ansible-playbook /root/rhcsa_journal/lab-18b/playbooks/task2.yml
+head -n 3 /tmp/lab-18/coreutils-docs.txt
+echo "exit was: $?"
 ```
+
+**Expected output:**
+
+```
+PLAY RECAP ****************************************************************
+localhost                  : ok=3    changed=1    unreachable=0    failed=0
+PLAY RECAP ****************************************************************
+localhost                  : ok=3    changed=0    unreachable=0    failed=0
+/usr/share/man/man1/ls.1.gz
+/usr/share/man/man1/cp.1.gz
+...
+exit was: 0
+```
+
+**Line-by-line breakdown:**
+
+- two runs → Command stays `changed=0`; saved list is `changed=1` then `changed=0`.
+- `head -n 3 ...` → Confirm the captured doc paths.
+
+**New words in this step:**
+
+- **idempotent capture** — saving query output so re-runs do not re-write an identical file.
 
 ---
 
-## Lab Closeout — Bulletproof Teardown (Section 6)
+### Concept card (Task 2)
+
+| Concept | What it does | Exam trap |
+|---|---|---|
+| `command: rpm -qd` | read-only query | mark `changed_when: false` |
+| `copy` of stdout | persist results | trailing newline drift |
+| facts vs command | data vs one-off | use facts for state checks |
+
+---
+
+### Troubleshoot (Task 2)
+
+| Symptom | Likely cause | Fix |
+|---|---|---|
+| Empty doc list | Package ships no docs | Expected; choose a documented package |
+| Always changed | Newline mismatch | Keep `content:` stable |
+
+---
+
+## ✅ Lab Checklist
+
+- [ ] Task 1 · Step 1 — Write the package_facts playbook
+- [ ] Task 1 · Step 2 — Run it and read the version
+- [ ] Task 2 · Step 1 — Write the doc-capture playbook
+- [ ] Task 2 · Step 2 — Run it twice and confirm the saved list
+- [ ] Every 🎯 Focus Coverage row (Anchor + NEW) mapped to a step
+- [ ] 🧹 Teardown run — sandbox + any system state removed
+
+---
+
+## 🧹 Teardown
+
+**In plain English:** Delete everything this lab created so the box is clean for the next run.
+
+> Run this after you've verified the lab. `lab_teardown.sh` safely removes the single sandbox root — it refuses to touch `/`, `$HOME`, or any protected path. This lab changed **no** system state.
 
 ```bash
-set +e
+bash lab_teardown.sh "$LAB_ROOT"     # = /tmp/lab-18
+rm -rf /root/rhcsa_journal/lab-18b
+```
 
-awk -v s="${SANDBOX}" '$2 ~ s {print $2}' /proc/mounts | tac | xargs -r -n1 umount -l 2>/dev/null
+**Expected output:**
 
-if getent passwd "${USER}" >/dev/null 2>&1; then userdel -r "${USER}" 2>/dev/null; fi
-if getent group "${GROUP}" >/dev/null 2>&1; then groupdel "${GROUP}" 2>/dev/null; fi
-rm -rf "${SANDBOX}"
-
-echo "── Lab 18b cleanup audit ──"
-getent passwd "${USER}" >/dev/null && echo "❌ user remains"   || echo "✅ user gone"
-getent group  "${GROUP}" >/dev/null && echo "❌ group remains" || echo "✅ group gone"
-test -d "${SANDBOX}"               && echo "❌ sandbox remains"|| echo "✅ sandbox gone"
-test -d "${USER_HOME}"             && echo "❌ home remains"   || echo "✅ home gone"
-
-set -e
+```
+✅ Removed /tmp/lab-18 — lab workspace is clean.
 ```
 
 ---
 
-## Lab 18b Checklist (2 tasks + closeout)
+## ⚠️ Common Pitfalls
 
-- [ ] Task 1 used `ansible.builtin.find` on `/usr/share/doc` and `ansible.builtin.shell` for `rpm -qd`
-- [ ] Task 2 used `register`, `assert`, and `failed_when` with `contains_check`
-- [ ] Trap signals for T18-A and T18-B were enforced by assertions
-- [ ] Section 6 closeout ended with four `✅` audit lines
+| Mistake | Symptom | Fix |
+|---|---|---|
+| Reading `packages` before gathering | Undefined error | Run `package_facts` first |
+| `command: rpm` without `changed_when` | Noisy recap | Mark it `changed_when: false` |
+| Assuming one version per name | Wrong index | Iterate `packages[name]` |
 
 ---
 
-## Author
+## 📌 Exam Strategy
+
+Use `package_facts` for "is X installed / what version?" checks and `command: rpm -q*` (read-only) for one-off queries you must capture. Assert on facts to gate plays, and mark query commands `changed_when: false`.
+
+- `package_facts` is the idiomatic installed-software check.
+- Reach for `command` only when no fact/module covers the query.
+- Keep query commands read-only with `changed_when: false`.
+
+---
+
+## 🔗 Related Labs
+
+- [Lab 18a — Locate Command Documentation (RHCSA)](../lab-18a-locate-command-docs-rhcsa/) — the `rpm -q*` chain this mirrors
+- [Lab 18c — Locate Command Documentation (Verify)](../lab-18c-locate-command-docs-verify/) — prove ownership and doc presence
+- [Lab 00b — Ansible Control Node (Ansible)](../lab-00b-ansible-control-node-ansible/) — `ansible.builtin.dnf` package management
+
+---
+
+## 👤 Author
 
 **Kelvin R. Tobias**  
 [kelvinintech.com](https://kelvinintech.com) · [GitHub](https://github.com/kelvintechnical) · [LinkedIn](https://www.linkedin.com/in/kelvin-r-tobias-211949219)

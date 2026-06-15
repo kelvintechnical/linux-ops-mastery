@@ -1,274 +1,371 @@
-# Lab 39b: Configure SSH Key-Based Authentication with Ansible (Module-First)
+# Lab 39b: Configure SSH and Key-Based Auth (Ansible) — keys & `authorized_key`
 
-- **Series:** linux-ops-mastery — SSH Access and Authentication
-- **Trilogy:** `39a` (RHCSA) -> `39b` (Ansible) -> `39c` (Verify)
-- **Time Estimate:** 25-35 minutes
-- **Tasks:** 2
-- **Practice Directory (rotation #39):** `/lib64`
-- **Sandbox (Tier B):** `/tmp/lab39b` with `USER=labuser_39_sshkey`, `GROUP=labgrp_39_sshkey`
-- **Playbooks live at:** `/root/rhcsa_journal/lab-39b/playbooks/`
-- **Traps rehearsed this lab:** **T39-A** · **T39-B** · **T41** · **T44**
-
-> **Prerequisite:** `sshd` must be active on localhost before key-auth tests.
+**Series:** linux-ops-mastery — Networking · **Lab 39b of the Novice → RHCA path**  
+**Certifications covered:** RHCE EX294 (user/SSH key modules), RHCSA EX200 (the key mechanics underneath), SRE (provisioning access at scale)  
+**Prerequisite:** [Lab 39a](../lab-39a-ssh-key-auth-rhcsa/) completed and a working control node  
+**Time Estimate:** 30–40 minutes  
+**Difficulty:** Intermediate
 
 ---
 
-## LAB HEADER BLOCK
+## 🎯 Today's Focus Coverage
+
+> Stay on-subject via the ANCHOR rows; expand vocabulary via the NEW rows. Every row is exercised by a STEP below.
+
+**⚓ Anchor — already learned (on-topic reuse)**
+
+| # | Command / switch | Covered by |
+|---|---|---|
+| A1 | `command:` + `creates:` (from Lab 10) | _Task 1 · Step 1_ |
+| A2 | idempotence (`changed=0`) | _Task 1 · Step 2_ |
+
+**🆕 NEW this lab — introduced for the first time** (minimum 3)
+
+| # | Command / switch | First taught in | Covered by |
+|---|---|---|---|
+| N1 | generate key with `creates:` | Task 1 · Step 1 | _Task 1 · Step 1_ |
+| N2 | `ansible.builtin.slurp` the pubkey | Task 1 · Step 2 | _Task 1 · Step 2_ |
+| N3 | `ansible.posix.authorized_key` | Task 2 · Step 1 | _Task 2 · Step 1_ |
+| N4 | `state: absent` key removal | Task 2 · Step 2 | _Task 2 · Step 2_ |
+
+---
+
+## 🎯 Objective
+
+Provision SSH key access declaratively. You'll generate a key pair idempotently (using `creates:` so it runs once), read the public key with `slurp`, install it into an account with `ansible.posix.authorized_key`, and remove it with `state: absent`. This is how access is granted and revoked at fleet scale — repeatable and reversible.
+
+> **Safety note:** Keys are written to the sandbox `/tmp/lab-39`. The public key is authorized only for *your own* account and removed in Teardown. No remote hosts are modified.
+
+---
+
+## 🧠 Concept
+
+The Ansible way to manage SSH access has two idempotent halves. **Key generation**: wrap `ssh-keygen` in a `command` task with `creates: KEYPATH` so it only runs when the key is absent — or use `community.crypto.openssh_keypair` if the collection is present. **Key installation**: `ansible.posix.authorized_key` declaratively ensures a public key is present (`state: present`) or absent (`state: absent`) in a user's `authorized_keys`, handling permissions and de-duplication for you (far better than appending with `lineinfile`). To feed the key in, read it with `ansible.builtin.slurp` and `b64decode`. The pattern — generate once, authorize declaratively, revoke with `state: absent` — gives clean, auditable access management. Granting access becomes a reviewable change; revoking is one line flip.
+
+```
+command: ssh-keygen ... creates: KEY      → generate once (idempotent)
+slurp: src=KEY.pub → b64decode             → read the public key
+ansible.posix.authorized_key:
+  user: "{{ ansible_user_id }}"
+  key: "<pubkey>"
+  state: present                            → grant access
+  state: absent                             → revoke access
+```
+
+> **Why this matters:** Manually copying keys to many servers is error-prone and unauditable. `authorized_key` makes access a declarative, idempotent, reviewable change — and revocation as simple as flipping `state` to `absent`.
+
+---
+
+## 📚 Command Reference
+
+| Command | Purpose | Critical detail |
+|---|---|---|
+| `command: ssh-keygen` + `creates:` | Generate once | idempotent |
+| `ansible.builtin.slurp` | Read pubkey | `b64decode` |
+| `ansible.posix.authorized_key` | Manage authorized key | `user`, `key`, `state` |
+| `state: present/absent` | Grant/revoke | declarative |
+| `command: ssh -i` | Verify login | `changed_when: false` |
+
+---
+
+## 🧰 LAB-WIDE SETUP
+
+**In plain English:** Build the sandbox, playbook folder, and ensure `~/.ssh` exists.
+
+> Run this block **once** before Task 1.
 
 ```bash
-echo "📦 OS: $(cat /etc/redhat-release 2>/dev/null || grep PRETTY_NAME /etc/os-release)"
-echo "🕒 TIME: $(date -Is)"
-echo "👤 USER: $(whoami)@$(hostname)"
-echo "📁 PRACTICE DIR: /lib64"
-echo "⚠️ TRAPS: T39-A T39-B T41 T44"
-ansible --version | head -n 2
-ansible -m ping localhost | tail -n 4
-systemctl is-active sshd 2>/dev/null || echo "sshd not active"
-ls -ld /lib64
+export LAB_ROOT=/tmp/lab-39
+mkdir -p "$LAB_ROOT"
+mkdir -p /root/rhcsa_journal/lab-39b/playbooks
+mkdir -p ~/.ssh && chmod 700 ~/.ssh
+echo "ready"
+echo "exit was: $?"
+```
+
+**Expected output:**
+
+```
+ready
+exit was: 0
 ```
 
 ---
 
-## Objective
+## TASK 1 of 2 — Generate the key idempotently
 
-1. Generate an SSH keypair declaratively with `ansible.builtin.user` (`generate_ssh_key: yes`).
-2. Deploy the generated public key with `ansible.posix.authorized_key`.
-3. Enforce strict file permissions to avoid T39-A (`.ssh` = `700`, `authorized_keys` = `600`).
-4. Keep key selection explicit to avoid T39-B (never rely on unspecified defaults).
+**In plain English:** We create the key pair once and read the public half.
 
 ---
 
-## Lab-Wide Setup — Tier B Sandbox
+### Step 1 of 2 — Write the key-generation playbook
 
-```bash
-sudo -i
-
-export SANDBOX=/tmp/lab39b
-export GROUP=labgrp_39_sshkey
-export USER=labuser_39_sshkey
-export USER_HOME=${SANDBOX}/home_${USER}
-
-mkdir -p "${SANDBOX}" "${USER_HOME}" /root/rhcsa_journal/lab-39b/playbooks
-getent group "${GROUP}" >/dev/null || groupadd "${GROUP}"
-getent passwd "${USER}" >/dev/null || useradd -d "${USER_HOME}" -M -s /bin/bash -g "${GROUP}" "${USER}"
-chown -R "${USER}:${GROUP}" "${SANDBOX}"
-```
-
----
-
-## Task 1 — Declarative key generation and key deployment
-
-### Purpose
-
-Use module-first Ansible flow to create the keypair for `labuser_39_sshkey` and install that exact key into `authorized_keys`.
-
-### Playbook (`/root/rhcsa_journal/lab-39b/playbooks/task1.yml`)
+**In plain English:** We create `task1.yml` that generates the key only if it doesn't exist.
 
 ```yaml
 ---
-- name: "Lab 39b Task 1 - generate and deploy SSH key"
+- name: "Lab 39b Task 1 — generate an SSH key (idempotent)"
   hosts: localhost
   connection: local
   gather_facts: false
-  become: true
-
   vars:
-    lab_user: labuser_39_sshkey
-    lab_group: labgrp_39_sshkey
-    lab_home: "/tmp/lab39b/home_labuser_39_sshkey"
-    lab_key: "{{ lab_home }}/.ssh/lab39_ansible_ed25519"
-
+    key_path: /tmp/lab-39/lab_key
   tasks:
-    - name: "Ensure Tier B group exists"
-      ansible.builtin.group:
-        name: "{{ lab_group }}"
-        state: present
+    - name: "Generate the key pair once"
+      ansible.builtin.command: "ssh-keygen -t ed25519 -f {{ key_path }} -N '' -C lab-39b"
+      args:
+        creates: "{{ key_path }}"
+      register: gen
 
-    - name: "Ensure Tier B user exists"
-      ansible.builtin.user:
-        name: "{{ lab_user }}"
-        group: "{{ lab_group }}"
-        home: "{{ lab_home }}"
-        shell: /bin/bash
-        create_home: false
-        state: present
-
-    - name: "Ensure .ssh directory exists with strict permissions"
-      ansible.builtin.file:
-        path: "{{ lab_home }}/.ssh"
-        state: directory
-        owner: "{{ lab_user }}"
-        group: "{{ lab_group }}"
-        mode: "0700"
-
-    - name: "Generate SSH keypair for lab user"
-      ansible.builtin.user:
-        name: "{{ lab_user }}"
-        generate_ssh_key: true
-        ssh_key_type: ed25519
-        ssh_key_file: "{{ lab_key }}"
-
-    - name: "Read generated public key"
+    - name: "Read the public key"
       ansible.builtin.slurp:
-        src: "{{ lab_key }}.pub"
-      register: generated_pubkey
+        src: "{{ key_path }}.pub"
+      register: pub
 
-    - name: "Install generated key into authorized_keys"
-      ansible.posix.authorized_key:
-        user: "{{ lab_user }}"
-        key: "{{ generated_pubkey.content | b64decode | trim }}"
-        state: present
-        path: "{{ lab_home }}/.ssh/authorized_keys"
-        manage_dir: false
+    - name: "Show the public key"
+      ansible.builtin.debug:
+        msg: "{{ (pub.content | b64decode) | trim }}"
 ```
 
-### Run and verify
+**Expected output:**
 
-```bash
-ansible-playbook /root/rhcsa_journal/lab-39b/playbooks/task1.yml 2>&1 | tee /tmp/lab39b/task1-apply-1.txt
-ansible-playbook /root/rhcsa_journal/lab-39b/playbooks/task1.yml 2>&1 | tee /tmp/lab39b/task1-apply-2.txt
+```
+(this is the saved playbook file — no output until you run it in Step 2)
 ```
 
-### Journal write
+**Line-by-line breakdown:**
 
-```bash
-mkdir -p /root/rhcsa_journal/lab-39b/task1
-cp /tmp/lab39b/task1-apply-1.txt /root/rhcsa_journal/lab-39b/task1/apply-1.txt
-cp /tmp/lab39b/task1-apply-2.txt /root/rhcsa_journal/lab-39b/task1/apply-2.txt
-```
+- `command: ssh-keygen ...` + `args: creates: KEY` → Runs only when the key is missing — idempotent generation.
+- `slurp: src: KEY.pub` + `b64decode` → Read the public key content for the next task.
+
+**New words in this step:**
+
+- **`creates:`** — skip the command if the named file already exists.
 
 ---
 
-## Task 2 — Trap guard for T39-A permissions + localhost auth check
+### Step 2 of 2 — Run it twice to prove idempotence
 
-### Purpose
+**In plain English:** We apply the play, then re-run to confirm `changed=0` for generation.
 
-Assert strict permissions and verify key login on localhost using the generated key.
+```bash
+ansible-playbook /root/rhcsa_journal/lab-39b/playbooks/task1.yml
+ansible-playbook /root/rhcsa_journal/lab-39b/playbooks/task1.yml | grep -E 'changed='
+```
 
-### Playbook (`/root/rhcsa_journal/lab-39b/playbooks/task2.yml`)
+**Expected output:**
+
+```
+localhost                  : ok=3    changed=1    unreachable=0    failed=0
+localhost                  : ok=3    changed=0    unreachable=0    failed=0
+```
+
+**Line-by-line breakdown:**
+
+- First run `changed=1` (key created); second `changed=0` (`creates:` skips it) — idempotent.
+
+**New words in this step:**
+
+- **run-once generation** — the key is produced a single time, safely re-runnable.
+
+---
+
+### Concept card (Task 1)
+
+| Concept | What it does | Exam trap |
+|---|---|---|
+| `creates:` | idempotent cmd | skips if file exists |
+| `slurp` | read file | base64 |
+| `b64decode` | decode | needed after slurp |
+
+---
+
+### Troubleshoot (Task 1)
+
+| Symptom | Likely cause | Fix |
+|---|---|---|
+| Regenerates each run | `creates:` wrong path | Match `key_path` |
+| slurp fails | `.pub` missing | Ensure keygen ran |
+
+---
+
+## TASK 2 of 2 — Grant and revoke access
+
+**In plain English:** We authorize the key, then revoke it declaratively.
+
+---
+
+### Step 1 of 2 — Write the authorize/revoke playbook
+
+**In plain English:** We create `task2.yml` that grants the key, then demonstrates revocation.
 
 ```yaml
 ---
-- name: "Lab 39b Task 2 - enforce T39-A guard and verify"
+- name: "Lab 39b Task 2 — manage authorized_key"
   hosts: localhost
   connection: local
-  gather_facts: false
-  become: true
-
+  gather_facts: true
   vars:
-    lab_user: labuser_39_sshkey
-    lab_group: labgrp_39_sshkey
-    lab_home: "/tmp/lab39b/home_labuser_39_sshkey"
-    lab_key: "{{ lab_home }}/.ssh/lab39_ansible_ed25519"
-
+    key_path: /tmp/lab-39/lab_key
   tasks:
-    - name: "Enforce .ssh permission 700"
-      ansible.builtin.file:
-        path: "{{ lab_home }}/.ssh"
-        state: directory
-        owner: "{{ lab_user }}"
-        group: "{{ lab_group }}"
-        mode: "0700"
+    - name: "Read the public key"
+      ansible.builtin.slurp:
+        src: "{{ key_path }}.pub"
+      register: pub
 
-    - name: "Enforce private key permission 600"
-      ansible.builtin.file:
-        path: "{{ lab_key }}"
-        owner: "{{ lab_user }}"
-        group: "{{ lab_group }}"
-        mode: "0600"
+    - name: "Authorize the key for this account"
+      ansible.posix.authorized_key:
+        user: "{{ ansible_user_id }}"
+        key: "{{ pub.content | b64decode }}"
+        state: present
+      register: grant
 
-    - name: "Enforce authorized_keys permission 600"
-      ansible.builtin.file:
-        path: "{{ lab_home }}/.ssh/authorized_keys"
-        owner: "{{ lab_user }}"
-        group: "{{ lab_group }}"
-        mode: "0600"
+    - name: "Report grant status"
+      ansible.builtin.debug:
+        msg: "authorized: {{ grant.changed }}"
 
-    - name: "Capture .ssh stat"
-      ansible.builtin.stat:
-        path: "{{ lab_home }}/.ssh"
-      register: sshdir_stat
+    - name: "Revoke the key (demonstration)"
+      ansible.posix.authorized_key:
+        user: "{{ ansible_user_id }}"
+        key: "{{ pub.content | b64decode }}"
+        state: absent
+      register: revoke
 
-    - name: "Capture authorized_keys stat"
-      ansible.builtin.stat:
-        path: "{{ lab_home }}/.ssh/authorized_keys"
-      register: authkeys_stat
-
-    - name: "Assert trap-safe permissions"
-      ansible.builtin.assert:
-        that:
-          - sshdir_stat.stat.mode == '0700'
-          - authkeys_stat.stat.mode == '0600'
-        fail_msg: "T39-A risk detected: wrong SSH permissions"
-        success_msg: "T39-A avoided: SSH permissions are strict"
+    - name: "Report revoke status"
+      ansible.builtin.debug:
+        msg: "revoked: {{ revoke.changed }}"
 ```
 
-### Run and verify
+**Expected output:**
 
-```bash
-ansible-playbook /root/rhcsa_journal/lab-39b/playbooks/task2.yml 2>&1 | tee /tmp/lab39b/task2-apply.txt
-sudo -u "${USER}" ssh -i "${USER_HOME}/.ssh/lab39_ansible_ed25519" \
-  -o PreferredAuthentications=publickey \
-  -o PasswordAuthentication=no \
-  -o StrictHostKeyChecking=accept-new \
-  "${USER}@localhost" true 2>&1 | tee /tmp/lab39b/task2-ssh-test.txt
+```
+(this is the saved playbook file — no output until you run it in Step 2)
 ```
 
-### Trap callout
+**Line-by-line breakdown:**
 
-- **T39-A:** mode drift on `.ssh` or `authorized_keys` breaks auth.
-- **T39-B:** explicit `lab39_ansible_ed25519` avoids accidental default key confusion.
+- `authorized_key: user: ... key: ... state: present` → Ensures the public key is in the account's `authorized_keys` (handles perms/dedup).
+- `state: absent` → Removes the same key — declarative revocation.
+- `ansible_user_id` → The current user fact, so we only touch our own account.
 
-### Journal write
+**New words in this step:**
+
+- **`ansible.posix.authorized_key`** — module to grant/revoke SSH keys for a user.
+
+---
+
+### Step 2 of 2 — Run it and read grant/revoke
+
+**In plain English:** We run the play and see the key granted then revoked.
 
 ```bash
-mkdir -p /root/rhcsa_journal/lab-39b/task2
-cp /tmp/lab39b/task2-apply.txt /root/rhcsa_journal/lab-39b/task2/apply.txt
-cp /tmp/lab39b/task2-ssh-test.txt /root/rhcsa_journal/lab-39b/task2/ssh-test.txt
+ansible-playbook /root/rhcsa_journal/lab-39b/playbooks/task2.yml
+echo "exit was: $?"
+```
+
+**Expected output:**
+
+```
+TASK [Report grant status] *********************************************
+ok: [localhost] => {"msg": "authorized: True"}
+TASK [Report revoke status] ********************************************
+ok: [localhost] => {"msg": "revoked: True"}
+PLAY RECAP **********************************************************
+localhost                  : ok=6    changed=2    unreachable=0    failed=0
+exit was: 0
+```
+
+**Line-by-line breakdown:**
+
+- `ansible-playbook ...` → Grants the key (`authorized: True`), then revokes it (`revoked: True`) — full lifecycle in one run.
+
+> In practice you'd keep `state: present` to retain access; the revoke step here is for demonstration and leaves the account clean.
+
+**New words in this step:**
+
+- **access lifecycle** — grant and revoke as declarative state flips.
+
+---
+
+### Concept card (Task 2)
+
+| Concept | What it does | Exam trap |
+|---|---|---|
+| `state: present` | grant | dedups automatically |
+| `state: absent` | revoke | exact key match |
+| `ansible_user_id` | current user | needs facts |
+
+---
+
+### Troubleshoot (Task 2)
+
+| Symptom | Likely cause | Fix |
+|---|---|---|
+| Module not found | No `ansible.posix` | `ansible-galaxy collection install ansible.posix` |
+| Undefined `ansible_user_id` | `gather_facts: false` | Enable facts |
+
+---
+
+## ✅ Lab Checklist
+
+- [ ] Task 1 · Step 1 — Write the key-generation playbook
+- [ ] Task 1 · Step 2 — Run it twice to prove idempotence
+- [ ] Task 2 · Step 1 — Write the authorize/revoke playbook
+- [ ] Task 2 · Step 2 — Run it and read grant/revoke
+- [ ] Every 🎯 Focus Coverage row (Anchor + NEW) mapped to a step
+- [ ] 🧹 Teardown run — authorized key removed + sandbox cleared
+
+---
+
+## 🧹 Teardown
+
+**In plain English:** Ensure the key is de-authorized and clear the sandbox.
+
+> Task 2 already revokes the key; this is a safety net plus sandbox cleanup.
+
+```bash
+sed -i '/lab-39b/d' ~/.ssh/authorized_keys 2>/dev/null || true
+bash lab_teardown.sh "$LAB_ROOT"     # = /tmp/lab-39
+rm -rf /root/rhcsa_journal/lab-39b
+```
+
+**Expected output:**
+
+```
+✅ Removed /tmp/lab-39 — lab workspace is clean.
 ```
 
 ---
 
-## Lab Closeout — Bulletproof Teardown (Section 6)
+## ⚠️ Common Pitfalls
 
-```bash
-set +e
-
-# Delete generated keys before teardown
-rm -f "${USER_HOME}/.ssh/lab39_ansible_ed25519" \
-      "${USER_HOME}/.ssh/lab39_ansible_ed25519.pub" \
-      "${USER_HOME}/.ssh/authorized_keys"
-
-if getent passwd "${USER}" >/dev/null 2>&1; then
-  userdel -r "${USER}" 2>/dev/null
-fi
-if getent group "${GROUP}" >/dev/null 2>&1; then
-  groupdel "${GROUP}" 2>/dev/null
-fi
-
-rm -rf "${SANDBOX}"
-
-echo "── Lab 39b cleanup audit ──"
-getent passwd "${USER}" >/dev/null && echo "❌ user remains" || echo "✅ user gone"
-getent group "${GROUP}" >/dev/null && echo "❌ group remains" || echo "✅ group gone"
-test -d "${SANDBOX}" && echo "❌ sandbox remains" || echo "✅ sandbox gone"
-test -d "${USER_HOME}" && echo "❌ home remains" || echo "✅ home gone"
-
-set -e
-```
+| Mistake | Symptom | Fix |
+|---|---|---|
+| `lineinfile` for keys | Dups/permission bugs | Use `authorized_key` |
+| No `creates:` | Key regenerated | Add `creates:` |
+| Missing collection | Module error | Install `ansible.posix` |
 
 ---
 
-## Lab 39b Checklist
+## 📌 Exam Strategy
 
-- [ ] Task 1 completed (`ansible.builtin.user generate_ssh_key` + `ansible.posix.authorized_key`)
-- [ ] Task 2 completed (T39-A permission assertions + localhost key auth test)
-- [ ] T39-B key-selection risk explicitly mitigated with named key file
-- [ ] Section 6 closeout audit shows four `✅` lines
+Generate once (`command` + `creates:`), authorize declaratively (`ansible.posix.authorized_key`, `state: present`), revoke with `state: absent`. The module handles permissions and de-duplication — don't hand-roll with `lineinfile`.
+
+- `creates:` makes key generation idempotent.
+- `authorized_key` is the right module for granting access.
+- Flip `state` to `absent` to revoke cleanly.
 
 ---
 
-## Author
+## 🔗 Related Labs
 
-**Kelvin R. Tobias**
+- [Lab 39a — Configure SSH and Key-Based Auth (RHCSA)](../lab-39a-ssh-key-auth-rhcsa/) — the `ssh-keygen`/`authorized_keys` mechanics
+- [Lab 39c — Configure SSH and Key-Based Auth (Verify)](../lab-39c-ssh-key-auth-verify/) — prove key auth and permissions
+- [Lab 27b — Safely Editing System Databases (Ansible)](../lab-27b-vipw-vigr-safe-editing-ansible/) — managing the users these keys belong to
+
+---
+
+## 👤 Author
+
+**Kelvin R. Tobias**  
 [kelvinintech.com](https://kelvinintech.com) · [GitHub](https://github.com/kelvintechnical) · [LinkedIn](https://www.linkedin.com/in/kelvin-r-tobias-211949219)

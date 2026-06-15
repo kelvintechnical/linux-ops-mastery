@@ -1,251 +1,334 @@
-# Lab 39c: Verify SSH Key-Based Authentication — audit + destroy/restore
+# Lab 39c: Configure SSH and Key-Based Auth (Verify) — prove key auth
 
-- **Series:** linux-ops-mastery — SSH Access and Authentication
-- **Trilogy:** `39a` (RHCSA) -> `39b` (Ansible) -> `39c` (Verify — you are here)
-- **Time Estimate:** 25-35 minutes
-- **Tasks:** 2 (Task 1 = audit + verify, Task 2 = destroy-restore drill)
-- **Practice Directory (rotation #39):** `/lib64`
-- **Sandbox (Tier B):** `/tmp/lab39c` with `USER=labuser_39_sshkey`, `GROUP=labgrp_39_sshkey`
-- **Traps rehearsed this lab:** **T39-A** · **T39-B** · **T41** · **T44**
-
-> **Prerequisite:** `sshd` must be active on localhost for key-auth verification.
+**Series:** linux-ops-mastery — Networking · **Lab 39c of the Novice → RHCA path**  
+**Certifications covered:** RHCSA EX200 (evidence-based SSH checks), SRE (access & permission audits)  
+**Prerequisite:** [Lab 39b](../lab-39b-ssh-key-auth-ansible/) completed  
+**Time Estimate:** 25–35 minutes  
+**Difficulty:** Beginner → Intermediate
 
 ---
 
-## LAB HEADER BLOCK
+## 🎯 Today's Focus Coverage
 
-```bash
-echo "🖥️  ENV:   ${ENV:-DECLARE_ME}"
-echo "📦  OS:    $(cat /etc/redhat-release 2>/dev/null || grep PRETTY_NAME /etc/os-release)"
-echo "🕒  TIME:  $(date -Is)"
-echo "👤  USER:  $(whoami)@$(hostname)"
-echo "📁  PRACTICE DIR: /lib64"
-echo "⚠️  TRAP REMINDERS THIS LAB: T39-A T39-B T41 T44"
-ls -ld /lib64
-systemctl is-active sshd 2>/dev/null || echo "sshd not active"
+> Stay on-subject via the ANCHOR rows; expand vocabulary via the NEW rows. Every row is exercised by a STEP below.
+
+**⚓ Anchor — already learned (on-topic reuse)**
+
+| # | Command / switch | Covered by |
+|---|---|---|
+| A1 | `ssh-keygen -lf` fingerprint | _Task 1 · Step 1_ |
+| A2 | `stat -c %a` permissions | _Task 1 · Step 2_ |
+
+**🆕 NEW this lab — introduced for the first time** (minimum 3)
+
+| # | Command / switch | First taught in | Covered by |
+|---|---|---|---|
+| N1 | fingerprint match (priv vs pub) | Task 1 · Step 1 | _Task 1 · Step 1_ |
+| N2 | strict-permission assertion | Task 1 · Step 2 | _Task 1 · Step 2_ |
+| N3 | `ssh BatchMode` auth proof | Task 2 · Step 1 | _Task 2 · Step 1_ |
+| N4 | `sshd -T` config audit | Task 2 · Step 2 | _Task 2 · Step 2_ |
+
+---
+
+## 🎯 Objective
+
+Prove SSH key authentication is correct and secure. You will confirm the private and public keys are a matching pair (same fingerprint), assert the strict permissions SSH demands, prove a passwordless login actually works with `BatchMode`, and audit the effective `sshd` policy with `sshd -T`. These are the objective checks behind a working, hardened SSH setup.
+
+> **Setup note:** Re-create the sandbox key and authorize it (as in Lab 39a) before these checks if a prior teardown removed them.
+
+---
+
+## 🧠 Concept
+
+Key-auth verification has four pillars. **Pairing**: `ssh-keygen -lf` on the private and public keys must yield the *same fingerprint* — that proves they belong together. **Permissions**: `~/.ssh` must be `700`, the private key and `authorized_keys` `600`; SSH silently ignores keys with looser modes, so `stat -c %a` checks are essential. **Functional proof**: `ssh -i KEY -o BatchMode=yes ... true` succeeds *only* if the key authenticates (BatchMode forbids password fallback), giving a true pass/fail. **Policy audit**: `sshd -T` prints the effective server config, so you can assert `pubkeyauthentication yes` (and, when hardening, `passwordauthentication no`). Each is extract-then-assert — the complete proof that key auth is enabled, secure, and working.
+
+```
+ssh-keygen -lf KEY  ==  ssh-keygen -lf KEY.pub   → matching pair
+stat -c %a ~/.ssh / KEY / authorized_keys         → 700 / 600 / 600
+ssh -i KEY -o BatchMode=yes user@localhost true   → passwordless works
+sshd -T | grep pubkeyauthentication               → policy allows keys
 ```
 
-> **STOP — paste header output before setup.**
+> **Why this matters:** "Keys are set up" needs proof: the pair matches, permissions are strict, login works without a password, and the server policy permits keys. Missing any one silently breaks or weakens access.
 
 ---
 
-## Objective
+## 📚 Command Reference
 
-1. Audit Tier B account, SSH directory permissions, and key-auth behavior.
-2. Prove `ssh -i KEY USER@localhost true` works with strict permission checks.
-3. Run a destroy-restore drill to remove keys and recover state with playbook automation.
+| Command | Purpose | Notes |
+|---|---|---|
+| `ssh-keygen -lf` | Fingerprint | match priv/pub |
+| `stat -c %a` | Permission mode | 700/600 |
+| `ssh -o BatchMode=yes` | No password fallback | true auth test |
+| `sshd -T` | Effective config | needs root |
+| `grep pubkeyauthentication` | Policy check | yes/no |
 
 ---
 
-## Lab-Wide Setup — Tier B Sandbox
+## 🧰 LAB-WIDE SETUP
+
+**In plain English:** Make the sandbox and ensure a key exists and is authorized.
+
+> Run this block **once** before Task 1. It re-creates and authorizes the key if needed.
 
 ```bash
-sudo -i
-
-export SANDBOX=/tmp/lab39c
-export GROUP=labgrp_39_sshkey
-export USER=labuser_39_sshkey
-export USER_HOME=${SANDBOX}/home_${USER}
-
-mkdir -p "${SANDBOX}" "${USER_HOME}/.ssh" /root/rhcsa_journal/lab-39c/task1 /root/rhcsa_journal/lab-39c/task2
-getent group "${GROUP}" >/dev/null || groupadd "${GROUP}"
-getent passwd "${USER}" >/dev/null || useradd -d "${USER_HOME}" -M -s /bin/bash -g "${GROUP}" "${USER}"
-chown -R "${USER}:${GROUP}" "${SANDBOX}"
-chmod 700 "${USER_HOME}/.ssh"
+export LAB_ROOT=/tmp/lab-39
+mkdir -p "$LAB_ROOT"
+mkdir -p ~/.ssh && chmod 700 ~/.ssh
+[ -f "$LAB_ROOT/lab_key" ] || ssh-keygen -t ed25519 -f "$LAB_ROOT/lab_key" -N '' -C lab-39c >/dev/null
+grep -q lab-39c ~/.ssh/authorized_keys 2>/dev/null || \
+  { echo "# LAB-39 VERIFY"; cat "$LAB_ROOT/lab_key.pub"; } >> ~/.ssh/authorized_keys
+chmod 600 ~/.ssh/authorized_keys "$LAB_ROOT/lab_key"
+echo "ready"
+echo "exit was: $?"
 ```
 
----
+**Expected output:**
 
-## Task 1 — Audit account state and verify SSH key login
-
-### Purpose
-
-Perform verification-seat checks: account exists, permissions are strict, and key auth succeeds for the Tier B user on localhost.
-
-### Main command block
-
-```bash
-TASKLOG=/tmp/lab39c/task1.txt
-
-# Build a verify key for this lab
-sudo -u "${USER}" ssh-keygen -t ed25519 -f "${USER_HOME}/.ssh/lab39_verify_ed25519" -N '' 2>&1 | tee "${TASKLOG}"
-sudo -u "${USER}" bash -c 'cat "'"${USER_HOME}"'/.ssh/lab39_verify_ed25519.pub" >> "'"${USER_HOME}"'/.ssh/authorized_keys"'
-
-chmod 700 "${USER_HOME}/.ssh"
-chmod 600 "${USER_HOME}/.ssh/lab39_verify_ed25519"
-chmod 600 "${USER_HOME}/.ssh/authorized_keys"
-chown -R "${USER}:${GROUP}" "${USER_HOME}/.ssh"
-
-echo "═══ identity + permission audit ═══" | tee -a "${TASKLOG}"
-getent passwd "${USER}"                     | tee -a "${TASKLOG}"
-stat -c '%a %U:%G %n' "${USER_HOME}/.ssh"  | tee -a "${TASKLOG}"
-stat -c '%a %U:%G %n' "${USER_HOME}/.ssh/authorized_keys" | tee -a "${TASKLOG}"
-
-echo "═══ localhost key-auth test ═══" | tee -a "${TASKLOG}"
-sudo -u "${USER}" ssh -i "${USER_HOME}/.ssh/lab39_verify_ed25519" \
-  -o PreferredAuthentications=publickey \
-  -o PasswordAuthentication=no \
-  -o StrictHostKeyChecking=accept-new \
-  "${USER}@localhost" true 2>&1 | tee -a "${TASKLOG}"
-
-echo "exit was: $?" | tee -a "${TASKLOG}"
 ```
-
-### Journal write
-
-```bash
-JDIR=/root/rhcsa_journal/lab-39c/task1
-cp /tmp/lab39c/task1.txt "${JDIR}/audit.txt"
+ready
+exit was: 0
 ```
 
 ---
 
-## Task 2 — Destroy-restore drill (remove keys, regenerate via playbook)
+## TASK 1 of 2 — Prove pairing and permissions
 
-### Purpose
-
-Practice T41 resilience by deleting key material, proving login fails, then restoring key auth from a reproducible playbook.
-
-### Playbook (`/root/rhcsa_journal/lab-39c/task2-restore.yml`)
-
-```yaml
----
-- name: "Lab 39c Task 2 - restore SSH key auth"
-  hosts: localhost
-  connection: local
-  gather_facts: false
-  become: true
-
-  vars:
-    lab_user: labuser_39_sshkey
-    lab_group: labgrp_39_sshkey
-    lab_home: "/tmp/lab39c/home_labuser_39_sshkey"
-    lab_key: "{{ lab_home }}/.ssh/lab39_verify_ed25519"
-
-  tasks:
-    - name: "Ensure .ssh exists with 700"
-      ansible.builtin.file:
-        path: "{{ lab_home }}/.ssh"
-        state: directory
-        owner: "{{ lab_user }}"
-        group: "{{ lab_group }}"
-        mode: "0700"
-
-    - name: "Generate replacement keypair"
-      ansible.builtin.user:
-        name: "{{ lab_user }}"
-        generate_ssh_key: true
-        ssh_key_type: ed25519
-        ssh_key_file: "{{ lab_key }}"
-
-    - name: "Read restored public key"
-      ansible.builtin.slurp:
-        src: "{{ lab_key }}.pub"
-      register: restored_pubkey
-
-    - name: "Install restored authorized key"
-      ansible.posix.authorized_key:
-        user: "{{ lab_user }}"
-        key: "{{ restored_pubkey.content | b64decode | trim }}"
-        state: present
-        path: "{{ lab_home }}/.ssh/authorized_keys"
-        manage_dir: false
-
-    - name: "Enforce strict file permissions"
-      ansible.builtin.file:
-        path: "{{ item.path }}"
-        owner: "{{ lab_user }}"
-        group: "{{ lab_group }}"
-        mode: "{{ item.mode }}"
-      loop:
-        - { path: "{{ lab_key }}", mode: "0600" }
-        - { path: "{{ lab_home }}/.ssh/authorized_keys", mode: "0600" }
-```
-
-### Main command block
-
-```bash
-TASKLOG=/tmp/lab39c/task2.txt
-
-echo "═══ DESTROY phase ═══" | tee "${TASKLOG}"
-rm -f "${USER_HOME}/.ssh/lab39_verify_ed25519" \
-      "${USER_HOME}/.ssh/lab39_verify_ed25519.pub" \
-      "${USER_HOME}/.ssh/authorized_keys"
-
-sudo -u "${USER}" ssh -i "${USER_HOME}/.ssh/lab39_verify_ed25519" \
-  -o PreferredAuthentications=publickey \
-  -o PasswordAuthentication=no \
-  "${USER}@localhost" true 2>&1 | tee -a "${TASKLOG}" || true
-
-echo "═══ RESTORE phase ═══" | tee -a "${TASKLOG}"
-ansible-playbook /root/rhcsa_journal/lab-39c/task2-restore.yml 2>&1 | tee -a "${TASKLOG}"
-
-sudo -u "${USER}" ssh -i "${USER_HOME}/.ssh/lab39_verify_ed25519" \
-  -o PreferredAuthentications=publickey \
-  -o PasswordAuthentication=no \
-  -o StrictHostKeyChecking=accept-new \
-  "${USER}@localhost" true 2>&1 | tee -a "${TASKLOG}"
-
-stat -c '%a %U:%G %n' "${USER_HOME}/.ssh" | tee -a "${TASKLOG}"
-stat -c '%a %U:%G %n' "${USER_HOME}/.ssh/authorized_keys" | tee -a "${TASKLOG}"
-echo "exit was: $?" | tee -a "${TASKLOG}"
-```
-
-### Trap callout
-
-- **T39-A:** restore must re-enforce `700`/`600` permissions, not only recreate files.
-- **T39-B:** verify uses explicit `-i "${USER_HOME}/.ssh/lab39_verify_ed25519"` each run.
-
-### Journal write
-
-```bash
-JDIR=/root/rhcsa_journal/lab-39c/task2
-cp /tmp/lab39c/task2.txt "${JDIR}/destroy-restore.txt"
-cp /root/rhcsa_journal/lab-39c/task2-restore.yml "${JDIR}/task2-restore.yml"
-```
+**In plain English:** We confirm the keys match and have strict permissions.
 
 ---
 
-## Lab Closeout — Bulletproof Teardown (Section 6)
+### Step 1 of 2 — Assert the keys are a matching pair
+
+**In plain English:** We compare the private and public key fingerprints.
 
 ```bash
-set +e
+FP_PRIV=$(ssh-keygen -lf "$LAB_ROOT/lab_key" | awk '{print $2}')
+FP_PUB=$(ssh-keygen -lf "$LAB_ROOT/lab_key.pub" | awk '{print $2}')
+echo "priv: $FP_PRIV"
+echo "pub:  $FP_PUB"
+[ "$FP_PRIV" = "$FP_PUB" ] && echo "PASS: keys are a matching pair" || echo "FAIL: mismatched keys"
+```
 
-# Explicit key cleanup
-rm -f "${USER_HOME}/.ssh/lab39_verify_ed25519" \
-      "${USER_HOME}/.ssh/lab39_verify_ed25519.pub" \
-      "${USER_HOME}/.ssh/authorized_keys"
+**Expected output:**
 
-if getent passwd "${USER}" >/dev/null 2>&1; then
-  userdel -r "${USER}" 2>/dev/null
+```
+priv: SHA256:xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+pub:  SHA256:xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+PASS: keys are a matching pair
+```
+
+**Line-by-line breakdown:**
+
+- `ssh-keygen -lf KEY` / `KEY.pub` → Each prints the key's fingerprint; the private key's fingerprint is derived from its public half.
+- `[ "$FP_PRIV" = "$FP_PUB" ]` → Identical fingerprints prove they're one pair.
+
+**New words in this step:**
+
+- **fingerprint match** — identical hashes confirm a private/public pairing.
+
+---
+
+### Step 2 of 2 — Assert strict permissions
+
+**In plain English:** We require `700` on `~/.ssh` and `600` on the key and authorized_keys.
+
+```bash
+DIR=$(stat -c %a ~/.ssh)
+KEY=$(stat -c %a "$LAB_ROOT/lab_key")
+AK=$(stat -c %a ~/.ssh/authorized_keys)
+echo "~/.ssh=$DIR key=$KEY authorized_keys=$AK"
+[ "$DIR" = "700" ] && [ "$KEY" = "600" ] && [ "$AK" = "600" ] \
+  && echo "PASS: permissions strict" || echo "FAIL: loosen perms will break key auth"
+```
+
+**Expected output:**
+
+```
+~/.ssh=700 key=600 authorized_keys=600
+PASS: permissions strict
+```
+
+**Line-by-line breakdown:**
+
+- `stat -c %a` → The numeric mode of each path.
+- The combined test enforces SSH's requirement: `700` dir, `600` private key and `authorized_keys`.
+
+**New words in this step:**
+
+- **strict-permission assertion** — proving modes SSH won't reject.
+
+---
+
+### Concept card (Task 1)
+
+| Concept | What it does | Exam trap |
+|---|---|---|
+| fingerprint | identify key | priv == pub |
+| `stat -c %a` | mode | 700/600 |
+| strict perms | SSH requirement | loose = ignored |
+
+---
+
+### Troubleshoot (Task 1)
+
+| Symptom | Likely cause | Fix |
+|---|---|---|
+| Fingerprint mismatch | Wrong `.pub` | Regenerate the pair |
+| Perm FAIL | Too open | `chmod 700/600` |
+
+---
+
+## TASK 2 of 2 — Prove login and policy
+
+**In plain English:** We prove passwordless login works and audit the server policy.
+
+---
+
+### Step 1 of 2 — Prove passwordless login
+
+**In plain English:** We log in with the key in BatchMode, which forbids password fallback.
+
+```bash
+if ssh -i "$LAB_ROOT/lab_key" -o BatchMode=yes -o StrictHostKeyChecking=accept-new \
+     "$USER@localhost" true 2>/dev/null; then
+  echo "PASS: key authentication works (no password)"
+else
+  echo "FAIL: key login failed (check perms/authorized_keys/sshd)"
 fi
-if getent group "${GROUP}" >/dev/null 2>&1; then
-  groupdel "${GROUP}" 2>/dev/null
-fi
+```
 
-rm -rf "${SANDBOX}"
+**Expected output:**
 
-echo "── Lab 39c cleanup audit ──"
-getent passwd "${USER}" >/dev/null && echo "❌ user remains" || echo "✅ user gone"
-getent group "${GROUP}" >/dev/null && echo "❌ group remains" || echo "✅ group gone"
-test -d "${SANDBOX}" && echo "❌ sandbox remains" || echo "✅ sandbox gone"
-test -d "${USER_HOME}" && echo "❌ home remains" || echo "✅ home gone"
+```
+PASS: key authentication works (no password)
+```
 
-set -e
+**Line-by-line breakdown:**
+
+- `ssh -i lab_key -o BatchMode=yes ... true` → Run a no-op over SSH; BatchMode means no password prompt, so success proves the *key* authenticated.
+- The `if` branches on SSH's exit code — a clean functional pass/fail.
+
+> Requires a local `sshd`. If localhost SSH is unavailable, the pairing/permission/policy checks still validate the setup.
+
+**New words in this step:**
+
+- **BatchMode proof** — non-interactive login success that can only come from key auth.
+
+---
+
+### Step 2 of 2 — Audit the effective `sshd` policy
+
+**In plain English:** We read the running server config and confirm key auth is enabled.
+
+```bash
+sudo sshd -T 2>/dev/null | grep -E '^(pubkeyauthentication|passwordauthentication|permitrootlogin)'
+echo "---"
+sudo sshd -T 2>/dev/null | grep -q '^pubkeyauthentication yes' \
+  && echo "PASS: pubkey auth enabled" || echo "FAIL: pubkey auth disabled"
+```
+
+**Expected output:**
+
+```
+permitrootlogin prohibit-password
+pubkeyauthentication yes
+passwordauthentication yes
+---
+PASS: pubkey auth enabled
+```
+
+**Line-by-line breakdown:**
+
+- `sshd -T` → Dumps the *effective* configuration (after all includes/matches) — the real policy.
+- `grep -q '^pubkeyauthentication yes'` → Confirms the server accepts key auth; for hardening you'd also want `passwordauthentication no`.
+
+**New words in this step:**
+
+- **`sshd -T`** — print the resolved, effective SSH server configuration.
+
+---
+
+### Concept card (Task 2)
+
+| Concept | What it does | Exam trap |
+|---|---|---|
+| BatchMode | no prompt | proves key auth |
+| `sshd -T` | effective config | not just the file |
+| pubkey/password | policy | harden = password no |
+
+---
+
+### Troubleshoot (Task 2)
+
+| Symptom | Likely cause | Fix |
+|---|---|---|
+| Login FAIL | Perms/policy | Fix modes; enable pubkey |
+| `sshd -T` denied | Not root | Use `sudo` |
+
+---
+
+## ✅ Lab Checklist
+
+- [ ] Task 1 · Step 1 — Assert the keys are a matching pair
+- [ ] Task 1 · Step 2 — Assert strict permissions
+- [ ] Task 2 · Step 1 — Prove passwordless login
+- [ ] Task 2 · Step 2 — Audit the effective `sshd` policy
+- [ ] Every 🎯 Focus Coverage row (Anchor + NEW) mapped to a step
+- [ ] 🧹 Teardown run — authorized key removed + sandbox cleared
+
+---
+
+## 🧹 Teardown
+
+**In plain English:** Remove the verify key from `authorized_keys` and clear the sandbox.
+
+> Removes the marked key this lab may have added. `lab_teardown.sh` clears the sandbox root.
+
+```bash
+sed -i '/# LAB-39 VERIFY/,+1d' ~/.ssh/authorized_keys 2>/dev/null || true
+sed -i '/lab-39c/d' ~/.ssh/authorized_keys 2>/dev/null || true
+cd /tmp
+bash lab_teardown.sh "$LAB_ROOT"     # = /tmp/lab-39
+```
+
+**Expected output:**
+
+```
+✅ Removed /tmp/lab-39 — lab workspace is clean.
 ```
 
 ---
 
-## Lab 39c Checklist
+## ⚠️ Common Pitfalls
 
-- [ ] Task 1 completed (account + perms audited, localhost key-auth verified)
-- [ ] Task 2 completed (destroy-restore drill executed and key auth recovered)
-- [ ] T39-A and T39-B controls validated after restore
-- [ ] Section 6 closeout audit shows four `✅` lines
+| Mistake | Symptom | Fix |
+|---|---|---|
+| Skipping BatchMode | Password masks failure | Use `BatchMode=yes` |
+| Reading config file only | Misses effective policy | Use `sshd -T` |
+| Loose perms | Silent key rejection | `700`/`600` |
 
 ---
 
-## Author
+## 📌 Exam Strategy
 
-**Kelvin R. Tobias**
+Prove four things: pair match (fingerprints), strict perms (`stat -c %a`), passwordless login (`BatchMode`), and policy (`sshd -T`). BatchMode is the decisive functional test; `sshd -T` is the authoritative policy source.
+
+- Matching fingerprints = valid pair.
+- `700`/`600` or SSH ignores the key.
+- `BatchMode=yes` proves key (not password) auth.
+
+---
+
+## 🔗 Related Labs
+
+- [Lab 39a — Configure SSH and Key-Based Auth (RHCSA)](../lab-39a-ssh-key-auth-rhcsa/) — the setup these checks verify
+- [Lab 39b — Configure SSH and Key-Based Auth (Ansible)](../lab-39b-ssh-key-auth-ansible/) — declarative key management
+- [Lab 34c — Inspecting Listening Sockets (Verify)](../lab-34c-ss-listening-sockets-verify/) — confirm sshd is listening and exposed correctly
+
+---
+
+## 👤 Author
+
+**Kelvin R. Tobias**  
 [kelvinintech.com](https://kelvinintech.com) · [GitHub](https://github.com/kelvintechnical) · [LinkedIn](https://www.linkedin.com/in/kelvin-r-tobias-211949219)

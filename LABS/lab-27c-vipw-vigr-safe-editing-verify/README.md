@@ -1,229 +1,325 @@
-# Lab 27c: Safely Editing System Databases (Verify) - audit + destroy/restore
+# Lab 27c: Safely Editing System Databases (Verify) — `pwck`, `grpck`, `getent`
 
-- **Series:** linux-ops-mastery - Text File Management
-- **Trilogy:** `27a` (RHCSA) -> `27b` (Ansible) -> `27c` (Verify)
-- **Prerequisite:** Labs 27a and 27b complete
-- **Time Estimate:** 25-35 minutes
-- **Tasks:** 2 (Task 1 = `getent` audit against expected state, Task 2 = destroy-restore drill from journal)
-- **Practice Directory (rotation #27):** `/srv`
-- **Sandbox (Tier B):** `/tmp/lab27c` with `USER=labuser_27_vipw`, `GROUP=labgrp_27_vipw`
-- **Traps rehearsed this lab:** **T41** (skip restore drill) ; **T44** (leave orphaned user/group/home)
-
-> **This lab's practice directory is: `/srv`**. Verification artifacts live in `/root/rhcsa_journal/lab-27c/`.
+**Series:** linux-ops-mastery — Users & Groups · **Lab 27c of the Novice → RHCA path**  
+**Certifications covered:** RHCSA EX200 (proving account databases are consistent), SRE (identity validation), DevOps (account-state verification)  
+**Prerequisite:** [Lab 27a](../lab-27a-vipw-vigr-safe-editing-rhcsa/) and [Lab 27b](../lab-27b-vipw-vigr-safe-editing-ansible/) completed · **root/sudo required**  
+**Time Estimate:** 15–25 minutes  
+**Difficulty:** Beginner → Intermediate
 
 ---
 
-## Objective
+## 🎯 Today's Focus Coverage
 
-Prove that account database state matches declarations from the trilogy, then prove you can recover cleanly after destructive removal by rebuilding from journaled expectations.
+> Stay on-subject via the ANCHOR rows; expand vocabulary via the NEW rows. Every row is exercised by a STEP below.
 
----
+**⚓ Anchor — already learned (on-topic reuse)**
 
-## Lab-Wide Setup - Tier B + journal anchors
+| # | Command / switch | Covered by |
+|---|---|---|
+| A1 | `getent` lookups | _Task 1 · Step 1_ |
+| A2 | `pwck -r` / `grpck -r` | _Task 2 · Step 1_ |
 
-```bash
-sudo -i
+**🆕 NEW this lab — introduced for the first time** (minimum 3)
 
-export LAB_NUM=27
-export LAB_SLUG=vipw
-export SANDBOX=/tmp/lab27c
-export GROUP=labgrp_${LAB_NUM}_${LAB_SLUG}
-export USER=labuser_${LAB_NUM}_${LAB_SLUG}
-export USER_HOME=${SANDBOX}/home_${USER}
-
-mkdir -p "${SANDBOX}" "${USER_HOME}"
-mkdir -p /root/rhcsa_journal/lab-27c/{task1,task2}
-mkdir -p /root/rhcsa_journal/lab-27c/restore-plan
-```
-
-Create a small restore manifest once and reuse it in Task 2:
-
-```bash
-cat > /root/rhcsa_journal/lab-27c/restore-plan/expected.env <<'EOF'
-GROUP=labgrp_27_vipw
-USER=labuser_27_vipw
-HOME=/tmp/lab27c/home_labuser_27_vipw
-SHELL=/bin/bash
-EOF
-```
+| # | Command / switch | First taught in | Covered by |
+|---|---|---|---|
+| N1 | `getent` exit-code test | Task 1 · Step 1 | _Task 1 · Step 1_ |
+| N2 | `id` group membership proof | Task 1 · Step 2 | _Task 1 · Step 2_ |
+| N3 | `pwck`/`grpck` rc gating | Task 2 · Step 1 | _Task 2 · Step 1_ |
+| N4 | lock-file presence (`/etc/.pwd.lock`) | Task 2 · Step 2 | _Task 2 · Step 2_ |
 
 ---
 
-## Task 1 - Audit user/group state with `getent`
+## 🎯 Objective
 
-**Practice directory this task:** `/srv` (auditing account DB state only)
+Prove the account changes are present, correct, and consistent — and that the editing was safe. You will confirm the test group/user exist via `getent` exit codes, prove group membership with `id`, gate on `pwck`/`grpck` returning clean, and confirm the lock infrastructure (`/etc/.pwd.lock`) is in place. These are the checks that certify a safe database edit.
 
-### Warm-Up
+> **⚠️ System-state lab.** Assumes `labtest99`/`labtest` from Lab 27b exist. Teardown removal is repeated here so this lab is self-contained.
 
-```bash
-source /root/rhcsa_journal/lab-27c/restore-plan/expected.env
-echo "Expect USER=${USER} GROUP=${GROUP}"
-echo "Warm-up at $(date -Is)"
+---
+
+## 🧠 Concept
+
+Verifying account edits means confirming three things. **Existence/correctness**: `getent group labtest99` and `getent passwd labtest` return the entry (exit 0) with the expected fields, and `id labtest` proves the user's group membership resolved correctly through NSS. **Consistency**: `pwck -r` and `grpck -r` scan for structural problems (wrong field counts, orphaned shadow entries, duplicate names) and return non-zero if anything is wrong — gate on rc 0. **Safety infrastructure**: the lock file `/etc/.pwd.lock` exists on a healthy system, evidence that the `vipw`/module locking mechanism is present. Together: the change is there, the database is sound, and edits are serialized.
+
+```
+getent passwd labtest; echo $?   → 0 means present
+id labtest                       → gid=...(labtest99) membership proof
+pwck -r; grpck -r                → rc 0 = consistent
+ls -l /etc/.pwd.lock             → locking infrastructure present
 ```
 
-### Purpose
+> **Why this matters:** A user can appear in `/etc/passwd` yet be broken (missing shadow entry, bad GID). `getent`/`id`/`pwck`/`grpck` prove the account actually *works* and the database is sound — the real definition of a successful safe edit.
 
-Validate that passwd/shadow and group/gshadow records all resolve and names match expected declarations.
+---
 
-### Main command block
+## 📚 Command Reference
+
+| Command | Purpose | Critical flags |
+|---|---|---|
+| `getent passwd/group` | Resolve via NSS | exit 0 = found |
+| `id USER` | Show UID/GID/groups | membership proof |
+| `pwck -r` | Check passwd/shadow | rc 0 = clean |
+| `grpck -r` | Check group/gshadow | rc 0 = clean |
+| `ls /etc/.pwd.lock` | Lock infrastructure | safety check |
+
+---
+
+## 🧰 LAB-WIDE SETUP
+
+**In plain English:** Ensure the test accounts exist so there is something to verify.
+
+> Run this block **once** before Task 1. It recreates the test group/user (idempotently) if Lab 27b's Teardown already removed them, so this verify lab stands alone.
 
 ```bash
-set -o pipefail
-source /root/rhcsa_journal/lab-27c/restore-plan/expected.env
-TASKLOG=/root/rhcsa_journal/lab-27c/task1/op.txt
-
-echo "== account state audit ==" | tee "${TASKLOG}"
-getent passwd "${USER}"  | tee -a "${TASKLOG}"
-getent shadow "${USER}"  | cut -d: -f1-2 | tee -a "${TASKLOG}"
-getent group  "${GROUP}" | tee -a "${TASKLOG}"
-getent gshadow "${GROUP}" | cut -d: -f1-2 | tee -a "${TASKLOG}"
-
-pw_user=$(getent passwd "${USER}"  | cut -d: -f1)
-sh_user=$(getent shadow "${USER}"  | cut -d: -f1)
-gr_name=$(getent group  "${GROUP}" | cut -d: -f1)
-gs_name=$(getent gshadow "${GROUP}" | cut -d: -f1)
-
-test "${pw_user}" = "${sh_user}" && echo "PASS passwd-shadow aligned" | tee -a "${TASKLOG}"
-test "${gr_name}" = "${gs_name}" && echo "PASS group-gshadow aligned" | tee -a "${TASKLOG}"
-
-id "${USER}" | tee -a "${TASKLOG}"
+export LAB_ROOT=/tmp/lab-27
+mkdir -p "$LAB_ROOT"
+getent group labtest99 >/dev/null || sudo groupadd -g 6999 labtest99
+getent passwd labtest  >/dev/null || sudo useradd -g labtest99 -s /sbin/nologin -M labtest
+getent group labtest99; getent passwd labtest
 echo "exit was: $?"
 ```
 
-### PERSISTENCE CHECK
+**Expected output:**
 
-| What must exist | Verification |
-|---|---|
-| passwd entry | `getent passwd ${USER}` |
-| shadow entry | `getent shadow ${USER}` |
-| group entry | `getent group ${GROUP}` |
-| gshadow entry | `getent gshadow ${GROUP}` |
-
-### Journal write
-
-```bash
-LAB=lab-27c
-TASK=task1
-JDIR="/root/rhcsa_journal/${LAB}/${TASK}"
-mkdir -p "${JDIR}"
-cp /root/rhcsa_journal/lab-27c/task1/op.txt "${JDIR}/evidence.txt"
-
-cat > "${JDIR}/done.txt" <<EOF
-LAB:    ${LAB}
-TASK:   ${TASK}
-DATE:   $(date -Is)
-STATUS: COMPLETE
-EOF
+```
+labtest99:x:6999:
+labtest:x:NNNN:6999::/home/labtest:/sbin/nologin
+exit was: 0
 ```
 
 ---
 
-## Task 2 - Destroy-restore drill (`userdel -r` then rebuild from journal)
+## TASK 1 of 2 — Prove existence and membership
 
-**Practice directory this task:** `/srv` (restore actions update account DBs and sandbox home)
+**In plain English:** We confirm the accounts resolve and the user is in the right group.
 
-### Purpose
+---
 
-Rehearse incident recovery: intentionally remove the lab user and group, verify absence, then rebuild from recorded expectation data.
+### Step 1 of 2 — Existence via `getent` exit codes
 
-### Main command block
+**In plain English:** We test that both the group and user resolve through NSS.
 
 ```bash
-set -o pipefail
-source /root/rhcsa_journal/lab-27c/restore-plan/expected.env
-TASKLOG=/root/rhcsa_journal/lab-27c/task2/op.txt
-
-echo "== destroy phase ==" | tee "${TASKLOG}"
-getent passwd "${USER}" >/dev/null 2>&1 && userdel -r "${USER}" || true
-getent group  "${GROUP}" >/dev/null 2>&1 && groupdel "${GROUP}" || true
-
-getent passwd "${USER}" >/dev/null && echo "FAIL user still present" | tee -a "${TASKLOG}" || echo "PASS user removed" | tee -a "${TASKLOG}"
-getent group  "${GROUP}" >/dev/null && echo "FAIL group still present" | tee -a "${TASKLOG}" || echo "PASS group removed" | tee -a "${TASKLOG}"
-
-echo "== restore phase from journal ==" | tee -a "${TASKLOG}"
-getent group "${GROUP}" >/dev/null || groupadd "${GROUP}"
-getent passwd "${USER}" >/dev/null || useradd -d "${HOME}" -M -s "${SHELL}" -g "${GROUP}" "${USER}"
-mkdir -p "${HOME}"
-chown -R "${USER}:${GROUP}" "${HOME}"
-
-getent passwd "${USER}"  | tee -a "${TASKLOG}"
-getent shadow "${USER}"  | cut -d: -f1-2 | tee -a "${TASKLOG}"
-getent group  "${GROUP}" | tee -a "${TASKLOG}"
-getent gshadow "${GROUP}" | cut -d: -f1-2 | tee -a "${TASKLOG}"
-id "${USER}" | tee -a "${TASKLOG}"
-ls -ld "${HOME}" | tee -a "${TASKLOG}"
-
+getent group labtest99 >/dev/null && echo "GROUP OK" || echo "GROUP MISSING (FAIL)"
+getent passwd labtest  >/dev/null && echo "USER OK"  || echo "USER MISSING (FAIL)"
 echo "exit was: $?"
 ```
 
-### T41 Completion Gate
+**Expected output:**
 
-Do not mark Lab 27 complete without this destroy-restore drill. Passing Task 1 alone is incomplete verification.
+```
+GROUP OK
+USER OK
+exit was: 0
+```
 
-### Journal write
+**Line-by-line breakdown:**
+
+- `getent group labtest99 >/dev/null && ...` → Exit 0 (found) triggers the OK branch; output discarded since we only need the code.
+- `getent passwd labtest >/dev/null && ...` → Same existence test for the user.
+
+**New words in this step:**
+
+- **`getent` exit code** — 0 when the entry resolves, 2 when not found.
+
+---
+
+### Step 2 of 2 — Membership via `id`
+
+**In plain English:** We confirm the user's primary group is `labtest99`.
 
 ```bash
-LAB=lab-27c
-TASK=task2
-JDIR="/root/rhcsa_journal/${LAB}/${TASK}"
-mkdir -p "${JDIR}"
-cp /root/rhcsa_journal/lab-27c/task2/op.txt "${JDIR}/evidence.txt"
-cp /root/rhcsa_journal/lab-27c/restore-plan/expected.env "${JDIR}/expected.env"
+id labtest
+id -gn labtest
+[ "$(id -gn labtest)" = "labtest99" ] && echo "MEMBERSHIP OK" || echo "WRONG GROUP (FAIL)"
+```
 
-cat > "${JDIR}/done.txt" <<EOF
-LAB:    ${LAB}
-TASK:   ${TASK}
-DATE:   $(date -Is)
-STATUS: COMPLETE
-EOF
+**Expected output:**
+
+```
+uid=NNNN(labtest) gid=6999(labtest99) groups=6999(labtest99)
+labtest99
+MEMBERSHIP OK
+```
+
+**Line-by-line breakdown:**
+
+- `id labtest` → Full identity: UID, primary GID, supplementary groups.
+- `id -gn labtest` → Just the primary group *name*.
+- `[ ... = "labtest99" ]` → Assert the user landed in the intended group.
+
+**New words in this step:**
+
+- **`id -gn`** — print the user's primary group name.
+
+---
+
+### Concept card (Task 1)
+
+| Concept | What it does | Exam trap |
+|---|---|---|
+| `getent` rc | existence | 0 found, 2 missing |
+| `id` | membership | resolves via NSS |
+| `-gn` | primary group name | not supplementary |
+
+---
+
+### Troubleshoot (Task 1)
+
+| Symptom | Likely cause | Fix |
+|---|---|---|
+| `getent` rc 2 | Account missing | Re-run setup/27b |
+| Wrong primary group | Created without `-g` | Recreate with group |
+
+---
+
+## TASK 2 of 2 — Prove consistency and safety
+
+**In plain English:** We confirm the databases are sound and the lock infrastructure exists.
+
+---
+
+### Step 1 of 2 — Database consistency with `pwck`/`grpck`
+
+**In plain English:** We run read-only consistency checks and require a clean result.
+
+```bash
+sudo pwck -r; PW=$?
+sudo grpck -r; GR=$?
+echo "pwck rc: $PW  grpck rc: $GR"
+[ "$PW" -eq 0 ] && [ "$GR" -eq 0 ] && echo "DATABASES CONSISTENT (OK)" || echo "INCONSISTENT (FAIL)"
+```
+
+**Expected output:**
+
+```
+pwck rc: 0  grpck rc: 0
+DATABASES CONSISTENT (OK)
+```
+
+**Line-by-line breakdown:**
+
+- `sudo pwck -r; PW=$?` → Read-only check of passwd/shadow; capture the return code.
+- `sudo grpck -r; GR=$?` → Read-only check of group/gshadow.
+- `[ "$PW" -eq 0 ] && [ "$GR" -eq 0 ]` → Both clean means the databases are structurally sound.
+
+**New words in this step:**
+
+- **consistency gating** — requiring `pwck`/`grpck` rc 0 before trusting the databases.
+
+---
+
+### Step 2 of 2 — Lock infrastructure present
+
+**In plain English:** We confirm the password lock file exists, evidence the safe-editing mechanism is in place.
+
+```bash
+ls -l /etc/.pwd.lock 2>/dev/null && echo "LOCK INFRA PRESENT (OK)" || echo "NO LOCK FILE (info)"
+echo "exit was: $?"
+```
+
+**Expected output:**
+
+```
+-rw------- 1 root root 0 ... /etc/.pwd.lock
+LOCK INFRA PRESENT (OK)
+```
+
+**Line-by-line breakdown:**
+
+- `ls -l /etc/.pwd.lock` → The lock file `vipw`/`vigr`/`useradd` use to serialize edits; its presence shows the locking mechanism is established.
+
+**New words in this step:**
+
+- **`/etc/.pwd.lock`** — the account-database lock file used to serialize edits.
+
+---
+
+### Concept card (Task 2)
+
+| Concept | What it does | Exam trap |
+|---|---|---|
+| `pwck -r` | passwd check | rc 0 required |
+| `grpck -r` | group check | rc 0 required |
+| `.pwd.lock` | serialization | created on demand |
+
+---
+
+### Troubleshoot (Task 2)
+
+| Symptom | Likely cause | Fix |
+|---|---|---|
+| `pwck` rc non-zero | Orphan/format issue | Fix with `vipw`/`vipw -s` |
+| No lock file | Never edited yet | Created by next locked edit |
+
+---
+
+## ✅ Lab Checklist
+
+- [ ] Task 1 · Step 1 — Existence via `getent` exit codes
+- [ ] Task 1 · Step 2 — Membership via `id`
+- [ ] Task 2 · Step 1 — Database consistency with `pwck`/`grpck`
+- [ ] Task 2 · Step 2 — Lock infrastructure present
+- [ ] Every 🎯 Focus Coverage row (Anchor + NEW) mapped to a step
+- [ ] 🧹 Teardown run — sandbox + **test user and group removed**
+
+---
+
+## 🧹 Teardown
+
+**In plain English:** Remove the test user and group from the real databases, then delete the sandbox.
+
+> This lab (and its setup) changed system state. These commands **reverse** those changes; then `lab_teardown.sh` clears the marker sandbox.
+
+```bash
+sudo userdel labtest 2>/dev/null || true
+sudo groupdel labtest99 2>/dev/null || true
+getent passwd labtest || echo "labtest removed"
+getent group labtest99 || echo "labtest99 removed"
+cd /tmp
+bash lab_teardown.sh "$LAB_ROOT"     # = /tmp/lab-27
+```
+
+**Expected output:**
+
+```
+labtest removed
+labtest99 removed
+✅ Removed /tmp/lab-27 — lab workspace is clean.
 ```
 
 ---
 
-## Lab Closeout - Bulletproof Teardown (Section 6)
+## ⚠️ Common Pitfalls
 
-```bash
-set +e
-source /root/rhcsa_journal/lab-27c/restore-plan/expected.env
-
-if getent passwd "${USER}" >/dev/null 2>&1; then
-  userdel -r "${USER}" 2>/dev/null
-fi
-if getent group "${GROUP}" >/dev/null 2>&1; then
-  groupdel "${GROUP}" 2>/dev/null
-fi
-
-rm -rf /tmp/lab27c
-
-echo "-- Lab 27c cleanup audit --"
-getent passwd "${USER}" >/dev/null && echo "FAIL user remains" || echo "PASS user gone"
-getent group  "${GROUP}" >/dev/null && echo "FAIL group remains" || echo "PASS group gone"
-test -d /tmp/lab27c && echo "FAIL sandbox remains" || echo "PASS sandbox gone"
-test -d "${HOME}" && echo "FAIL home remains" || echo "PASS home gone"
-
-set -e
-echo "Cleanup complete at $(date -Is)"
-```
+| Mistake | Symptom | Fix |
+|---|---|---|
+| Trusting `/etc/passwd` grep | Account may be broken | Verify with `getent`/`id` |
+| Skipping `pwck`/`grpck` | Latent corruption | Always check after edits |
+| Leaving test accounts | Drift | Run Teardown |
 
 ---
 
-## Lab 27c Checklist
+## 📌 Exam Strategy
 
-- [ ] Task 1: full `getent` audit across passwd/shadow/group/gshadow
-- [ ] Task 2: destroy (`userdel -r`) and restore from journal manifest
-- [ ] Section 6 closeout: four PASS audit lines shown
+Certify account work with `getent`/`id` for existence and membership, `pwck`/`grpck` for consistency, and remember the `/etc/.pwd.lock` mechanism that keeps concurrent edits safe. An account isn't "created" until it resolves and the databases check clean.
 
----
-
-## Related Labs
-
-| Lab | Connection |
-|---|---|
-| Lab 27a | Lock contention and paired shadow edits |
-| Lab 27b | Declarative user/group convergence with Ansible |
+- `getent`/`id` prove the account actually resolves.
+- `pwck -r`/`grpck -r` must return 0.
+- Always remove test accounts in Teardown.
 
 ---
 
-## Author
+## 🔗 Related Labs
 
-**Kelvin R. Tobias**
+- [Lab 27a — Safely Editing System Databases (RHCSA)](../lab-27a-vipw-vigr-safe-editing-rhcsa/) — the `vipw`/`vigr` edits this audits
+- [Lab 27b — Safely Editing System Databases (Ansible)](../lab-27b-vipw-vigr-safe-editing-ansible/) — the `user`/`group` plays you verify
+- [Lab 28a — Exploring Manual Pages (RHCSA)](../lab-28a-man-pages-rhcsa/) — documentation for these account tools
+
+---
+
+## 👤 Author
+
+**Kelvin R. Tobias**  
+[kelvinintech.com](https://kelvinintech.com) · [GitHub](https://github.com/kelvintechnical) · [LinkedIn](https://www.linkedin.com/in/kelvin-r-tobias-211949219)

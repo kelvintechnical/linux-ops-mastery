@@ -1,0 +1,36 @@
+---
+# Lab 28b Task 2 — capture a man summary
+#
+# Run:
+#   ansible-playbook /root/rhcsa_journal/lab-28b/playbooks/task2.yml
+#
+# man -f prints the one-line summary non-interactively. We capture it, persist
+# it as a documentation artifact with copy, and assert it describes copying.
+# Only the file write is "changed".
+
+- name: "Lab 28b Task 2 — capture a man summary"
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars:
+    out: /tmp/lab-28/cp-summary.txt
+
+  tasks:
+    - name: "Capture the cp summary (non-interactive)"
+      ansible.builtin.command: "man -f cp"
+      register: summary
+      changed_when: false
+
+    - name: "Save the summary to a file"
+      ansible.builtin.copy:
+        dest: "{{ out }}"
+        content: "{{ summary.stdout }}\n"
+        mode: '0644'
+      register: saved
+
+    - name: "Assert the summary mentions copying"
+      ansible.builtin.assert:
+        that:
+          - "'copy' in summary.stdout"
+        success_msg: "cp summary captured: {{ summary.stdout }}"
+        fail_msg: "unexpected cp summary"

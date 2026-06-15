@@ -1,0 +1,28 @@
+---
+# Lab 05b Task 2 — directory-scoped, idempotent create
+#
+# Run (twice, to prove idempotence):
+#   ansible-playbook /root/rhcsa_journal/lab-05b/playbooks/task2.yml
+#   ansible-playbook /root/rhcsa_journal/lab-05b/playbooks/task2.yml
+#
+# Expected: changed=1 on the first run, changed=0 on the second. The touch
+# runs inside work_dir via chdir, and creates: skips it once marker.txt exists.
+
+- name: "Lab 05b Task 2 — directory-scoped, idempotent create"
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars:
+    work_dir: /tmp/lab-05/work
+
+  tasks:
+    - name: "Create a marker file inside work_dir (idempotent via creates)"
+      ansible.builtin.command: touch marker.txt
+      args:
+        chdir: "{{ work_dir }}"
+        creates: "{{ work_dir }}/marker.txt"
+      register: touch_result
+
+    - name: "Show whether the task ran"
+      ansible.builtin.debug:
+        msg: "changed: {{ touch_result.changed }}"

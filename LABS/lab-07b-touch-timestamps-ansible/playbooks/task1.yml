@@ -1,46 +1,32 @@
 ---
-# Lab 07b Task 1 — create fixed and rolling timestamp files
+# Lab 07b Task 1 — idempotent timestamp control
+#
+# Run (twice, to prove idempotence):
+#   ansible-playbook /root/rhcsa_journal/lab-07b/playbooks/task1.yml
+#   ansible-playbook /root/rhcsa_journal/lab-07b/playbooks/task1.yml
+#
+# Expected: changed=1 on the first run, changed=0 on the second. A bare
+# state: touch is never idempotent; pinning modification_time/access_time to
+# explicit values lets the file module converge.
 
-- name: "Lab 07b Task 1 - state=touch with explicit and rolling times"
+- name: "Lab 07b Task 1 — idempotent timestamp control"
   hosts: localhost
   connection: local
   gather_facts: false
-  become: true
-
   vars:
-    sandbox: /tmp/touch-ansible-lab
-    fixed_mtime: "202401151230.00"
-    fixed_atime: "202001010101.00"
+    target: /tmp/lab-07/logs/app.log
 
   tasks:
-    - name: Ensure sandbox exists
+    - name: "Pin atime and mtime to a fixed value (idempotent)"
       ansible.builtin.file:
-        path: "{{ sandbox }}"
-        state: directory
-        mode: "0755"
-
-    - name: Touch fixed file with explicit timestamps
-      ansible.builtin.file:
-        path: "{{ sandbox }}/fixed.txt"
+        path: "{{ target }}"
         state: touch
-        owner: root
-        group: root
-        mode: "0644"
-        modification_time: "{{ fixed_mtime }}"
-        access_time: "{{ fixed_atime }}"
-      register: fixed_touch
+        modification_time: "202601011200.00"
+        access_time: "202601011200.00"
+        modification_time_format: "%Y%m%d%H%M.%S"
+        access_time_format: "%Y%m%d%H%M.%S"
+      register: touch_result
 
-    - name: Touch rolling file with current-time behavior
-      ansible.builtin.file:
-        path: "{{ sandbox }}/rolling.txt"
-        state: touch
-        owner: root
-        group: root
-        mode: "0644"
-      register: rolling_touch
-
-    - name: Show task change states
+    - name: "Show whether the timestamp changed"
       ansible.builtin.debug:
-        msg:
-          - "fixed changed={{ fixed_touch.changed }}"
-          - "rolling changed={{ rolling_touch.changed }}"
+        msg: "changed: {{ touch_result.changed }}"

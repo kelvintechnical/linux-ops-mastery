@@ -1,0 +1,25 @@
+---
+- name: "Lab 33b Task 2 — parse ip JSON"
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  tasks:
+    - name: "Capture loopback addressing as JSON"
+      ansible.builtin.command: "ip -j addr show dev lo"
+      register: ipjson
+      changed_when: false
+
+    - name: "Parse the JSON into a fact"
+      ansible.builtin.set_fact:
+        lo_data: "{{ ipjson.stdout | from_json }}"
+
+    - name: "Extract the IPv4 address from the structure"
+      ansible.builtin.set_fact:
+        lo_v4: "{{ lo_data[0].addr_info | selectattr('family', 'equalto', 'inet') | map(attribute='local') | first }}"
+
+    - name: "Report and assert loopback is 127.0.0.1"
+      ansible.builtin.assert:
+        that:
+          - "lo_v4 == '127.0.0.1'"
+        success_msg: "loopback IPv4 is {{ lo_v4 }}"
+        fail_msg: "unexpected loopback address: {{ lo_v4 }}"

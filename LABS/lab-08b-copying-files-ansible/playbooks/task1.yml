@@ -1,0 +1,34 @@
+---
+# Lab 08b Task 1 — local copy with metadata
+#
+# Run (twice, to prove idempotence):
+#   ansible-playbook /root/rhcsa_journal/lab-08b/playbooks/task1.yml
+#   ansible-playbook /root/rhcsa_journal/lab-08b/playbooks/task1.yml
+#
+# Expected: changed=1 on the first run, changed=0 on the second. remote_src
+# treats src as a path already on the target (the cp equivalent); copy hashes
+# source vs destination and only writes on drift.
+
+- name: "Lab 08b Task 1 — local copy with metadata"
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  become: true
+  vars:
+    src_file: /tmp/lab-08/src/app.conf
+    dst_file: /tmp/lab-08/deployed.conf
+
+  tasks:
+    - name: "Copy a file already on the target (remote_src)"
+      ansible.builtin.copy:
+        src: "{{ src_file }}"
+        dest: "{{ dst_file }}"
+        remote_src: true
+        mode: '0640'
+        owner: root
+        group: root
+      register: copy_result
+
+    - name: "Show whether the copy changed anything"
+      ansible.builtin.debug:
+        msg: "changed: {{ copy_result.changed }}"

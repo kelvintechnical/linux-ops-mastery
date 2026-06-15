@@ -1,0 +1,35 @@
+---
+# Lab 31b Task 1 — static IP on a dummy interface
+#
+# Run (twice, to prove idempotence):
+#   ansible-playbook /root/rhcsa_journal/lab-31b/playbooks/task1.yml
+#   ansible-playbook /root/rhcsa_journal/lab-31b/playbooks/task1.yml
+#
+# SYSTEM-STATE (safe): operates only on a dummy0 device and lab-static profile;
+# the real NIC is never touched. The nmcli module is declarative and idempotent,
+# so the second run reports changed=0. Remove with the lab Teardown.
+# Requires the community.general collection.
+
+- name: "Lab 31b Task 1 — static IP on a dummy interface"
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  become: true
+
+  tasks:
+    - name: "Ensure the lab-static profile exists (static IPv4)"
+      community.general.nmcli:
+        conn_name: lab-static
+        ifname: dummy0
+        type: dummy
+        method4: manual
+        ip4: 10.99.99.2/24
+        gw4: 10.99.99.1
+        dns4:
+          - 10.99.99.53
+        state: present
+      register: nm_result
+
+    - name: "Show whether anything changed"
+      ansible.builtin.debug:
+        msg: "changed: {{ nm_result.changed }}"

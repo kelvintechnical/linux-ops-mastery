@@ -1,0 +1,20 @@
+---
+- name: "Lab 37b Task 1 — manage /etc/hosts block"
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  become: true
+  tasks:
+    - name: "Maintain the lab host entries"
+      ansible.builtin.blockinfile:
+        path: /etc/hosts
+        marker: "# {mark} LAB-37 ANSIBLE"
+        backup: true
+        block: |
+          192.0.2.20   db.lab.local db
+          192.0.2.21   cache.lab.local cache
+      register: blk
+
+    - name: "Show whether anything changed"
+      ansible.builtin.debug:
+        msg: "changed: {{ blk.changed }}"

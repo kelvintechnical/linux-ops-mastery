@@ -1,0 +1,22 @@
+---
+- name: "Lab 37b Task 2 — verify resolution"
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  tasks:
+    - name: "Resolve the managed name"
+      ansible.builtin.command: "getent hosts db.lab.local"
+      register: res
+      changed_when: false
+      failed_when: res.rc != 0
+
+    - name: "Show the resolution"
+      ansible.builtin.debug:
+        var: res.stdout
+
+    - name: "Assert it maps to the expected IP"
+      ansible.builtin.assert:
+        that:
+          - "'192.0.2.20' in res.stdout"
+        success_msg: "db.lab.local resolves to 192.0.2.20"
+        fail_msg: "unexpected resolution: {{ res.stdout }}"

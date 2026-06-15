@@ -1,365 +1,343 @@
-# Lab 21a: Monitoring Live Log Files (RHCSA) — `tail -f`, `tail -F`, `tail -n`, `tail --pid`, `journalctl -f`, `less +F`
+# Lab 21a: Monitoring Live Log Files (RHCSA) — `tail`, `tail -f`, `tail -F`
 
-- **Series:** linux-ops-mastery — Logging, Troubleshooting, and Real-Time Observability
-- **Trilogy:** `21a` (RHCSA hand-typed) → [`21b`](../lab-21b-tail-f-live-logs-ansible/) (Ansible automation) → `21c` (Verify capstone — audit + destroy-restore)
-- **Career arcs covered:** RHCSA EX200 (follow logs while reproducing failures), RHCE EX294 (automation-safe tail capture), SRE (watch incidents live), DevOps (pipeline troubleshooting), AI/MLOps (follow worker logs during runs)
-- **Prerequisite:** Labs 01a/01c (stdout + verify), Lab 03a/03c (pipes + pipefail + verify)
-- **Time Estimate:** 30–40 minutes
-- **Tasks:** 2 (Task 1 = controlled live follow with timeout and `--pid`; Task 2 = trap-proof `tail -f` vs `tail -F` during rotate)
-- **Practice Directory (rotation #21):** `/boot` (read-only context target)
-- **Sandbox (Tier B per Section 1.5):** `/tmp/lab21a` with `USER=labuser_21_livelog`, `GROUP=labgrp_21_livelog`, `USER_HOME=/tmp/lab21a/home_labuser_21_livelog`
-- **Traps rehearsed this lab:** **T21-A** (`tail -f` sticks to old inode after rotate; `tail -F` tracks filename) · **T21-B** (forgetting `--pid` leaves orphan follower) · **T41** (destroy-restore drill deferred to 21c) · **T44** (closeout audit required)
-
-> **This lab's practice directory is: `/boot`** — we inspect it for rotation-context discipline while all writes happen in `/tmp/lab21a` and `/root/rhcsa_journal/lab-21a/`.
+**Series:** linux-ops-mastery — Text Processing & Filters · **Lab 21a of the Novice → RHCA path**  
+**Certifications covered:** RHCSA EX200 (watching logs in real time), SRE/DevOps (live incident triage)  
+**Prerequisite:** [Lab 20c](../lab-20c-less-more-scrolling-verify/) completed  
+**Time Estimate:** 20–30 minutes  
+**Difficulty:** Beginner
 
 ---
 
-## LAB HEADER BLOCK
+## 🎯 Today's Focus Coverage
 
-```bash
-echo "🖥️  ENV:   ${ENV:-DECLARE_ME}"
-echo "💿  DISK:  $(lsblk 2>/dev/null | awk '$NF=="disk"{print "/dev/"$1}' | paste -sd, -)"
-echo "🌐  NIC:   $(ip -o addr show 2>/dev/null | awk '$2!="lo"{print $2}' | sort -u | paste -sd, -)"
-echo "🔐  SE:    $(getenforce 2>/dev/null || echo n/a)"
-echo "📦  OS:    $(cat /etc/redhat-release 2>/dev/null || grep PRETTY_NAME /etc/os-release)"
-echo "🕒  TIME:  $(date -Is)"
-echo "👤  USER:  $(whoami)@$(hostname)"
-echo "⚠️  TRAP REMINDERS THIS LAB: T21-A T21-B T41 T44"
-echo "📁  PRACTICE DIR: /boot"
-echo ""
-echo "💡 /boot context (read-only rotation reference):"
-ls -ld /boot
-ls /boot 2>/dev/null | head -n 5
-echo "Shell version: $BASH_VERSION"
+> Stay on-subject via the ANCHOR rows; expand vocabulary via the NEW rows. Every row is exercised by a STEP below.
+
+**⚓ Anchor — already learned (on-topic reuse)**
+
+| # | Command / switch | Covered by |
+|---|---|---|
+| A1 | reading file ends (`less +F`) | _Task 1 · Step 1_ |
+| A2 | `grep` filtering | _Task 2 · Step 2_ |
+
+**🆕 NEW this lab — introduced for the first time** (minimum 3)
+
+| # | Command / switch | First taught in | Covered by |
+|---|---|---|---|
+| N1 | `tail -n N` | Task 1 · Step 1 | _Task 1 · Step 1_ |
+| N2 | `tail -f` (follow) | Task 1 · Step 2 | _Task 1 · Step 2_ |
+| N3 | `tail -F` (follow + reopen) | Task 2 · Step 1 | _Task 2 · Step 1_ |
+| N4 | `tail -f | grep` live filter | Task 2 · Step 2 | _Task 2 · Step 2_ |
+
+---
+
+## 🎯 Objective
+
+Watch logs as they happen. You will show the last N lines with `tail -n`, follow a growing file live with `tail -f`, survive log rotation with `tail -F`, and filter a live stream through `grep`. By the end you can sit on a log during an incident and see new events the instant they're written.
+
+> **Note:** `tail -f`/`-F` run until you stop them. Press **Ctrl-C** to return to the prompt.
+
+---
+
+## 🧠 Concept
+
+`tail` prints the *end* of a file — the newest content. `tail -n 20` shows the last 20 lines. `tail -f` ("follow") keeps the file open and streams new lines as they're appended — the core live-monitoring tool. `tail -F` is `-f` plus *reopen on rotation*: when logrotate renames the file and starts a fresh one, `-F` reattaches to the new file while plain `-f` would keep watching the now-stale old inode. Pipe a follow into `grep` (`tail -f file | grep ERROR`) to watch only the events you care about in real time.
+
+```
+tail -n 20 app.log     → last 20 lines
+tail -f app.log        → stream new lines (Ctrl-C to stop)
+tail -F app.log        → follow across log rotation
+tail -f app.log | grep --line-buffered ERROR → live error feed
 ```
 
-> **STOP — paste header output before setup.**
+> **Why this matters:** During an incident you watch the log live. `tail -f` is muscle memory; `-F` saves you when rotation silently cuts off `-f`; piping to `grep` keeps the signal visible in a noisy stream.
 
 ---
 
-## Objective
+## 📚 Command Reference
 
-Build reflexes for following live logs safely and predictably:
-
-1. Use bounded followers (`timeout`, `tail --pid`) so monitors self-stop.
-2. Distinguish `tail -f` from `tail -F` under log rotation.
-3. Capture deterministic evidence with `tail -n` + `journalctl -f`.
-4. Recognize and avoid orphan-monitor and rotated-file traps.
-
----
-
-## Concept: Follow by Inode vs Follow by Name
-
-`tail -f FILE` follows the current file descriptor. If FILE is rotated (renamed) and a new file is created with the same name, `-f` keeps reading the old inode.
-
-`tail -F FILE` is shorthand for `--follow=name --retry` and reopens by filename, so it survives rotate/create.
-
-```text
-rotate event:
-  /tmp/lab21a/live.log  --mv-->  /tmp/lab21a/live.log.1
-  new empty file created at /tmp/lab21a/live.log
-
-tail -f old FD   -> still reading live.log.1
-tail -F by name  -> switches to new live.log
-```
-
-`tail --pid PID -f FILE` exits when PID exits. This is the clean way to bind a log follower to the producer process and avoid T21-B.
+| Command | Purpose | Notes |
+|---|---|---|
+| `tail -n N` | Last N lines | default is 10 |
+| `tail -f` | Follow appends | Ctrl-C to stop |
+| `tail -F` | Follow + reopen | survives rotation |
+| `tail -f | grep` | Live filter | add `--line-buffered` |
+| `tail file1 file2` | Multiple files | prints `==> name <==` headers |
 
 ---
 
-## Reference Quick Card
+## 🧰 LAB-WIDE SETUP
 
-| Command | What it does |
-|---|---|
-| `tail -n 20 FILE` | Print last 20 lines, then exit |
-| `tail -f FILE` | Follow appended data on current file descriptor |
-| `tail -F FILE` | Follow by filename; survive rename/recreate |
-| `tail --pid=$PID -f FILE` | Follow until watched process exits |
-| `timeout 5 tail -f FILE` | Hard-stop follower at 5 seconds |
-| `journalctl -f` | Follow systemd journal in real time |
-| `less +F FILE` | Follow mode in pager; Ctrl+C to stop follow, `q` to quit |
+**In plain English:** Build a sandbox with a log we can append to.
 
----
-
-## Lab-Wide Setup — Tier B Sandbox Stack (Section 1.5)
+> Run this block **once** before Task 1. It defines a single sandbox root
+> (`LAB_ROOT`) that every file in this lab lives under, so the Teardown
+> section can wipe it in one safe command.
 
 ```bash
-sudo -i
-
-export LAB_NUM=21
-export LAB_SLUG=livelog
-export SANDBOX=/tmp/lab21a
-export GROUP=labgrp_${LAB_NUM}_${LAB_SLUG}
-export USER=labuser_${LAB_NUM}_${LAB_SLUG}
-export USER_HOME=${SANDBOX}/home_${USER}
-
-mkdir -p "${SANDBOX}" "${USER_HOME}" /root/rhcsa_journal/lab-21a/task1 /root/rhcsa_journal/lab-21a/task2
-getent group  "${GROUP}" >/dev/null || groupadd "${GROUP}"
-getent passwd "${USER}"  >/dev/null || useradd -d "${USER_HOME}" -M -s /bin/bash -g "${GROUP}" "${USER}"
-chown -R "${USER}:${GROUP}" "${SANDBOX}"
-
-id "${USER}"
-ls -ld "${SANDBOX}" "${USER_HOME}" /boot
-getent group "${GROUP}"
-getent passwd "${USER}"
-echo "setup complete: $(date -Is)"
+export LAB_ROOT=/tmp/lab-21
+mkdir -p "$LAB_ROOT"
+cd "$LAB_ROOT"
+seq 1 30 | sed 's/^/event /' > app.log
+wc -l app.log
 echo "exit was: $?"
 ```
 
-> **STOP — paste `id`, `ls -ld`, and both `getent` lines before Task 1.**
+**Expected output:**
 
----
-
-## Task 1 — Live follow `/var/log/messages` with timeout + `--pid`
-
-**Practice directory this task:** `/boot` (context) and `/tmp/lab21a` (capture files).
-
-### Warm-Up
-
-```bash
-ls -ld /boot                                           2>&1 | tee /tmp/lab21a/warmup.txt
-tail -n 3 /var/log/messages                            2>&1 | tee -a /tmp/lab21a/warmup.txt
-logger "lab21a warmup logger line $(date -Is)"
-journalctl -n 3 --no-pager                             2>&1 | tee -a /tmp/lab21a/warmup.txt
-echo "Warm-up done by $(whoami) at $(date -Is)"
-echo "exit was: $?"
 ```
-
-### Purpose
-
-Capture deterministic live evidence from `/var/log/messages` without leaving background followers behind. Rehearse both bounded strategies:
-
-- `timeout 5 tail -f`
-- `tail --pid=<producer_pid> -f`
-
-### Main command block
-
-```bash
-TASKLOG=/tmp/lab21a/task1.txt
-LIVE=/tmp/lab21a/messages-live-capture.txt
-
-echo "═══ Part A: bounded capture with timeout 5s + logger events ═══" 2>&1 | tee "${TASKLOG}"
-(
-  sleep 1; logger "lab21a-task1 event-1 $(date -Is)"
-  sleep 1; logger "lab21a-task1 event-2 $(date -Is)"
-  sleep 1; logger "lab21a-task1 event-3 $(date -Is)"
-) &
-GEN_PID=$!
-
-timeout 5 tail -n 0 -f /var/log/messages | tee "${LIVE}"
-wait "${GEN_PID}"
-
-echo "captured lines:" | tee -a "${TASKLOG}"
-wc -l "${LIVE}" | tee -a "${TASKLOG}"
-grep -c 'lab21a-task1 event-' "${LIVE}" | tee -a "${TASKLOG}"
-
-echo "═══ Part B: --pid demo (auto-exit on producer end) ═══" | tee -a "${TASKLOG}"
-sudo -u "${USER}" bash -c '
-  LOG=/tmp/lab21a/home_labuser_21_livelog/user-producer.log
-  (
-    echo "start $(date -Is)" >> "$LOG"
-    sleep 1
-    echo "middle $(date -Is)" >> "$LOG"
-    sleep 1
-    echo "end $(date -Is)" >> "$LOG"
-  ) &
-  P=$!
-  tail --pid="$P" -n 0 -f "$LOG" > /tmp/lab21a/home_labuser_21_livelog/user-producer-follow.txt
-  wait "$P"
-'
-
-stat -c '%U:%G %a %n' "${USER_HOME}/user-producer.log" "${USER_HOME}/user-producer-follow.txt" | tee -a "${TASKLOG}"
-wc -l "${USER_HOME}/user-producer-follow.txt" | tee -a "${TASKLOG}"
-
-echo "═══ Part C: journalctl -f quick bounded run ═══" | tee -a "${TASKLOG}"
-( sleep 1; logger "lab21a-task1 journal-follow $(date -Is)" ) &
-timeout 4 journalctl -f -n 0 --no-pager | tee /tmp/lab21a/journal-follow.txt
-grep -c 'lab21a-task1 journal-follow' /tmp/lab21a/journal-follow.txt | tee -a "${TASKLOG}"
-
-echo "exit was: $?"
-```
-
-### Expected output
-
-```text
-captured lines:
-3 /tmp/lab21a/messages-live-capture.txt
-3
-labuser_21_livelog:labgrp_21_livelog 644 /tmp/lab21a/home_labuser_21_livelog/user-producer.log
-labuser_21_livelog:labgrp_21_livelog 644 /tmp/lab21a/home_labuser_21_livelog/user-producer-follow.txt
-3 /tmp/lab21a/home_labuser_21_livelog/user-producer-follow.txt
-1
-```
-
-### Journal write
-
-```bash
-LAB=lab-21a
-TASK=task1
-JDIR="/root/rhcsa_journal/${LAB}/${TASK}"
-mkdir -p "$JDIR"
-cp /tmp/lab21a/task1.txt                         "$JDIR/evidence.txt"
-cp /tmp/lab21a/messages-live-capture.txt         "$JDIR/messages-live-capture.txt"
-cp /tmp/lab21a/journal-follow.txt                "$JDIR/journal-follow.txt"
-cp "${USER_HOME}/user-producer-follow.txt"       "$JDIR/user-producer-follow.txt"
-
-cat > "$JDIR/done.txt" <<EOF
-LAB:    ${LAB}
-TASK:   ${TASK}
-DATE:   $(date -Is)
-USER:   $(whoami)@$(hostname)
-STATUS: COMPLETE
-EOF
-
-echo "exit was: $?"
+30 app.log
+exit was: 0
 ```
 
 ---
 
-## Task 2 — `tail -f` vs `tail -F` after rotate (T21-A)
+## TASK 1 of 2 — Last lines and live follow
 
-**Practice directory this task:** `/boot` (context) and `/tmp/lab21a` (rotation simulation).
+**In plain English:** We view the tail of the log, then follow it as it grows.
 
-### Warm-Up
+---
+
+### Step 1 of 2 — Show the last N lines
+
+**In plain English:** We print the last 5 lines of the log.
 
 ```bash
-ls -ld /boot                                         2>&1 | tee /tmp/lab21a/warmup2.txt
-echo "seed0" > /tmp/lab21a/rotate.log
-tail -n 1 /tmp/lab21a/rotate.log                     2>&1 | tee -a /tmp/lab21a/warmup2.txt
+cd "$LAB_ROOT"
+tail -n 5 app.log
 echo "exit was: $?"
 ```
 
-### Purpose
+**Expected output:**
 
-Prove trap T21-A with an explicit rotate event (`mv` + create new file), then show `-F` is the correct operator for long-running filename-based log monitoring.
+```
+event 26
+event 27
+event 28
+event 29
+event 30
+exit was: 0
+```
 
-### Main command block
+**Line-by-line breakdown:**
+
+- `tail -n 5 app.log` → Print only the last 5 lines — the newest events.
+
+**New words in this step:**
+
+- **`tail -n N`** — print the last N lines of a file (default 10).
+
+---
+
+### Step 2 of 2 — Follow the file with `tail -f`
+
+**In plain English:** We follow the log while a background writer appends events, watching them appear live.
 
 ```bash
-TASKLOG=/tmp/lab21a/task2.txt
-ROT=/tmp/lab21a/rotate.log
+cd "$LAB_ROOT"
+( for i in $(seq 31 35); do echo "event $i"; sleep 1; done >> app.log ) &
+tail -f app.log
+# New lines appear once per second. Press Ctrl-C after event 35 to stop.
+```
 
-echo "seed-before" > "${ROT}"
+**Expected output (on screen):**
 
-echo "═══ Part A: tail -f trap demo ═══" 2>&1 | tee "${TASKLOG}"
-timeout 7 bash -c '
-  tail -n 0 -f /tmp/lab21a/rotate.log > /tmp/lab21a/out-f.txt &
-  TP=$!
-  sleep 1
-  echo "before-rotate-1" >> /tmp/lab21a/rotate.log
-  sleep 1
-  mv /tmp/lab21a/rotate.log /tmp/lab21a/rotate.log.1
-  : > /tmp/lab21a/rotate.log
-  echo "after-rotate-newfile-1" >> /tmp/lab21a/rotate.log
-  sleep 2
-  kill $TP 2>/dev/null || true
-'
+```
+event 26
+...
+event 30
+event 31
+event 32
+event 33
+event 34
+event 35
+^C
+```
 
-echo "tail -f output:" | tee -a "${TASKLOG}"
-cat /tmp/lab21a/out-f.txt | tee -a "${TASKLOG}"
-grep -c "after-rotate-newfile-1" /tmp/lab21a/out-f.txt | tee -a "${TASKLOG}"
+**Line-by-line breakdown:**
 
-echo "═══ Part B: tail -F correct behavior ═══" | tee -a "${TASKLOG}"
-echo "seed2" > "${ROT}"
-timeout 7 bash -c '
-  tail -n 0 -F /tmp/lab21a/rotate.log > /tmp/lab21a/out-F.txt &
-  TP=$!
-  sleep 1
-  echo "before-rotate-2" >> /tmp/lab21a/rotate.log
-  sleep 1
-  mv /tmp/lab21a/rotate.log /tmp/lab21a/rotate.log.1
-  : > /tmp/lab21a/rotate.log
-  echo "after-rotate-newfile-2" >> /tmp/lab21a/rotate.log
-  sleep 2
-  kill $TP 2>/dev/null || true
-'
+- `( ... ) &` → Background writer appending one event per second.
+- `tail -f app.log` → Stream new lines as they're written; Ctrl-C ends the follow.
 
-echo "tail -F output:" | tee -a "${TASKLOG}"
-cat /tmp/lab21a/out-F.txt | tee -a "${TASKLOG}"
-grep -c "after-rotate-newfile-2" /tmp/lab21a/out-F.txt | tee -a "${TASKLOG}"
+**New words in this step:**
 
+- **`tail -f`** — follow a file, printing new lines as they are appended.
+
+---
+
+### Concept card (Task 1)
+
+| Concept | What it does | Exam trap |
+|---|---|---|
+| `tail -n` | last N lines | default is 10, not all |
+| `tail -f` | live follow | runs until Ctrl-C |
+| newest first? | no — chronological | tail shows end, in order |
+
+---
+
+### Troubleshoot (Task 1)
+
+| Symptom | Likely cause | Fix |
+|---|---|---|
+| `-f` shows nothing new | Nothing writing | Confirm a writer is active |
+| Can't get prompt back | Still following | Press Ctrl-C |
+
+---
+
+## TASK 2 of 2 — Survive rotation and filter live
+
+**In plain English:** We use `-F` to survive a rotation, then filter a live stream with `grep`.
+
+---
+
+### Step 1 of 2 — Follow across rotation with `tail -F`
+
+**In plain English:** We follow with `-F`, simulate logrotate by renaming the file and creating a fresh one, and watch `-F` reattach.
+
+```bash
+cd "$LAB_ROOT"
+tail -F app.log &
+TAILPID=$!
+sleep 1
+mv app.log app.log.1                 # simulate logrotate
+echo "event after rotation" > app.log
+sleep 1
+kill "$TAILPID"
 echo "exit was: $?"
 ```
 
-### Trap callout
+**Expected output (on screen):**
 
-- **T21-A hit:** `tail -f` often misses `after-rotate-newfile-*` because it stayed on old inode.
-- **T21-A avoided:** `tail -F` includes post-rotate line from new file path.
-- **T21-B avoided:** bounded monitoring used (`timeout`, explicit kill, and Task 1 `--pid`).
+```
+event 26
+...
+event 35
+tail: 'app.log' has become inaccessible: No such file or directory
+tail: 'app.log' has appeared;  following new file
+event after rotation
+exit was: 0
+```
 
-### Journal write
+**Line-by-line breakdown:**
+
+- `tail -F app.log &` → Follow with reopen-on-rotation, in the background.
+- `mv app.log app.log.1; echo ... > app.log` → Simulate logrotate: rename old, create new.
+- `-F` reattaches → It detects the new file and continues; plain `-f` would have stayed on the old inode.
+
+**New words in this step:**
+
+- **`tail -F`** — follow *and* reopen the file when it's rotated/recreated.
+
+---
+
+### Step 2 of 2 — Filter a live stream with `grep`
+
+**In plain English:** We follow the log and show only lines containing ERROR, live.
 
 ```bash
-LAB=lab-21a
-TASK=task2
-JDIR="/root/rhcsa_journal/${LAB}/${TASK}"
-mkdir -p "$JDIR"
-cp /tmp/lab21a/task2.txt   "$JDIR/evidence.txt"
-cp /tmp/lab21a/out-f.txt   "$JDIR/out-f.txt"
-cp /tmp/lab21a/out-F.txt   "$JDIR/out-F.txt"
+cd "$LAB_ROOT"
+( for i in 1 2 3; do echo "info ok $i"; echo "ERROR fault $i"; sleep 1; done >> app.log ) &
+tail -f app.log | grep --line-buffered ERROR
+# Only ERROR lines appear. Press Ctrl-C after three to stop.
+```
 
-cat > "$JDIR/done.txt" <<EOF
-LAB:    ${LAB}
-TASK:   ${TASK}
-DATE:   $(date -Is)
-USER:   $(whoami)@$(hostname)
-STATUS: COMPLETE
-EOF
+**Expected output (on screen):**
 
-echo "exit was: $?"
+```
+ERROR fault 1
+ERROR fault 2
+ERROR fault 3
+^C
+```
+
+**Line-by-line breakdown:**
+
+- `tail -f app.log | grep --line-buffered ERROR` → Stream the file but show only matching lines.
+- `--line-buffered` → Flush each matching line immediately so the live feed isn't held in a buffer.
+
+**New words in this step:**
+
+- **`--line-buffered`** — make `grep` emit each match instantly in a pipe.
+
+---
+
+### Concept card (Task 2)
+
+| Concept | What it does | Exam trap |
+|---|---|---|
+| `tail -F` | follow + reopen | use for rotated logs |
+| `-f` vs `-F` | inode vs name | `-f` misses rotation |
+| live `grep` | filter the stream | add `--line-buffered` |
+
+---
+
+### Troubleshoot (Task 2)
+
+| Symptom | Likely cause | Fix |
+|---|---|---|
+| `-f` stops after rotation | Followed old inode | Use `-F` |
+| Filtered feed lags | Buffering | Add `--line-buffered` |
+
+---
+
+## ✅ Lab Checklist
+
+- [ ] Task 1 · Step 1 — Show the last N lines
+- [ ] Task 1 · Step 2 — Follow the file with `tail -f`
+- [ ] Task 2 · Step 1 — Follow across rotation with `tail -F`
+- [ ] Task 2 · Step 2 — Filter a live stream with `grep`
+- [ ] Every 🎯 Focus Coverage row (Anchor + NEW) mapped to a step
+- [ ] 🧹 Teardown run — sandbox + any system state removed
+
+---
+
+## 🧹 Teardown
+
+**In plain English:** Delete everything this lab created so the box is clean for the next run.
+
+> Run this after you've verified the lab. `lab_teardown.sh` safely removes the single sandbox root — it refuses to touch `/`, `$HOME`, or any protected path. This lab changed **no** system state. Make sure no `tail -f`/`-F` is still running (Ctrl-C / `kill` any leftover).
+
+```bash
+cd /tmp
+bash lab_teardown.sh "$LAB_ROOT"     # = /tmp/lab-21
+```
+
+**Expected output:**
+
+```
+✅ Removed /tmp/lab-21 — lab workspace is clean.
 ```
 
 ---
 
-## Lab Closeout — Bulletproof Teardown (Section 6)
+## ⚠️ Common Pitfalls
 
-```bash
-set +e
-
-awk -v s="${SANDBOX}" '$2 ~ s {print $2}' /proc/mounts | tac | xargs -r -n1 umount -l 2>/dev/null
-
-if getent passwd "${USER}" >/dev/null 2>&1; then
-  userdel -r "${USER}" 2>/dev/null
-fi
-if getent group "${GROUP}" >/dev/null 2>&1; then
-  groupdel "${GROUP}" 2>/dev/null
-fi
-
-rm -rf "${SANDBOX}"
-
-echo "── Lab 21a cleanup audit ──"
-getent passwd "${USER}" >/dev/null && echo "❌ user remains" || echo "✅ user gone"
-getent group  "${GROUP}" >/dev/null && echo "❌ group remains" || echo "✅ group gone"
-test -d "${SANDBOX}" && echo "❌ sandbox remains" || echo "✅ sandbox gone"
-test -d "${USER_HOME}" && echo "❌ home remains" || echo "✅ home gone"
-
-set -e
-echo "Cleanup complete at $(date -Is)"
-echo "exit was: $?"
-```
+| Mistake | Symptom | Fix |
+|---|---|---|
+| `-f` on rotated logs | Feed silently stops | Use `-F` |
+| Forgetting Ctrl-C | Terminal "hangs" | It's following; Ctrl-C |
+| Unbuffered live grep | Delayed matches | `--line-buffered` |
 
 ---
 
-## Lab 21a Checklist (2 tasks + closeout)
+## 📌 Exam Strategy
 
-- [ ] Setup: Tier B sandbox + user/group created (`labuser_21_livelog`, `labgrp_21_livelog`)
-- [ ] Task 1: `timeout 5 tail -n0 -f /var/log/messages` capture includes logger events; `tail --pid` demo exits automatically
-- [ ] Task 2: `tail -f` vs `tail -F` rotate proof captured in `out-f.txt` and `out-F.txt`
-- [ ] Closeout: four `✅` audit lines
+`tail -f` is the live-log reflex; reach for `-F` whenever rotation is possible, and pipe to `grep --line-buffered` to isolate the signal. For systemd services, `journalctl -f` is the same idea.
 
----
-
-## Related Labs
-
-| Lab | Connection |
-|---|---|
-| **Lab 21b** — Live Logs with Ansible | Automates bounded followers and rotate-safe behavior |
-| **Lab 21c** — Live Logs Verify | Audits captures, destroy-restore, and rerun under verify user |
-| Lab 03a / 03c | Pipe and verify patterns reused for evidence capture |
+- `-F` over `-f` for anything logrotate touches.
+- `--line-buffered` keeps piped live feeds responsive.
+- `journalctl -fu SERVICE` follows a unit's log live.
 
 ---
 
-## Author
+## 🔗 Related Labs
+
+- [Lab 21b — Monitoring Live Logs (Ansible)](../lab-21b-tail-f-live-logs-ansible/) — capturing recent log lines in plays
+- [Lab 21c — Monitoring Live Logs (Verify)](../lab-21c-tail-f-live-logs-verify/) — prove the right tail was captured
+- [Lab 20a — Scrolling Large Files (RHCSA)](../lab-20a-less-more-scrolling-rhcsa/) — `less +F` follow mode
+
+---
+
+## 👤 Author
 
 **Kelvin R. Tobias**  
 [kelvinintech.com](https://kelvinintech.com) · [GitHub](https://github.com/kelvintechnical) · [LinkedIn](https://www.linkedin.com/in/kelvin-r-tobias-211949219)

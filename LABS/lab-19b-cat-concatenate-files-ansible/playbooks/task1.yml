@@ -1,0 +1,31 @@
+---
+# Lab 19b Task 1 — assemble fragments
+#
+# Run (twice, to prove idempotence):
+#   ansible-playbook /root/rhcsa_journal/lab-19b/playbooks/task1.yml
+#   ansible-playbook /root/rhcsa_journal/lab-19b/playbooks/task1.yml
+#
+# Expected: changed=1 on the first run, changed=0 on the second.
+# ansible.builtin.assemble is the idempotent "cat fragments/* > dest": it
+# concatenates the parts directory in sorted order and only writes on drift.
+
+- name: "Lab 19b Task 1 — assemble fragments"
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars:
+    parts: /tmp/lab-19/parts
+    dest: /tmp/lab-19/combined.txt
+
+  tasks:
+    - name: "Concatenate fragments into one file"
+      ansible.builtin.assemble:
+        src: "{{ parts }}"
+        dest: "{{ dest }}"
+        regexp: '\.txt$'
+        mode: '0644'
+      register: asm_result
+
+    - name: "Show whether anything changed"
+      ansible.builtin.debug:
+        msg: "changed: {{ asm_result.changed }}"

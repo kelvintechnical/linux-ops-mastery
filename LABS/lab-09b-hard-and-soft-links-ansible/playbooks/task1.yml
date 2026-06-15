@@ -1,0 +1,37 @@
+---
+# Lab 09b Task 1 — idempotent hard link
+#
+# Run (twice, to prove idempotence):
+#   ansible-playbook /root/rhcsa_journal/lab-09b/playbooks/task1.yml
+#   ansible-playbook /root/rhcsa_journal/lab-09b/playbooks/task1.yml
+#
+# Expected: changed=1 on the first run, changed=0 on the second. state: hard
+# creates a second name for the same inode; stat reports nlink=2.
+
+- name: "Lab 09b Task 1 — idempotent hard link"
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars:
+    target: /tmp/lab-09/original.txt
+    link: /tmp/lab-09/hardlink.txt
+
+  tasks:
+    - name: "Create a hard link (same inode)"
+      ansible.builtin.file:
+        src: "{{ target }}"
+        path: "{{ link }}"
+        state: hard
+      register: link_result
+
+    - name: "Read the link facts"
+      ansible.builtin.stat:
+        path: "{{ link }}"
+      register: link_stat
+
+    - name: "Show inode and link count"
+      ansible.builtin.debug:
+        msg:
+          - "changed: {{ link_result.changed }}"
+          - "inode: {{ link_stat.stat.inode }}"
+          - "nlink: {{ link_stat.stat.nlink }}"

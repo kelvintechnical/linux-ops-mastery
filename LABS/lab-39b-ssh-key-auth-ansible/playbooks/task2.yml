@@ -1,0 +1,34 @@
+---
+- name: "Lab 39b Task 2 — manage authorized_key"
+  hosts: localhost
+  connection: local
+  gather_facts: true
+  vars:
+    key_path: /tmp/lab-39/lab_key
+  tasks:
+    - name: "Read the public key"
+      ansible.builtin.slurp:
+        src: "{{ key_path }}.pub"
+      register: pub
+
+    - name: "Authorize the key for this account"
+      ansible.posix.authorized_key:
+        user: "{{ ansible_user_id }}"
+        key: "{{ pub.content | b64decode }}"
+        state: present
+      register: grant
+
+    - name: "Report grant status"
+      ansible.builtin.debug:
+        msg: "authorized: {{ grant.changed }}"
+
+    - name: "Revoke the key (demonstration)"
+      ansible.posix.authorized_key:
+        user: "{{ ansible_user_id }}"
+        key: "{{ pub.content | b64decode }}"
+        state: absent
+      register: revoke
+
+    - name: "Report revoke status"
+      ansible.builtin.debug:
+        msg: "revoked: {{ revoke.changed }}"

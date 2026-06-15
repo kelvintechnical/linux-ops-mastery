@@ -1,435 +1,378 @@
-# Lab 17b: Find and Save Config Files (Ansible) — `ansible.builtin.find`
+# Lab 17b: Find and Save Config Files (Ansible) — `ansible.builtin.find`, `ansible.builtin.copy`
 
-- **Series:** linux-ops-mastery — RHCE-aligned file discovery
-- **Trilogy:** [`17a`](../lab-17a-find-save-config-files-rhcsa/) (RHCSA) → `17b` (Ansible FQCN) → [`17c`](../lab-17c-find-save-config-files-verify/) (Verify capstone)
-- **Time Estimate:** 30–45 minutes
-- **Tasks:** 2 (Task 1 find+register+write list · Task 2 idempotence plus copy/synchronize workflow)
-- **Practice Directory (rotation #03):** `/lib`
-- **Sandbox (Tier B):** `/tmp/lab17b`, `USER=labuser_17_findsave`, `GROUP=labgrp_17_findsave`, `USER_HOME=/tmp/lab17b/home_labuser_17_findsave`
-- **Traps rehearsed:** **T14-A**, **T14-B**, **T41**, **T44**
-
-> **This lab's practice directory is: `/lib`**. We keep `/lib` in every task while using Ansible to discover and persist config-file inventories.
+**Series:** linux-ops-mastery — Text Processing & Filters · **Lab 17b of the Novice → RHCA path**  
+**Certifications covered:** RHCE EX294 (structured file discovery, acting on results), RHCSA EX200 (the `find` behavior underneath), DevOps (config inventory as data)  
+**Prerequisite:** [Lab 17a](../lab-17a-find-save-config-files-rhcsa/) completed and a working control node  
+**Time Estimate:** 25–35 minutes  
+**Difficulty:** Beginner → Intermediate
 
 ---
 
-## LAB HEADER BLOCK
+## 🎯 Today's Focus Coverage
 
-```bash
-echo "🖥️  ENV:   ${ENV:-DECLARE_ME}"
-echo "💿  DISK:  $(lsblk 2>/dev/null | awk '$NF=="disk"{print "/dev/"$1}' | paste -sd, -)"
-echo "🌐  NIC:   $(ip -o addr show 2>/dev/null | awk '$2!="lo"{print $2}' | sort -u | paste -sd, -)"
-echo "🔐  SE:    $(getenforce 2>/dev/null || echo n/a)"
-echo "📦  OS:    $(cat /etc/redhat-release 2>/dev/null || grep PRETTY_NAME /etc/os-release)"
-echo "🕒  TIME:  $(date -Is)"
-echo "👤  USER:  $(whoami)@$(hostname)"
-echo "⚠️  TRAP REMINDERS THIS LAB: T14-A T14-B T41 T44"
-echo "📁  PRACTICE DIR: /lib"
-ls -ld /lib
-ansible --version | head -n 2
+> Stay on-subject via the ANCHOR rows; expand vocabulary via the NEW rows. Every row is exercised by a STEP below.
+
+**⚓ Anchor — already learned (on-topic reuse)**
+
+| # | Command / switch | Covered by |
+|---|---|---|
+| A1 | `find` (by name/type) | _Task 1 · Step 1_ |
+| A2 | `ansible.builtin.copy` | _Task 2 · Step 1_ |
+
+**🆕 NEW this lab — introduced for the first time** (minimum 3)
+
+| # | Command / switch | First taught in | Covered by |
+|---|---|---|---|
+| N1 | `ansible.builtin.find` `patterns:` | Task 1 · Step 1 | _Task 1 · Step 1_ |
+| N2 | `file_type:` / `use_regex:` | Task 1 · Step 1 | _Task 1 · Step 1_ |
+| N3 | `map(attribute='path')` filter | Task 1 · Step 2 | _Task 1 · Step 2_ |
+| N4 | `loop:` over found files | Task 2 · Step 1 | _Task 2 · Step 1_ |
+
+---
+
+## 🎯 Objective
+
+Replace shell `find` with `ansible.builtin.find`, which returns a **structured list** instead of text you must parse. You will discover `.conf` files by pattern and type, save the paths with `ansible.builtin.copy`, then loop over the results to act on each one. Structured data is what makes Ansible discovery safe and composable.
+
+---
+
+## 🧠 Concept
+
+`ansible.builtin.find` takes `paths:`, `patterns:` (globs or, with `use_regex: true`, regexes), `file_type:`, `age:`, `size:`, and returns `files` (a list of dicts) plus `matched`. You extract paths with the Jinja `map(attribute='path')` filter and persist them with `copy`. Because the result is data, you can `loop:` over `find_result.files` to act on each — no fragile `for` loop parsing `find` output. The module also skips permission errors quietly, so there is no `2>/dev/null` to remember.
+
+```
+SHELL (17a)                          ANSIBLE (17b)
+─────────────────────────────       ──────────────────────────────────────
+find etc -type f -name '*.conf'      find: paths=etc patterns='*.conf' file_type=file
+  > list.txt                         copy: content="{{ files|map('path')|join('\n') }}"
+for f in $(find ...); do ...         loop: "{{ find_result.files }}"
 ```
 
-> **STOP — paste header output before setup.**
+> **Why this matters:** Parsing `find` text breaks on spaces and newlines in names. `ansible.builtin.find` returns clean structured data — the safe, exam-correct way to discover and act on files.
 
 ---
 
-## Objective
+## 📚 Command Reference
 
-Translate the RHCSA `find` reflex into RHCE-style playbooks:
-
-1. Use `ansible.builtin.find` with `paths`, `patterns`, and `file_type`.
-2. Register findings and write deterministic inventory files.
-3. Prove idempotence (`changed=0` on second run).
-4. Handle no-match conditions without false failure.
+| Command | Purpose | Critical flags |
+|---|---|---|
+| `ansible.builtin.find` | Structured file discovery | `patterns:`, `file_type:`, `use_regex:` |
+| `map(attribute='path')` | Pull paths from result dicts | chain with `list`/`join` |
+| `ansible.builtin.copy` | Save the path list | `content:` from the joined paths |
+| `loop:` | Iterate the found files | `loop: "{{ result.files }}"` |
+| `register:` + `debug:` | Inspect `matched`/`files` | read structured output |
 
 ---
 
-## Lab-Wide Setup — Tier B Sandbox Stack
+## 🧰 LAB-WIDE SETUP
+
+**In plain English:** Build the sandbox and playbook folder with a tree of mixed config files.
+
+> Run this block **once** before Task 1. It builds the clean, private workspace that both tasks depend on.
 
 ```bash
-sudo -i
-
-export LAB_NUM=17
-export LAB_SLUG=findsave
-export SANDBOX=/tmp/lab17b
-export GROUP=labgrp_17_findsave
-export USER=labuser_17_findsave
-export USER_HOME=${SANDBOX}/home_${USER}
-
-mkdir -p "${SANDBOX}" "${USER_HOME}" /root/rhcsa_journal/lab-17b/playbooks
-getent group  "${GROUP}" >/dev/null || groupadd "${GROUP}"
-getent passwd "${USER}"  >/dev/null || useradd -d "${USER_HOME}" -M -s /bin/bash -g "${GROUP}" "${USER}"
-chown -R "${USER}:${GROUP}" "${SANDBOX}"
-
-cat > "${SANDBOX}/THIS_DIRECTORY.txt" <<'EOF'
-/lib contains critical shared objects loaded by executable binaries.
-This directory matters because command execution depends on these libraries.
-Even when our target search paths are /etc or /, we keep /lib in rotation.
-EOF
-
-id "${USER}"
-ls -ld "${SANDBOX}" "${USER_HOME}" /lib
-echo "Sandbox built by $(whoami) at $(date -Is)"
+export LAB_ROOT=/tmp/lab-17
+mkdir -p "$LAB_ROOT/etc/app" "$LAB_ROOT/etc/svc"
+mkdir -p /root/rhcsa_journal/lab-17b/playbooks
+echo a > "$LAB_ROOT/etc/app/app.conf"
+echo b > "$LAB_ROOT/etc/svc/svc.conf"
+echo c > "$LAB_ROOT/etc/svc/notes.txt"
+ls -R "$LAB_ROOT/etc"
 echo "exit was: $?"
 ```
 
----
+**Expected output:**
 
-## Task 1 — `ansible.builtin.find` + `register` + saved list
-
-**Practice directory this task:** `/lib` — referenced in warm-up and validation.
-
-### Warm-Up
-
-```bash
-ls -ld /lib
-find /lib -maxdepth 1 -type f 2>/dev/null | head -n 3
-echo "ansible warmup $(date -Is)" | tee /tmp/lab17b/warmup1.txt
-echo "Warm-up done by $(whoami) at $(date -Is)"
-echo "exit was: $?"
+```
+/tmp/lab-17/etc/app:
+app.conf
+...
+exit was: 0
 ```
 
-### Purpose
-
-Build a playbook that finds `*.conf` files in `/etc`, registers results, and writes a sorted list to disk using a real module workflow (no shell-wrapper shortcut for the main operation).
-
-### WEAVE TRACE
-
-| Warm-up / setup command | Role inside Task 1 |
-|---|---|
-| `find /lib ...` | Rehearses filtering mindset before module call |
-| `tee` | Keeps a visible transcript while writing evidence |
-| `ls -ld /lib` | Maintains rotation discipline |
-| Tier B user/group | Ownership checks on generated inventory file |
-
-### Main command block
-
-```bash
-cat > /root/rhcsa_journal/lab-17b/playbooks/task1.yml <<'EOF'
 ---
-- name: Lab 17b task1 find and save
+
+## TASK 1 of 2 — Discover and save the path list
+
+**In plain English:** We find `.conf` files with the module and save their paths with `copy`.
+
+---
+
+### Step 1 of 2 — Write the find-and-save playbook
+
+**In plain English:** We create `task1.yml`, which discovers regular `.conf` files recursively and writes the joined paths to a file.
+
+```yaml
+---
+- name: "Lab 17b Task 1 — discover and save config paths"
   hosts: localhost
   connection: local
   gather_facts: false
   vars:
-    out_file: /tmp/lab17b/etc-conf-list-ansible.txt
+    root: /tmp/lab-17/etc
+    out: /tmp/lab-17/configs.txt
   tasks:
-    - name: Find .conf files under /etc
+    - name: "Find all .conf regular files"
       ansible.builtin.find:
-        paths: /etc
+        paths: "{{ root }}"
         patterns: "*.conf"
         file_type: file
-      register: conf_find
+        recurse: true
+      register: find_result
 
-    - name: Show result summary
-      ansible.builtin.debug:
-        msg: "matched={{ conf_find.matched }} examined={{ conf_find.examined }}"
-
-    - name: Write sorted path list
+    - name: "Save the paths to a list file"
       ansible.builtin.copy:
-        dest: "{{ out_file }}"
-        content: |
-          {% for f in conf_find.files | map(attribute='path') | list | sort %}
-          {{ f }}
-          {% endfor %}
-        mode: "0644"
-EOF
+        dest: "{{ out }}"
+        content: "{{ find_result.files | map(attribute='path') | sort | join('\n') }}\n"
+        mode: '0644'
+      register: save_result
 
-ansible-playbook --check --diff /root/rhcsa_journal/lab-17b/playbooks/task1.yml 2>&1 | tee /tmp/lab17b/task1-check.log
-ansible-playbook /root/rhcsa_journal/lab-17b/playbooks/task1.yml 2>&1 | tee /tmp/lab17b/task1-apply.log
-
-wc -l /tmp/lab17b/etc-conf-list-ansible.txt     | tee /tmp/lab17b/task1.log
-head -n 10 /tmp/lab17b/etc-conf-list-ansible.txt | tee -a /tmp/lab17b/task1.log
-stat -c '%U:%G %a %n' /tmp/lab17b/etc-conf-list-ansible.txt | tee -a /tmp/lab17b/task1.log
-ls -ld /lib | tee -a /tmp/lab17b/task1.log
-echo "exit was: $?"
+    - name: "Show count and changed"
+      ansible.builtin.debug:
+        msg:
+          - "matched: {{ find_result.matched }}"
+          - "changed: {{ save_result.changed }}"
 ```
 
-### Human-Readable Breakdown
+**Expected output:**
 
-- `ansible.builtin.find` performs structured discovery like CLI `find`.
-- `register: conf_find` stores matches for later tasks in the same play.
-- `ansible.builtin.copy` writes deterministic content from registered paths.
-- `--check --diff` previews changes; apply run makes the file real.
-
-### Reading it left to right
-
-```text
-ansible.builtin.find: paths=/etc patterns="*.conf" file_type=file
-│                    │          │                 └─ only regular files
-│                    │          └─ glob match
-│                    └─ search root
-└─ module (FQCN)
+```
+(this is the saved playbook file — no output until you run it in Step 2)
 ```
 
-### The story
+**Line-by-line breakdown:**
 
-RHCE grading expects declarative modules and inspectable state, not ad-hoc shell pipelines. `register` plus deterministic writes produce artifacts that can be audited and re-run safely.
+- `ansible.builtin.find: patterns: "*.conf" file_type: file recurse: true` → Discover regular `.conf` files through the whole tree.
+- `content: "{{ find_result.files | map(attribute='path') | sort | join('\n') }}\n"` → Turn the list of dicts into sorted newline-joined paths.
+- `register:` + `debug:` → Report the match count and whether the file changed.
 
-### Expected output
+**New words in this step:**
 
-```text
-TASK [Find .conf files under /etc] ...
-ok: [localhost]
-TASK [Write sorted path list] ...
-changed: [localhost]
-N /tmp/lab17b/etc-conf-list-ansible.txt
-```
-
-### Switches
-
-| Token | Meaning |
-|---|---|
-| `--check --diff` | Preview mode with change diff |
-| `paths` | Root location to search |
-| `patterns` | Glob filter in module |
-| `file_type: file` | Restrict to regular files |
-| `register` | Save task output to variable |
-
-### Concept Card
-
-| ✅ | Concept | What it does |
-|---|---|---|
-| ✅ | `ansible.builtin.find` | Structured file discovery |
-| ✅ | `register` | Captures module output for reuse |
-| ✅ | `ansible.builtin.copy` content | Persists results as text |
-| ✅ | Check-before-apply | Safer operator workflow |
-| 🪤 Trap Risk | Wrapping `find` in `shell:` for no reason | Use module first; shell only if no module can express task |
-
-### 🔁 PERSISTENCE CHECK
-
-| What was configured | Verification command | Why it matters |
-|---|---|---|
-| Playbook exists | `test -f /root/rhcsa_journal/lab-17b/playbooks/task1.yml` | Persistent artifact for resume |
-| Output list saved | `test -s /tmp/lab17b/etc-conf-list-ansible.txt` | Confirms module output persisted |
-| Register used | `rg "register: conf_find" /root/rhcsa_journal/lab-17b/playbooks/task1.yml` | Verifies RHCE habit |
-
-### Journal write
-
-```bash
-mkdir -p /root/rhcsa_journal/lab-17b/task1
-cp /tmp/lab17b/task1.log /root/rhcsa_journal/lab-17b/task1/evidence.txt
-echo "LAB: lab-17b TASK: task1 DATE: $(date -Is) STATUS: COMPLETE" > /root/rhcsa_journal/lab-17b/task1/done.txt
-echo "TOPIC: ansible.builtin.find + register + copy list output" > /root/rhcsa_journal/lab-17b/task1/notes.txt
-```
-
-### 🧹 Cleanup
-
-```bash
-rm -f /tmp/lab17b/warmup1.txt
-echo "exit was: $?"
-```
-
-### Troubleshoot
-
-| Symptom | Fix |
-|---|---|
-| `matched=0` unexpectedly | Validate `paths` and `patterns` |
-| Playbook reports changed every run | Ensure generated content is deterministic/sorted |
-| Missing output file | Verify `dest` path in `copy` task |
-
-> **STOP — paste check/apply summary and `wc -l` before Task 2.**
+- **`ansible.builtin.find`** — structured filesystem discovery returning a list of file dicts.
+- **`map(attribute='path')`** — pull the `path` field out of each result dict.
 
 ---
 
-## Task 2 — Idempotence + copy/synchronize with no-match trap handling
+### Step 2 of 2 — Run it twice and confirm the list
 
-**Practice directory this task:** `/lib`.
-
-### Warm-Up
+**In plain English:** We run the play twice; discovery is read-only, and the saved list converges to `changed=0`.
 
 ```bash
-ls -ld /lib
-find /lib -maxdepth 2 -type f -name '*.so*' 2>/dev/null | head -n 5
-echo "task2 warmup $(date -Is)" | tee /tmp/lab17b/warmup2.txt
-echo "Warm-up done by $(whoami) at $(date -Is)"
+ansible-playbook /root/rhcsa_journal/lab-17b/playbooks/task1.yml
+ansible-playbook /root/rhcsa_journal/lab-17b/playbooks/task1.yml
+cat /tmp/lab-17/configs.txt
 echo "exit was: $?"
 ```
 
-### Purpose
+**Expected output:**
 
-Prove idempotence (second apply run `changed=0`) and stage found files into a backup tree using module-driven flow while guarding no-match conditions so the play does not fail incorrectly.
+```
+PLAY RECAP ********************************************************************
+localhost                  : ok=3    changed=1    unreachable=0    failed=0
+PLAY RECAP ********************************************************************
+localhost                  : ok=3    changed=0    unreachable=0    failed=0
+/tmp/lab-17/etc/app/app.conf
+/tmp/lab-17/etc/svc/svc.conf
+exit was: 0
+```
 
-### WEAVE TRACE
+**Line-by-line breakdown:**
 
-| Warm-up / setup command | Role inside Task 2 |
-|---|---|
-| `head`/`find` | Sample matches before copy loop |
-| `tee` | Captures run output for changed/ok proof |
-| `/lib` references | Preserves directory rotation requirement |
-| Tier B user/group | Ownership checks on backup tree |
+- two runs → `find` never changes; the saved list is `changed=1` then `changed=0`.
+- `cat configs.txt` → Confirm both `.conf` paths, sorted.
 
-### Main command block
+**New words in this step:**
 
-```bash
-cat > /root/rhcsa_journal/lab-17b/playbooks/task2.yml <<'EOF'
+- **`matched`** — the count of files `find` returned.
+
 ---
-- name: Lab 17b task2 idempotence and backup
+
+### Concept card (Task 1)
+
+| Concept | What it does | Exam trap |
+|---|---|---|
+| `find` module | structured data | no `2>/dev/null` needed |
+| `map(attribute=)` | extract a field | returns a generator — chain `list`/`join` |
+| `sort` filter | stable order | unsorted output flips `changed` |
+
+---
+
+### Troubleshoot (Task 1)
+
+| Symptom | Likely cause | Fix |
+|---|---|---|
+| `matched: 0` | `recurse` off / wrong path | Set `recurse: true`, check `paths:` |
+| Re-run always changed | Unsorted join | Add `| sort` for stable output |
+
+---
+
+## TASK 2 of 2 — Act on each found file with `loop:`
+
+**In plain English:** We loop over the discovered files to normalize their permissions.
+
+---
+
+### Step 1 of 2 — Write the loop-and-act playbook
+
+**In plain English:** We create `task2.yml`, which finds the `.conf` files and sets each to mode 0640 in a loop.
+
+```yaml
+---
+- name: "Lab 17b Task 2 — normalize permissions on found configs"
   hosts: localhost
   connection: local
   gather_facts: false
   vars:
-    backup_dir: /tmp/lab17b/backup_conf
+    root: /tmp/lab-17/etc
   tasks:
-    - name: Find conf files in /etc
+    - name: "Find the .conf files"
       ansible.builtin.find:
-        paths: /etc
+        paths: "{{ root }}"
         patterns: "*.conf"
         file_type: file
-      register: conf_find
+        recurse: true
+      register: find_result
 
-    - name: Ensure backup directory exists
+    - name: "Set each config to 0640"
       ansible.builtin.file:
-        path: "{{ backup_dir }}"
-        state: directory
-        mode: "0755"
+        path: "{{ item.path }}"
+        mode: '0640'
+      loop: "{{ find_result.files }}"
+      loop_control:
+        label: "{{ item.path }}"
+```
 
-    - name: Copy first 20 found files into backup tree
-      ansible.builtin.copy:
-        src: "{{ item.path }}"
-        dest: "{{ backup_dir }}/{{ item.path | basename }}"
-        remote_src: true
-        mode: "0644"
-      loop: "{{ conf_find.files[:20] }}"
-      when: conf_find.matched | int > 0
+**Expected output:**
 
-    - name: No-match trap guard
-      ansible.builtin.debug:
-        msg: "No files matched; copy loop skipped safely."
-      when: conf_find.matched | int == 0
-      failed_when: false
-EOF
+```
+(this is the saved playbook file — no output until you run it in Step 2)
+```
 
-ansible-playbook /root/rhcsa_journal/lab-17b/playbooks/task2.yml 2>&1 | tee /tmp/lab17b/task2-run1.log
-ansible-playbook /root/rhcsa_journal/lab-17b/playbooks/task2.yml 2>&1 | tee /tmp/lab17b/task2-run2.log
+**Line-by-line breakdown:**
 
-ls -l /tmp/lab17b/backup_conf | head -n 20        | tee /tmp/lab17b/task2.log
-rg "changed=0" /tmp/lab17b/task2-run2.log         | tee -a /tmp/lab17b/task2.log
-stat -c '%U:%G %a %n' /tmp/lab17b/backup_conf     | tee -a /tmp/lab17b/task2.log
-ls -ld /lib                                        | tee -a /tmp/lab17b/task2.log
+- `register: find_result` → Capture the discovered files.
+- `loop: "{{ find_result.files }}"` → Iterate over each file dict; `item.path` is the path.
+- `loop_control: label:` → Print a clean per-item label instead of the whole dict.
+
+**New words in this step:**
+
+- **`loop:`** — run a task once per element of a list.
+- **`loop_control: label:`** → tidy the per-iteration output.
+
+---
+
+### Step 2 of 2 — Run it twice and confirm convergence
+
+**In plain English:** We run the play twice; the first sets modes (`changed`), the second finds them already correct.
+
+```bash
+ansible-playbook /root/rhcsa_journal/lab-17b/playbooks/task2.yml
+ansible-playbook /root/rhcsa_journal/lab-17b/playbooks/task2.yml
+stat -c '%a %n' /tmp/lab-17/etc/app/app.conf /tmp/lab-17/etc/svc/svc.conf
 echo "exit was: $?"
 ```
 
-### Human-Readable Breakdown
+**Expected output:**
 
-- First run creates/updates backup files.
-- Second run should report `changed=0` when idempotent.
-- `when: matched > 0` and `failed_when: false` avoid false failures on empty matches.
-- `remote_src: true` copies files already on localhost target.
-
-### Reading it left to right
-
-```text
-loop: "{{ conf_find.files[:20] }}"  when: conf_find.matched | int > 0
-│                                   └─ run copy only if matches exist
-└─ iterate over discovered file objects
+```
+PLAY RECAP ********************************************************************
+localhost                  : ok=2    changed=1    unreachable=0    failed=0
+PLAY RECAP ********************************************************************
+localhost                  : ok=2    changed=0    unreachable=0    failed=0
+640 /tmp/lab-17/etc/app/app.conf
+640 /tmp/lab-17/etc/svc/svc.conf
+exit was: 0
 ```
 
-### The story
+**Line-by-line breakdown:**
 
-Idempotence is the core contract in automation. If a rerun keeps changing state, operators lose trust and CI drifts. This task drills the "run twice, second run clean" reflex and no-match resilience.
+- two runs → Modes are set once (`changed`), then stable (`changed=0`).
+- `stat -c '%a %n' ...` → Confirm both configs are mode 640.
 
-### Expected output
+**New words in this step:**
 
-```text
-PLAY RECAP ... changed=N
-PLAY RECAP ... changed=0
-... /tmp/lab17b/backup_conf/...
-```
+- **convergent loop** — looping a state-aware module so re-runs settle to `changed=0`.
 
-### Switches
+---
 
-| Token | Meaning |
-|---|---|
-| `remote_src: true` | Source path exists on managed host |
-| `when:` | Conditional task execution |
-| `failed_when: false` | Suppress failure for intentional branch |
-| `loop` | Iterate over found files |
-| `changed=0` check | Idempotence proof |
+### Concept card (Task 2)
 
-### Concept Card
-
-| ✅ | Concept | What it does |
+| Concept | What it does | Exam trap |
 |---|---|---|
-| ✅ | Idempotence | Same playbook rerun should stabilize state |
-| ✅ | Guarded loop | Avoid copy errors on zero matches |
-| ✅ | Module-first backup | Use declarative file module operations |
-| ✅ | Evidence logs | Capture recap lines for audit |
-| 🪤 Trap Risk | Treating no-match as fatal | Guard with `when` + `failed_when: false` |
+| `loop:` over `files` | act on each result | `item.path`, not `item` |
+| `file: mode:` | declarative perms | string `'0640'` keeps leading zero |
+| `loop_control` | clean output | huge dicts spam the log otherwise |
 
-### 🔁 PERSISTENCE CHECK
+---
 
-| What was configured | Verification command | Why it matters |
+### Troubleshoot (Task 2)
+
+| Symptom | Likely cause | Fix |
 |---|---|---|
-| Task2 playbook saved | `test -f /root/rhcsa_journal/lab-17b/playbooks/task2.yml` | Resume-safe artifact |
-| Backup directory exists | `test -d /tmp/lab17b/backup_conf` | Confirms copy stage executed |
-| Idempotence achieved | `rg "changed=0" /tmp/lab17b/task2-run2.log` | Confirms stable rerun |
-
-### Journal write
-
-```bash
-mkdir -p /root/rhcsa_journal/lab-17b/task2
-cp /tmp/lab17b/task2.log /root/rhcsa_journal/lab-17b/task2/evidence.txt
-echo "LAB: lab-17b TASK: task2 DATE: $(date -Is) STATUS: COMPLETE" > /root/rhcsa_journal/lab-17b/task2/done.txt
-echo "TOPIC: idempotent backup copy from ansible.builtin.find results with no-match guard" > /root/rhcsa_journal/lab-17b/task2/notes.txt
-```
-
-### 🧹 Cleanup (per-task; closeout after Task 2)
-
-```bash
-rm -f /tmp/lab17b/warmup2.txt
-echo "exit was: $?"
-```
-
-### Troubleshoot
-
-| Symptom | Fix |
-|---|---|
-| Second run still changed | Check unstable ordering/content in copy stage |
-| Copy task fails on zero matches | Add `when: matched > 0` and safe no-match branch |
-| Duplicate filenames in backup | Use unique destination strategy if needed |
-
-> **STOP — paste both play recap lines and `changed=0` proof before closeout.**
+| `item is undefined` | Wrong loop var | Use `item.path` |
+| Loop output unreadable | No `label:` | Add `loop_control: label:` |
 
 ---
 
-## Section 6 Closeout — Bulletproof Teardown Audit
+## ✅ Lab Checklist
+
+- [ ] Task 1 · Step 1 — Write the find-and-save playbook
+- [ ] Task 1 · Step 2 — Run it twice and confirm the list
+- [ ] Task 2 · Step 1 — Write the loop-and-act playbook
+- [ ] Task 2 · Step 2 — Run it twice and confirm convergence
+- [ ] Every 🎯 Focus Coverage row (Anchor + NEW) mapped to a step
+- [ ] 🧹 Teardown run — sandbox + any system state removed
+
+---
+
+## 🧹 Teardown
+
+**In plain English:** Delete everything this lab created so the box is clean for the next run.
+
+> Run this after you've verified the lab. `lab_teardown.sh` safely removes the single sandbox root — it refuses to touch `/`, `$HOME`, or any protected path. This lab changed **no** system state.
 
 ```bash
-set +e
-podman ps -aq --filter "name=^${CTR}$" 2>/dev/null | xargs -r podman rm -f >/dev/null 2>&1
-awk -v s="${SANDBOX}" '$2 ~ s {print $2}' /proc/mounts | tac | xargs -r -n1 umount -l 2>/dev/null
-if vgs "${VG}" >/dev/null 2>&1; then
-    lvremove -fy "${VG}" 2>/dev/null
-    vgremove -fy "${VG}" 2>/dev/null
-    pvremove -ffy /dev/loop* 2>/dev/null
-fi
-losetup -j "${SANDBOX}/disk.img" 2>/dev/null | cut -d: -f1 | xargs -r losetup -d 2>/dev/null
-if getent passwd "${USER}" >/dev/null 2>&1; then userdel -r "${USER}" 2>/dev/null; fi
-if getent group "${GROUP}" >/dev/null 2>&1; then groupdel "${GROUP}" 2>/dev/null; fi
-rm -rf "${SANDBOX}"
-echo "── cleanup audit ──"
-getent passwd "${USER}" && echo "❌ user remains" || echo "✅ user gone"
-getent group "${GROUP}" && echo "❌ group remains" || echo "✅ group gone"
-vgs "${VG}" 2>/dev/null && echo "❌ VG remains" || echo "✅ vg gone"
-losetup -l | grep -q "${SANDBOX}" && echo "❌ loop remains" || echo "✅ loop gone"
-podman ps -a --filter "name=^${CTR}$" --format '{{.Names}}' | grep -q . && echo "❌ ctr remains" || echo "✅ ctr gone"
-test -d "${SANDBOX}" && echo "❌ sandbox remains" || echo "✅ sandbox gone"
-set -e
-echo "Cleanup complete by $(whoami) at $(date -Is)"
-echo "exit was: $?"
+bash lab_teardown.sh "$LAB_ROOT"     # = /tmp/lab-17
+rm -rf /root/rhcsa_journal/lab-17b
+```
+
+**Expected output:**
+
+```
+✅ Removed /tmp/lab-17 — lab workspace is clean.
 ```
 
 ---
 
-## Lab 17b Checklist
+## ⚠️ Common Pitfalls
 
-- [ ] Tier B setup complete with `/tmp/lab17b/THIS_DIRECTORY.txt`
-- [ ] Task 1 used `ansible.builtin.find` + `register` + saved list
-- [ ] Task 2 proved idempotence and handled no-match trap safely
-- [ ] Section 6 closeout completed with all ✅ audit lines
+| Mistake | Symptom | Fix |
+|---|---|---|
+| Parsing shell `find` text | Breaks on spaces/newlines | Use the `find` module |
+| Unsorted `join` | Re-run flips `changed` | Add `| sort` |
+| Looping over `result` not `.files` | Type error | `loop: "{{ result.files }}"` |
 
 ---
 
-## Author
+## 📌 Exam Strategy
 
-**Kelvin R. Tobias**
+Use `ansible.builtin.find` to discover, then `loop:` to act — never parse shell `find` output. Sort joined paths for idempotent saves, and use `loop_control: label:` to keep logs readable.
+
+- The `find` module returns data; treat results as a list of dicts.
+- Sort before saving to keep `changed=0` on re-runs.
+- `loop` + a state-aware module converges cleanly.
+
+---
+
+## 🔗 Related Labs
+
+- [Lab 17a — Find and Save Config Files (RHCSA)](../lab-17a-find-save-config-files-rhcsa/) — the shell `find` this play mirrors
+- [Lab 17c — Find and Save Config Files (Verify)](../lab-17c-find-save-config-files-verify/) — prove the list and permissions
+- [Lab 07b — Touch Timestamps (Ansible)](../lab-07b-touch-timestamps-ansible/) — `ansible.builtin.find` by age
+
+---
+
+## 👤 Author
+
+**Kelvin R. Tobias**  
+[kelvinintech.com](https://kelvinintech.com) · [GitHub](https://github.com/kelvintechnical) · [LinkedIn](https://www.linkedin.com/in/kelvin-r-tobias-211949219)

@@ -1,0 +1,32 @@
+---
+# Lab 28b Task 1 — confirm a man page exists
+#
+# Run:
+#   ansible-playbook /root/rhcsa_journal/lab-28b/playbooks/task1.yml
+#
+# man is an interactive pager, so automation uses the non-paged subcommands.
+# man -w prints the page path and returns rc 0 when present — the clean
+# existence check. Read-only, so changed=0.
+
+- name: "Lab 28b Task 1 — confirm a man page exists"
+  hosts: localhost
+  connection: local
+  gather_facts: false
+
+  tasks:
+    - name: "Locate the ls man page"
+      ansible.builtin.command: "man -w ls"
+      register: page
+      changed_when: false
+      failed_when: page.rc != 0
+
+    - name: "Show the page path"
+      ansible.builtin.debug:
+        msg: "ls page at {{ page.stdout }}"
+
+    - name: "Assert it is a section-1 page"
+      ansible.builtin.assert:
+        that:
+          - "'man1/ls' in page.stdout"
+        success_msg: "ls(1) present"
+        fail_msg: "ls man page missing or wrong section"

@@ -1,0 +1,31 @@
+---
+# Lab 22b Task 1 — regex substitute with replace
+#
+# Run (twice, to prove idempotence):
+#   ansible-playbook /root/rhcsa_journal/lab-22b/playbooks/task1.yml
+#   ansible-playbook /root/rhcsa_journal/lab-22b/playbooks/task1.yml
+#
+# ansible.builtin.replace is an idempotent regex substitute across the whole
+# file. The capture group (v[0-9]+) is reinserted with the backreference \1, so
+# the version number is preserved. After the first run the old pattern no longer
+# matches, so the second run reports changed=0.
+
+- name: "Lab 22b Task 1 — regex substitute with replace"
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars:
+    conf: /tmp/lab-22/sshd_demo.conf
+
+  tasks:
+    - name: "Rename timeout vN to deadline vN (keep the number)"
+      ansible.builtin.replace:
+        path: "{{ conf }}"
+        regexp: 'timeout (v[0-9]+)'
+        replace: 'deadline \1'
+        backup: true
+      register: rep_result
+
+    - name: "Show whether anything changed"
+      ansible.builtin.debug:
+        msg: "changed: {{ rep_result.changed }}"

@@ -1,0 +1,29 @@
+---
+- name: "Lab 36b Task 2 — toggle then remove"
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  become: true
+  tasks:
+    - name: "Switch lab-cli to automatic addressing"
+      community.general.nmcli:
+        conn_name: lab-cli
+        type: dummy
+        method4: auto
+        state: present
+      register: toggled
+
+    - name: "Show the method change"
+      ansible.builtin.debug:
+        msg: "changed to auto: {{ toggled.changed }}"
+
+    - name: "Remove the lab-cli profile"
+      community.general.nmcli:
+        conn_name: lab-cli
+        type: dummy
+        state: absent
+      register: removed
+
+    - name: "Show removal status"
+      ansible.builtin.debug:
+        msg: "removed: {{ removed.changed }}"

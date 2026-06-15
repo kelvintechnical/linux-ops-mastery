@@ -1,0 +1,32 @@
+---
+# Lab 18b Task 1 — query package facts
+#
+# Run:
+#   ansible-playbook /root/rhcsa_journal/lab-18b/playbooks/task1.yml
+#
+# Expected: package_facts populates ansible_facts.packages; the assert confirms
+# coreutils is installed and the debug prints its version. The whole play is
+# read-only, so PLAY RECAP shows changed=0.
+
+- name: "Lab 18b Task 1 — query package facts"
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars:
+    pkg: coreutils
+
+  tasks:
+    - name: "Gather installed package facts"
+      ansible.builtin.package_facts:
+        manager: rpm
+
+    - name: "Assert the package is installed"
+      ansible.builtin.assert:
+        that:
+          - "pkg in ansible_facts.packages"
+        success_msg: "{{ pkg }} is installed"
+        fail_msg: "{{ pkg }} is NOT installed"
+
+    - name: "Show the version from facts"
+      ansible.builtin.debug:
+        msg: "{{ pkg }} version: {{ ansible_facts.packages[pkg][0].version }}"

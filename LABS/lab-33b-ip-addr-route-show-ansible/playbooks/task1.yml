@@ -1,0 +1,16 @@
+---
+- name: "Lab 33b Task 1 — network facts"
+  hosts: localhost
+  connection: local
+  gather_facts: true
+  tasks:
+    - name: "Report the default IPv4 details"
+      ansible.builtin.debug:
+        msg:
+          - "address: {{ ansible_default_ipv4.address | default('none') }}"
+          - "gateway: {{ ansible_default_ipv4.gateway | default('none') }}"
+          - "interface: {{ ansible_default_ipv4.interface | default('none') }}"
+
+    - name: "List all interfaces"
+      ansible.builtin.debug:
+        var: ansible_interfaces

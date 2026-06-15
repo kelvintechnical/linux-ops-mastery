@@ -1,0 +1,21 @@
+---
+- name: "Lab 32b Task 1 — connection vs ICMP"
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  tasks:
+    - name: "Connection check (NOT ICMP)"
+      ansible.builtin.ping:
+      register: conn
+
+    - name: "Real ICMP reachability to loopback"
+      ansible.builtin.command: "ping -c2 -W2 127.0.0.1"
+      register: icmp
+      changed_when: false
+      failed_when: icmp.rc != 0
+
+    - name: "Report both checks"
+      ansible.builtin.debug:
+        msg:
+          - "ansible ping: {{ conn.ping | default('n/a') }}"
+          - "icmp loss line: {{ icmp.stdout_lines | select('search', 'packet loss') | first }}"

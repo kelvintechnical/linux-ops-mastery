@@ -1,0 +1,37 @@
+---
+# Lab 21b Task 2 — filter and assert
+#
+# Run:
+#   ansible-playbook /root/rhcsa_journal/lab-21b/playbooks/task2.yml
+#
+# Snapshot the tail, then filter the captured lines with select('search', ...)
+# (the Jinja equivalent of grep) and assert at least one ERROR was seen.
+# All read-only, so changed=0.
+
+- name: "Lab 21b Task 2 — filter and assert"
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars:
+    log: /tmp/lab-21/app.log
+
+  tasks:
+    - name: "Capture the last 20 lines"
+      ansible.builtin.command: "tail -n 20 {{ log }}"
+      register: tail_out
+      changed_when: false
+
+    - name: "Keep only ERROR lines"
+      ansible.builtin.set_fact:
+        errors: "{{ tail_out.stdout_lines | select('search', 'ERROR') | list }}"
+
+    - name: "Show the filtered errors"
+      ansible.builtin.debug:
+        var: errors
+
+    - name: "Assert at least one ERROR was seen"
+      ansible.builtin.assert:
+        that:
+          - "errors | length > 0"
+        success_msg: "{{ errors | length }} ERROR line(s) in recent log"
+        fail_msg: "no ERROR lines in the recent tail"

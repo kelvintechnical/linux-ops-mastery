@@ -1,0 +1,37 @@
+---
+# Lab 16b Task 1 — capture grep output
+#
+# Run (twice, to prove idempotence of the saved file):
+#   ansible-playbook /root/rhcsa_journal/lab-16b/playbooks/task1.yml
+#   ansible-playbook /root/rhcsa_journal/lab-16b/playbooks/task1.yml
+#
+# Expected: the grep task is read-only (changed_when: false) and accepts rc 1
+# (no match) via failed_when; the copy of its stdout converges to changed=0.
+
+- name: "Lab 16b Task 1 — capture grep output"
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars:
+    log: /tmp/lab-16/app.log
+    out: /tmp/lab-16/errors.txt
+
+  tasks:
+    - name: "Search for ERROR lines (read-only)"
+      ansible.builtin.command: "grep -in error {{ log }}"
+      register: grep_result
+      changed_when: false
+      failed_when: "grep_result.rc not in [0, 1]"
+
+    - name: "Save the matches to a results file"
+      ansible.builtin.copy:
+        dest: "{{ out }}"
+        content: "{{ grep_result.stdout }}\n"
+        mode: '0644'
+      register: save_result
+
+    - name: "Show counts"
+      ansible.builtin.debug:
+        msg:
+          - "matches: {{ grep_result.stdout_lines | length }}"
+          - "saved changed: {{ save_result.changed }}"

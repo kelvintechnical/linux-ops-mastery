@@ -1,0 +1,31 @@
+---
+# Lab 16b Task 2 — ensure a config setting
+#
+# Run (twice, to prove idempotence):
+#   ansible-playbook /root/rhcsa_journal/lab-16b/playbooks/task2.yml
+#   ansible-playbook /root/rhcsa_journal/lab-16b/playbooks/task2.yml
+#
+# Expected: changed=1 on the first run, changed=0 on the second. lineinfile
+# replaces any existing (or commented) PermitRootLogin line via the anchored
+# regexp, so settings are updated, not duplicated.
+
+- name: "Lab 16b Task 2 — ensure a config setting"
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars:
+    cfg: /tmp/lab-16/conf/sshd_config
+
+  tasks:
+    - name: "Ensure PermitRootLogin is set to no"
+      ansible.builtin.lineinfile:
+        path: "{{ cfg }}"
+        regexp: '^#?PermitRootLogin'
+        line: 'PermitRootLogin no'
+        create: true
+        mode: '0644'
+      register: line_result
+
+    - name: "Show whether the line changed"
+      ansible.builtin.debug:
+        msg: "changed: {{ line_result.changed }}"

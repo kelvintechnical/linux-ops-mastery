@@ -1,0 +1,21 @@
+---
+- name: "Lab 34b Task 1 — assert a port is listening"
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  tasks:
+    - name: "Capture listening sockets"
+      ansible.builtin.command: "ss -tuln"
+      register: sockets
+      changed_when: false
+
+    - name: "Report the listening lines"
+      ansible.builtin.debug:
+        var: sockets.stdout_lines
+
+    - name: "Assert SSH (port 22) is listening"
+      ansible.builtin.assert:
+        that:
+          - "sockets.stdout_lines | select('search', ':22 ') | list | length > 0"
+        success_msg: "port 22 is listening"
+        fail_msg: "port 22 not found among listeners"

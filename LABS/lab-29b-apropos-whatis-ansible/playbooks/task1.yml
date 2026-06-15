@@ -1,0 +1,33 @@
+---
+# Lab 29b Task 1 — capture a whatis summary
+#
+# Run:
+#   ansible-playbook /root/rhcsa_journal/lab-29b/playbooks/task1.yml
+#
+# whatis is non-interactive and easy to capture. It returns rc 16 for "nothing
+# appropriate", so failed_when allows 0 or 16; the assert then requires rc 0 and
+# the expected wording. Read-only, so changed=0.
+
+- name: "Lab 29b Task 1 — capture a whatis summary"
+  hosts: localhost
+  connection: local
+  gather_facts: false
+
+  tasks:
+    - name: "Look up the chown summary"
+      ansible.builtin.command: "whatis chown"
+      register: w
+      changed_when: false
+      failed_when: w.rc not in [0, 16]
+
+    - name: "Show the summary"
+      ansible.builtin.debug:
+        var: w.stdout
+
+    - name: "Assert chown is documented"
+      ansible.builtin.assert:
+        that:
+          - "w.rc == 0"
+          - "'change file owner' in w.stdout"
+        success_msg: "chown documented"
+        fail_msg: "chown summary missing"

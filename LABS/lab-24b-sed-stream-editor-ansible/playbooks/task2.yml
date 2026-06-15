@@ -1,0 +1,32 @@
+---
+# Lab 24b Task 2 — global replace with validation
+#
+# Run (twice, to prove idempotence):
+#   ansible-playbook /root/rhcsa_journal/lab-24b/playbooks/task2.yml
+#   ansible-playbook /root/rhcsa_journal/lab-24b/playbooks/task2.yml
+#
+# ansible.builtin.replace is an idempotent sed s/INFO/DEBUG/g. The validate
+# command runs against a temp file (%s) and the edit is only committed if it
+# succeeds, so a broken result is never written. After the first run there is
+# no INFO left to match, so the second run reports changed=0.
+
+- name: "Lab 24b Task 2 — global replace with validation"
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars:
+    conf: /tmp/lab-24/app.conf
+
+  tasks:
+    - name: "Replace INFO with DEBUG everywhere (validated)"
+      ansible.builtin.replace:
+        path: "{{ conf }}"
+        regexp: 'INFO'
+        replace: 'DEBUG'
+        backup: true
+        validate: 'grep -q DEBUG %s'
+      register: rep_result
+
+    - name: "Show whether anything changed"
+      ansible.builtin.debug:
+        msg: "changed: {{ rep_result.changed }}"

@@ -1,303 +1,331 @@
-# Lab 27a: Safely Editing System Databases (RHCSA) - `vipw`, `vipw -s`, `vigr`, `vigr -s`
+# Lab 27a: Safely Editing System Databases (RHCSA) — `vipw`, `vigr`, locking
 
-- **Series:** linux-ops-mastery - Text File Management
-- **Trilogy:** `27a` (RHCSA) -> `27b` (Ansible) -> `27c` (Verify)
-- **Prerequisite:** Labs 26 and earlier complete
-- **Time Estimate:** 35-45 minutes
-- **Tasks:** 2 (Task 1 = prove `vipw` lock behavior with concurrent edit attempt, Task 2 = keep passwd/shadow + group/gshadow synchronized)
-- **Practice Directory (rotation #27):** `/srv`
-- **Sandbox (Tier B):** `/tmp/lab27a` with `USER=labuser_27_vipw`, `GROUP=labgrp_27_vipw`
-- **Traps rehearsed this lab:** **T27-A** (editing `/etc/passwd` directly bypasses lock and risks concurrent corruption) ; **T27-B** (forgetting `-s` updates passwd/group but leaves shadow/gshadow out of sync) ; **T41** ; **T44**
-
-> **This lab's practice directory is: `/srv`**. The sandbox for destructive practice remains under `/tmp/lab27a`.
+**Series:** linux-ops-mastery — Users & Groups · **Lab 27a of the Novice → RHCA path**  
+**Certifications covered:** RHCSA EX200 (safely editing the account databases), SRE/DevOps (avoiding corrupt `/etc/passwd` during concurrent edits)  
+**Prerequisite:** [Lab 26c](../lab-26c-vi-editor-verify/) completed · **root/sudo required**  
+**Time Estimate:** 25–35 minutes  
+**Difficulty:** Intermediate
 
 ---
 
-## LAB HEADER BLOCK
+## 🎯 Today's Focus Coverage
 
-```bash
-echo "ENV:   ${ENV:-DECLARE_ME}"
-echo "OS:    $(cat /etc/redhat-release 2>/dev/null || grep PRETTY_NAME /etc/os-release)"
-echo "TIME:  $(date -Is)"
-echo "USER:  $(whoami)@$(hostname)"
-echo "TRAPS: T27-A T27-B T41 T44"
-echo "DIR:   /srv"
-ls -ld /srv
-echo "exit was: $?"
-```
+> Stay on-subject via the ANCHOR rows; expand vocabulary via the NEW rows. Every row is exercised by a STEP below.
 
-> **STOP - paste header output before running setup.**
+**⚓ Anchor — already learned (on-topic reuse)**
 
----
+| # | Command / switch | Covered by |
+|---|---|---|
+| A1 | `EDITOR=` environment | _Task 1 · Step 1_ |
+| A2 | `getent` lookups | _Task 2 · Step 2_ |
 
-## Objective
+**🆕 NEW this lab — introduced for the first time** (minimum 3)
 
-Safely edit account databases with lock-aware tools. By the end of this lab you can prove `vipw`/`vigr` locking behavior under contention and you can update both public and shadow databases in matched pairs so account metadata stays consistent.
-
----
-
-## Concept: Why `vipw`/`vigr` exist
-
-Direct edits to `/etc/passwd`, `/etc/shadow`, `/etc/group`, and `/etc/gshadow` can race with other admin processes. `vipw` and `vigr` coordinate locking and atomic replacement so writes are serialized.
-
-| Database | Public file | Protected file | Correct editor |
+| # | Command / switch | First taught in | Covered by |
 |---|---|---|---|
-| Users | `/etc/passwd` | `/etc/shadow` | `vipw` + `vipw -s` |
-| Groups | `/etc/group` | `/etc/gshadow` | `vigr` + `vigr -s` |
-
-**Rule:** if you changed passwd/group identity data, validate shadow/gshadow alignment in the same change window.
+| N1 | `vipw` (locked passwd edit) | Task 1 · Step 1 | _Task 1 · Step 1_ |
+| N2 | `vipw -s` (shadow) | Task 1 · Step 2 | _Task 1 · Step 2_ |
+| N3 | `vigr` / `vigr -s` (group/gshadow) | Task 2 · Step 1 | _Task 2 · Step 1_ |
+| N4 | `pwck` / `grpck` consistency | Task 2 · Step 2 | _Task 2 · Step 2_ |
 
 ---
 
-## Lab-Wide Setup - Tier B Sandbox Stack
+## 🎯 Objective
+
+Edit the account databases the *safe* way. You will open `/etc/passwd` under a lock with `vipw`, edit the shadow file with `vipw -s`, add a group with `vigr`, and verify database consistency with `pwck`/`grpck`. The point is the lock: `vipw`/`vigr` serialize edits so a second editor (or `useradd` running concurrently) can't corrupt the file.
+
+> **⚠️ System-state lab.** This lab touches real account databases. It only *reads* `/etc/passwd`/`/etc/shadow` and adds **one clearly-named test group** (`labtest99`) that the Teardown removes. Do this on a practice VM.
+
+---
+
+## 🧠 Concept
+
+`/etc/passwd`, `/etc/shadow`, `/etc/group`, and `/etc/gshadow` are edited constantly by tools like `useradd`. Editing them by hand with plain `vi` risks a race: if `useradd` writes while you're saving, one set of changes is lost and the file can corrupt. `vipw` solves this by taking the same lock those tools use (`/etc/.pwd.lock`) before opening the file in your `$EDITOR`, releasing it on save. `vipw` edits `/etc/passwd`; `vipw -s` edits `/etc/shadow`; `vigr` edits `/etc/group`; `vigr -s` edits `/etc/gshadow`. After editing passwd it offers to run `vipw -s` to keep shadow in sync. `pwck`/`grpck` then check the databases for consistency (missing fields, bad UIDs, orphaned shadow entries).
+
+```
+vipw            → lock + edit /etc/passwd in $EDITOR
+vipw -s         → edit /etc/shadow (passwords)
+vigr            → lock + edit /etc/group
+vigr -s         → edit /etc/gshadow
+pwck / grpck    → verify passwd / group consistency
+```
+
+> **Why this matters:** Hand-editing account files without a lock is how production boxes end up with a broken `/etc/passwd` and locked-out root. `vipw`/`vigr` are the disciplined way, and the exam expects you to know them.
+
+---
+
+## 📚 Command Reference
+
+| Command | Purpose | Notes |
+|---|---|---|
+| `vipw` | Edit `/etc/passwd` locked | uses `$EDITOR` |
+| `vipw -s` | Edit `/etc/shadow` locked | passwords |
+| `vigr` | Edit `/etc/group` locked | groups |
+| `vigr -s` | Edit `/etc/gshadow` locked | group passwords |
+| `pwck` | Check passwd/shadow | consistency |
+| `grpck` | Check group/gshadow | consistency |
+| `getent` | Query a database | NSS-aware |
+
+---
+
+## 🧰 LAB-WIDE SETUP
+
+**In plain English:** Build a sandbox for editor scripts; the databases themselves live in `/etc`.
+
+> Run this block **once** before Task 1. `LAB_ROOT` holds only the helper editor scripts; the system databases are edited in place (and reverted in Teardown).
 
 ```bash
-sudo -i
-
-export LAB_NUM=27
-export LAB_SLUG=vipw
-export SANDBOX=/tmp/lab27a
-export GROUP=labgrp_${LAB_NUM}_${LAB_SLUG}
-export USER=labuser_${LAB_NUM}_${LAB_SLUG}
-export USER_HOME=${SANDBOX}/home_${USER}
-
-mkdir -p "${SANDBOX}" "${USER_HOME}"
-mkdir -p /root/rhcsa_journal/lab-27a/task1
-mkdir -p /root/rhcsa_journal/lab-27a/task2
-
-getent group  "${GROUP}" >/dev/null || groupadd "${GROUP}"
-getent passwd "${USER}"  >/dev/null || useradd -d "${USER_HOME}" -M -s /bin/bash -g "${GROUP}" "${USER}"
-chown -R "${USER}:${GROUP}" "${SANDBOX}"
-
-id "${USER}"
-getent passwd "${USER}"
-getent group "${GROUP}"
+export LAB_ROOT=/tmp/lab-27
+mkdir -p "$LAB_ROOT"
+cd "$LAB_ROOT"
+# A non-interactive "editor" that appends one test group line, then exits.
+cat > add_group_editor.sh <<'EOF'
+#!/bin/bash
+grep -q '^labtest99:' "$1" || echo 'labtest99:x:6999:' >> "$1"
+EOF
+chmod +x add_group_editor.sh
+echo "setup done"
 echo "exit was: $?"
 ```
 
----
+**Expected output:**
 
-## Task 1 - Prove `vipw` lock behavior with concurrent edit attempt
-
-**Practice directory this task:** `/srv` (journal artifacts under `/root/rhcsa_journal/lab-27a/task1`)
-
-### Warm-Up
-
-```bash
-command -v vipw vigr ed
-ls -l /etc/passwd /etc/shadow /etc/group /etc/gshadow
-echo "Warm-up at $(date -Is)"
+```
+setup done
+exit was: 0
 ```
 
-### Purpose
+---
 
-Hold a `vipw` session open using `EDITOR=ed` and, while lock is held, attempt a second `vipw` invocation. Capture the refusal message to prove file locking is active.
+## TASK 1 of 2 — Locked reads of passwd and shadow
 
-### Main command block
+**In plain English:** We open the account files under their lock without changing them.
+
+---
+
+### Step 1 of 2 — Open `/etc/passwd` under lock with `vipw`
+
+**In plain English:** We use a read-only "editor" (`cat`) so `vipw` takes the lock and shows the file without modifying it.
 
 ```bash
-set -o pipefail
-TASKLOG=/root/rhcsa_journal/lab-27a/task1/op.txt
-LOCK_HOLD=/tmp/lab27a/hold-vipw.ed
-LOCK_TRY=/tmp/lab27a/try-vipw.ed
-
-# Script 1: keep editor open briefly so lock remains held.
-cat > "${LOCK_HOLD}" <<'EOF'
-1p
-,p
-!sleep 12
-q
-EOF
-
-# Script 2: minimal open/quit for second attempt.
-cat > "${LOCK_TRY}" <<'EOF'
-q
-EOF
-
-echo "== start first vipw (holds lock) ==" | tee "${TASKLOG}"
-( EDITOR="ed -s ${LOCK_HOLD}" vipw ) >/tmp/lab27a/vipw-first.out 2>&1 &
-PID1=$!
-sleep 2
-
-echo "== second vipw should fail/complain about lock ==" | tee -a "${TASKLOG}"
-( EDITOR="ed -s ${LOCK_TRY}" vipw ) >/tmp/lab27a/vipw-second.out 2>&1 || true
-
-wait "${PID1}" || true
-
-echo "--- first output ---"  | tee -a "${TASKLOG}"
-cat /tmp/lab27a/vipw-first.out  | tee -a "${TASKLOG}"
-echo "--- second output ---" | tee -a "${TASKLOG}"
-cat /tmp/lab27a/vipw-second.out | tee -a "${TASKLOG}"
-
+sudo EDITOR=/bin/cat vipw
 echo "exit was: $?"
 ```
 
-### Expected output (excerpt)
+**Expected output:**
 
-```text
-== second vipw should fail/complain about lock ==
-vipw: /etc/passwd is busy; try again later
+```
+root:x:0:0:root:/root:/bin/bash
+bin:x:1:1:bin:/bin:/sbin/nologin
+... (full /etc/passwd printed by cat) ...
+You have modified /etc/passwd.
+You may need to modify /etc/shadow for consistency.
+Please use the command 'vipw -s' to do so.
+exit was: 0
 ```
 
-Distribution phrasing differs, but the second invocation must not silently proceed while the first holds the lock.
+**Line-by-line breakdown:**
 
-### T27-A Proof
+- `sudo EDITOR=/bin/cat vipw` → `vipw` takes the passwd lock, then runs our "editor" (`cat`), which just prints the file — a safe, no-change demonstration of the locked workflow.
+- the reminder about `vipw -s` → `vipw` always nudges you to keep shadow in sync after a passwd edit.
 
-```bash
-echo "NEVER do this in production:" | tee -a "${TASKLOG}"
-echo "echo '#bad-edit' >> /etc/passwd" | tee -a "${TASKLOG}"
-echo "Reason: bypasses vipw lock discipline and can race concurrent writes." | tee -a "${TASKLOG}"
-```
+**New words in this step:**
 
-### Journal write
-
-```bash
-LAB=lab-27a
-TASK=task1
-JDIR="/root/rhcsa_journal/${LAB}/${TASK}"
-mkdir -p "${JDIR}"
-cp "${TASKLOG}" "${JDIR}/evidence.txt"
-
-cat > "${JDIR}/done.txt" <<EOF
-LAB:    ${LAB}
-TASK:   ${TASK}
-DATE:   $(date -Is)
-STATUS: COMPLETE
-EOF
-```
-
-> **STOP - paste the second `vipw` output line proving lock contention before Task 2.**
+- **`vipw`** — edit `/etc/passwd` while holding the account lock.
+- **lock** — the `/etc/.pwd.lock` serialization that prevents concurrent corruption.
 
 ---
 
-## Task 2 - Use `vipw -s` and `vigr -s` to keep shadow files aligned
+### Step 2 of 2 — Open `/etc/shadow` with `vipw -s`
 
-**Practice directory this task:** `/srv` (edits are made via lock-aware editors on system databases)
-
-### Warm-Up
+**In plain English:** We read the shadow file under lock, again with a non-editing editor.
 
 ```bash
-getent passwd "${USER}"
-getent shadow "${USER}" | cut -d: -f1-2
-getent group "${GROUP}"
-getent gshadow "${GROUP}" | cut -d: -f1-2
-echo "Warm-up at $(date -Is)"
-```
-
-### Purpose
-
-Practice paired editing discipline: user metadata changes must be mirrored in shadow metadata, and group metadata changes must be mirrored in gshadow metadata. This drills out-of-sync prevention (T27-B).
-
-### Main command block
-
-```bash
-set -o pipefail
-TASKLOG=/root/rhcsa_journal/lab-27a/task2/op.txt
-
-echo "== baseline snapshots ==" | tee "${TASKLOG}"
-cp -a /etc/passwd  /tmp/lab27a/passwd.pre
-cp -a /etc/shadow  /tmp/lab27a/shadow.pre
-cp -a /etc/group   /tmp/lab27a/group.pre
-cp -a /etc/gshadow /tmp/lab27a/gshadow.pre
-
-echo "Open editors now (manual, lock-aware):" | tee -a "${TASKLOG}"
-echo "1) vipw      # edit ${USER} passwd metadata only if required" | tee -a "${TASKLOG}"
-echo "2) vipw -s   # validate/update ${USER} shadow row pairing" | tee -a "${TASKLOG}"
-echo "3) vigr      # edit ${GROUP} group metadata only if required" | tee -a "${TASKLOG}"
-echo "4) vigr -s   # validate/update ${GROUP} gshadow row pairing" | tee -a "${TASKLOG}"
-
-echo "== post-edit alignment checks ==" | tee -a "${TASKLOG}"
-getent passwd "${USER}"  | tee -a "${TASKLOG}"
-getent shadow "${USER}"  | cut -d: -f1,3,4,5,6,7,8,9 | tee -a "${TASKLOG}"
-getent group  "${GROUP}" | tee -a "${TASKLOG}"
-getent gshadow "${GROUP}" | cut -d: -f1-3 | tee -a "${TASKLOG}"
-
-pw_user=$(getent passwd "${USER}" | cut -d: -f1)
-sh_user=$(getent shadow "${USER}" | cut -d: -f1)
-gr_name=$(getent group "${GROUP}" | cut -d: -f1)
-gs_name=$(getent gshadow "${GROUP}" | cut -d: -f1)
-
-test "${pw_user}" = "${sh_user}" && echo "PASS: passwd/shadow name match" | tee -a "${TASKLOG}"
-test "${gr_name}" = "${gs_name}" && echo "PASS: group/gshadow name match" | tee -a "${TASKLOG}"
-
+sudo EDITOR=/bin/cat vipw -s
 echo "exit was: $?"
 ```
 
-### T27-B Trap Reminder
+**Expected output:**
 
-If you edit only `/etc/passwd` or `/etc/group` and skip `-s`, shadow databases can drift. Always run the paired `-s` editor and re-check with `getent`.
+```
+root:$6$...:19000:0:99999:7:::
+bin:*:19000:0:99999:7:::
+... (full /etc/shadow printed by cat) ...
+exit was: 0
+```
 
-### PERSISTENCE CHECK
+**Line-by-line breakdown:**
 
-| Check | Command |
-|---|---|
-| user row still resolves | `getent passwd ${USER}` |
-| shadow row resolves | `getent shadow ${USER}` |
-| group row resolves | `getent group ${GROUP}` |
-| gshadow row resolves | `getent gshadow ${GROUP}` |
+- `sudo EDITOR=/bin/cat vipw -s` → `-s` targets `/etc/shadow`; the same locking applies to the password hashes.
 
-### Journal write
+**New words in this step:**
+
+- **`vipw -s`** — edit the shadow password file under lock.
+
+---
+
+### Concept card (Task 1)
+
+| Concept | What it does | Exam trap |
+|---|---|---|
+| `vipw` | locked passwd edit | not plain `vi /etc/passwd` |
+| `-s` | shadow variant | keep in sync with passwd |
+| `$EDITOR` | which editor opens | set it to control behavior |
+
+---
+
+### Troubleshoot (Task 1)
+
+| Symptom | Likely cause | Fix |
+|---|---|---|
+| "Cannot lock" | Another edit in progress | Wait/close the other editor |
+| Opens unexpected editor | `$EDITOR` unset | Export `EDITOR` first |
+
+---
+
+## TASK 2 of 2 — Add a group with vigr and verify
+
+**In plain English:** We add a clearly-named test group under lock, then check consistency.
+
+---
+
+### Step 1 of 2 — Add a test group with `vigr`
+
+**In plain English:** We point `vigr` at a scripted editor that appends one test group, demonstrating a locked group edit.
 
 ```bash
-LAB=lab-27a
-TASK=task2
-JDIR="/root/rhcsa_journal/${LAB}/${TASK}"
-mkdir -p "${JDIR}"
-cp /root/rhcsa_journal/lab-27a/task2/op.txt "${JDIR}/evidence.txt"
+cd "$LAB_ROOT"
+sudo EDITOR="$LAB_ROOT/add_group_editor.sh" vigr
+getent group labtest99
+echo "exit was: $?"
+```
 
-cat > "${JDIR}/done.txt" <<EOF
-LAB:    ${LAB}
-TASK:   ${TASK}
-DATE:   $(date -Is)
-STATUS: COMPLETE
-EOF
+**Expected output:**
+
+```
+labtest99:x:6999:
+exit was: 0
+```
+
+**Line-by-line breakdown:**
+
+- `sudo EDITOR=.../add_group_editor.sh vigr` → `vigr` locks `/etc/group`, then runs our script which appends `labtest99:x:6999:` (idempotently — it checks first).
+- `getent group labtest99` → Confirms the group now exists in the database.
+
+**New words in this step:**
+
+- **`vigr`** — edit `/etc/group` while holding the group lock.
+
+---
+
+### Step 2 of 2 — Check consistency with `grpck` and `pwck`
+
+**In plain English:** We verify the group and passwd databases are internally consistent.
+
+```bash
+sudo grpck -r; echo "grpck rc: $?"
+sudo pwck -r; echo "pwck rc: $?"
+```
+
+**Expected output:**
+
+```
+grpck rc: 0
+pwck rc: 0
+```
+
+**Line-by-line breakdown:**
+
+- `sudo grpck -r` → Read-only (`-r`) consistency check of `/etc/group`/`/etc/gshadow`; rc 0 means no problems.
+- `sudo pwck -r` → Same for `/etc/passwd`/`/etc/shadow`.
+
+**New words in this step:**
+
+- **`grpck` / `pwck`** — consistency checkers for the group and password databases.
+
+---
+
+### Concept card (Task 2)
+
+| Concept | What it does | Exam trap |
+|---|---|---|
+| `vigr` | locked group edit | `-s` for gshadow |
+| `grpck -r` | read-only check | `-r` avoids prompts |
+| `pwck -r` | read-only check | catches orphans |
+
+---
+
+### Troubleshoot (Task 2)
+
+| Symptom | Likely cause | Fix |
+|---|---|---|
+| Duplicate group | Edited twice | Script checks first; remove dup |
+| `pwck` reports orphan | shadow/passwd mismatch | Sync with `vipw -s` |
+
+---
+
+## ✅ Lab Checklist
+
+- [ ] Task 1 · Step 1 — Open `/etc/passwd` under lock with `vipw`
+- [ ] Task 1 · Step 2 — Open `/etc/shadow` with `vipw -s`
+- [ ] Task 2 · Step 1 — Add a test group with `vigr`
+- [ ] Task 2 · Step 2 — Check consistency with `grpck` and `pwck`
+- [ ] Every 🎯 Focus Coverage row (Anchor + NEW) mapped to a step
+- [ ] 🧹 Teardown run — sandbox + **test group removed**
+
+---
+
+## 🧹 Teardown
+
+**In plain English:** Remove the test group from the real database and delete the sandbox.
+
+> This lab changed system state (added `labtest99`). The first command **reverses** that change; then `lab_teardown.sh` removes the helper-script sandbox.
+
+```bash
+sudo groupdel labtest99 2>/dev/null || true
+getent group labtest99 || echo "labtest99 removed"
+cd /tmp
+bash lab_teardown.sh "$LAB_ROOT"     # = /tmp/lab-27
+```
+
+**Expected output:**
+
+```
+labtest99 removed
+✅ Removed /tmp/lab-27 — lab workspace is clean.
 ```
 
 ---
 
-## Lab Closeout - Bulletproof Teardown (Section 6)
+## ⚠️ Common Pitfalls
 
-```bash
-set +e
-
-if getent passwd "${USER}" >/dev/null 2>&1; then
-  userdel -r "${USER}" 2>/dev/null
-fi
-if getent group "${GROUP}" >/dev/null 2>&1; then
-  groupdel "${GROUP}" 2>/dev/null
-fi
-
-rm -rf "${SANDBOX}"
-
-echo "-- Lab 27a cleanup audit --"
-getent passwd "${USER}" >/dev/null && echo "FAIL user remains" || echo "PASS user gone"
-getent group  "${GROUP}" >/dev/null && echo "FAIL group remains" || echo "PASS group gone"
-test -d "${SANDBOX}" && echo "FAIL sandbox remains" || echo "PASS sandbox gone"
-test -d "${USER_HOME}" && echo "FAIL home remains" || echo "PASS home gone"
-
-set -e
-echo "Cleanup complete at $(date -Is)"
-```
+| Mistake | Symptom | Fix |
+|---|---|---|
+| `vi /etc/passwd` directly | Race/corruption risk | Use `vipw` for the lock |
+| Editing passwd, not shadow | Account inconsistency | Run `vipw -s` too |
+| Skipping `pwck`/`grpck` | Latent corruption | Check after edits |
 
 ---
 
-## Lab 27a Checklist
+## 📌 Exam Strategy
 
-- [ ] Task 1 completed with concurrent `vipw` lock contention evidence
-- [ ] Task 2 completed with passwd/shadow and group/gshadow alignment checks
-- [ ] Section 6 closeout run with four PASS audit lines
+Never hand-edit account files with plain `vi` — use `vipw`/`vigr` so the lock protects you, keep `/etc/shadow` in sync with `vipw -s`, and validate with `pwck`/`grpck`. In real automation you'd use the `user`/`group` modules (Lab 27b), which handle the locking for you.
 
----
-
-## Related Labs
-
-| Lab | Connection |
-|---|---|
-| Lab 27b | Converts this workflow to idempotent Ansible (`user`/`group`) |
-| Lab 27c | Auditor seat + destroy/restore drill using journal |
+- `vipw` over `vi /etc/passwd`, always.
+- Edit shadow with `vipw -s` to stay consistent.
+- `pwck -r`/`grpck -r` are safe read-only checks.
 
 ---
 
-## Author
+## 🔗 Related Labs
 
-**Kelvin R. Tobias**
+- [Lab 27b — Safely Editing System Databases (Ansible)](../lab-27b-vipw-vigr-safe-editing-ansible/) — `user`/`group` modules do the locking
+- [Lab 27c — Safely Editing System Databases (Verify)](../lab-27c-vipw-vigr-safe-editing-verify/) — prove consistency and cleanup
+- [Lab 26a — Command/Insert Mode in vi (RHCSA)](../lab-26a-vi-editor-rhcsa/) — the editor `vipw` invokes
+
+---
+
+## 👤 Author
+
+**Kelvin R. Tobias**  
+[kelvinintech.com](https://kelvinintech.com) · [GitHub](https://github.com/kelvintechnical) · [LinkedIn](https://www.linkedin.com/in/kelvin-r-tobias-211949219)

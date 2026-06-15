@@ -1,240 +1,366 @@
-# Lab 19b: Concatenating Files with Ansible (Module-First)
+# Lab 19b: Concatenating Files with cat (Ansible) — `ansible.builtin.assemble`, `ansible.builtin.slurp`
 
-- **Series:** linux-ops-mastery — Text Streams and File Composition
-- **Trilogy:** `19a` (RHCSA) → `19b` (Ansible) → `19c` (Verify)
-- **Time Estimate:** 30–40 minutes
-- **Tasks:** 2
-- **Practice Directory (rotation #19):** `/usr`
-- **Sandbox (Tier B):** `/tmp/lab19b` with `USER=labuser_19_catjoin`, `GROUP=labgrp_19_catjoin`
-- **Playbooks live at:** `/root/rhcsa_journal/lab-19b/playbooks/`
-- **Traps rehearsed this lab:** **T19-A** · **T19-B** · **T41** · **T44**
-
-> **This lab's practice directory is: `/usr`** (inspection context only). Writable artifacts are in `/tmp/lab19b`.
+**Series:** linux-ops-mastery — Text Processing & Filters · **Lab 19b of the Novice → RHCA path**  
+**Certifications covered:** RHCE EX294 (assembling configs from fragments idempotently), RHCSA EX200 (the `cat` behavior underneath), DevOps (drop-in config directories)  
+**Prerequisite:** [Lab 19a](../lab-19a-cat-concatenate-files-rhcsa/) completed and a working control node  
+**Time Estimate:** 25–35 minutes  
+**Difficulty:** Beginner → Intermediate
 
 ---
 
-## LAB HEADER BLOCK
+## 🎯 Today's Focus Coverage
+
+> Stay on-subject via the ANCHOR rows; expand vocabulary via the NEW rows. Every row is exercised by a STEP below.
+
+**⚓ Anchor — already learned (on-topic reuse)**
+
+| # | Command / switch | Covered by |
+|---|---|---|
+| A1 | `cat` concatenation | _Task 1 · Step 1_ |
+| A2 | `ansible.builtin.copy` | _Task 1 · Step 1_ |
+
+**🆕 NEW this lab — introduced for the first time** (minimum 3)
+
+| # | Command / switch | First taught in | Covered by |
+|---|---|---|---|
+| N1 | `ansible.builtin.assemble` | Task 1 · Step 1 | _Task 1 · Step 1_ |
+| N2 | `regexp:` fragment filter | Task 1 · Step 1 | _Task 1 · Step 1_ |
+| N3 | `ansible.builtin.slurp` | Task 2 · Step 1 | _Task 2 · Step 1_ |
+| N4 | `b64decode` filter | Task 2 · Step 1 | _Task 2 · Step 1_ |
+
+---
+
+## 🎯 Objective
+
+Replace `cat parts/* > combined` with the purpose-built module: `ansible.builtin.assemble` concatenates the fragments in a directory into one file, idempotently. You will assemble a config from drop-in pieces, prove a re-run is `changed=0`, then read the result back with `ansible.builtin.slurp` and decode it — the Ansible way to "cat a remote file" into a variable.
+
+---
+
+## 🧠 Concept
+
+`ansible.builtin.assemble` is `cat fragments/* > dest` made declarative and idempotent: it concatenates every file in `src:` (a directory) in sorted order into `dest:`, optionally filtering with `regexp:`, and only writes when the result differs. This is exactly how `*.d` config directories work. To *read* a remote file into a play you use `ansible.builtin.slurp`, which returns the content base64-encoded; the `b64decode` filter turns it back into text — the equivalent of `cat`-ing a file to inspect it.
+
+```
+SHELL (19a)                          ANSIBLE (19b)
+─────────────────────────────       ──────────────────────────────────────
+cat parts/*.txt > combined.txt       assemble: src=parts dest=combined.txt
+                                       └─ changed=0 when fragments unchanged
+cat combined.txt                     slurp: src=combined.txt → content | b64decode
+```
+
+> **Why this matters:** Drop-in `conf.d` assembly is a real RHCE pattern. `assemble` keeps it idempotent, and `slurp` is the safe way to read file content into a variable for assertions.
+
+---
+
+## 📚 Command Reference
+
+| Command | Purpose | Critical flags |
+|---|---|---|
+| `ansible.builtin.assemble` | Concatenate a dir of fragments | `src:` dir, `dest:` file, `regexp:` filter |
+| `regexp:` | Only include matching fragments | applied to fragment filenames |
+| `ansible.builtin.slurp` | Read a remote file (base64) | returns `.content` |
+| `b64decode` | Decode slurp content | `{{ result.content | b64decode }}` |
+| `register:` + `debug:` | Inspect results | read `changed` / decoded text |
+
+---
+
+## 🧰 LAB-WIDE SETUP
+
+**In plain English:** Build the sandbox and playbook folder with a fragments directory.
+
+> Run this block **once** before Task 1. It builds the clean, private workspace that both tasks depend on.
 
 ```bash
-echo "📦 OS: $(cat /etc/redhat-release 2>/dev/null || grep PRETTY_NAME /etc/os-release)"
-echo "🕒 TIME: $(date -Is)"
-echo "👤 USER: $(whoami)@$(hostname)"
-echo "📁 PRACTICE DIR: /usr"
-echo "⚠️ TRAPS: T19-A T19-B T41 T44"
-ansible --version | head -n 2
-ansible -m ping localhost | tail -n 4
-ls -ld /usr
+export LAB_ROOT=/tmp/lab-19
+mkdir -p "$LAB_ROOT/parts"
+mkdir -p /root/rhcsa_journal/lab-19b/playbooks
+printf 'header line\n' > "$LAB_ROOT/parts/01-header.txt"
+printf 'body line\n'   > "$LAB_ROOT/parts/02-body.txt"
+printf 'footer line\n' > "$LAB_ROOT/parts/03-footer.txt"
+ls "$LAB_ROOT/parts"
+echo "exit was: $?"
+```
+
+**Expected output:**
+
+```
+01-header.txt
+02-body.txt
+03-footer.txt
+exit was: 0
 ```
 
 ---
 
-## Objective
+## TASK 1 of 2 — Assemble fragments into one file
 
-Convert the `cat` join workflow to idempotent Ansible:
-
-1. Merge fragments using `ansible.builtin.assemble` (or controlled `shell: cat` pattern) and copy to final target.
-2. Avoid line-management misuse by selecting `lineinfile` vs `blockinfile` correctly.
+**In plain English:** We write a play that concatenates the fragments with `assemble` and prove it is idempotent.
 
 ---
 
-## Lab-Wide Setup — Tier B Sandbox
+### Step 1 of 2 — Write the assemble playbook
 
-```bash
-sudo -i
-
-export SANDBOX=/tmp/lab19b
-export GROUP=labgrp_19_catjoin
-export USER=labuser_19_catjoin
-export USER_HOME=${SANDBOX}/home_${USER}
-
-mkdir -p "${SANDBOX}" "${USER_HOME}" /root/rhcsa_journal/lab-19b/playbooks
-getent group "${GROUP}" >/dev/null || groupadd "${GROUP}"
-getent passwd "${USER}" >/dev/null || useradd -d "${USER_HOME}" -M -s /bin/bash -g "${GROUP}" "${USER}"
-chown -R "${USER}:${GROUP}" "${SANDBOX}"
-```
-
----
-
-## Task 1 — Idempotent fragment merge (`assemble` preferred)
-
-### Purpose
-
-Use `ansible.builtin.assemble` to merge ordered fragments into one file, then enforce final destination content with `ansible.builtin.copy` so repeated runs are clean and predictable.
-
-### Build fixture fragments
-
-```bash
-mkdir -p /tmp/lab19b/fragments
-cat > /tmp/lab19b/fragments/01-header <<'EOF'
-=== Lab 19 Merge ===
-EOF
-cat > /tmp/lab19b/fragments/02-os <<'EOF'
-OS:
-EOF
-cat /etc/redhat-release >> /tmp/lab19b/fragments/02-os
-cat > /tmp/lab19b/fragments/03-host <<'EOF'
-HOST:
-EOF
-cat /etc/hostname >> /tmp/lab19b/fragments/03-host
-```
-
-### Playbook (`/root/rhcsa_journal/lab-19b/playbooks/task1.yml`)
+**In plain English:** We create `task1.yml`, which assembles every `.txt` fragment in `parts/` into one combined file.
 
 ```yaml
 ---
-- name: "Lab 19b Task 1 - assemble fragment files"
+- name: "Lab 19b Task 1 — assemble fragments"
   hosts: localhost
   connection: local
   gather_facts: false
-
   vars:
-    merged_tmp: /tmp/lab19b/assembled.tmp
-    merged_final: /tmp/lab19b/assembled-report.txt
-
+    parts: /tmp/lab-19/parts
+    dest: /tmp/lab-19/combined.txt
   tasks:
-    - name: "Merge ordered fragments"
+    - name: "Concatenate fragments into one file"
       ansible.builtin.assemble:
-        src: /tmp/lab19b/fragments
-        dest: "{{ merged_tmp }}"
-        delimiter: "\n"
-      register: assemble_out
+        src: "{{ parts }}"
+        dest: "{{ dest }}"
+        regexp: '\.txt$'
+        mode: '0644'
+      register: asm_result
 
-    - name: "Publish merged report idempotently"
-      ansible.builtin.copy:
-        src: "{{ merged_tmp }}"
-        dest: "{{ merged_final }}"
-        owner: root
-        group: root
-        mode: "0644"
-        remote_src: true
-      register: copy_out
-
-    - name: "Show change summary"
+    - name: "Show whether anything changed"
       ansible.builtin.debug:
-        msg:
-          - "assemble changed={{ assemble_out.changed }}"
-          - "copy changed={{ copy_out.changed }}"
+        msg: "changed: {{ asm_result.changed }}"
 ```
 
-### Run and verify
+**Expected output:**
 
-```bash
-ansible-playbook /root/rhcsa_journal/lab-19b/playbooks/task1.yml 2>&1 | tee /tmp/lab19b/task1-apply-1.txt
-ansible-playbook /root/rhcsa_journal/lab-19b/playbooks/task1.yml 2>&1 | tee /tmp/lab19b/task1-apply-2.txt
-cat -n /tmp/lab19b/assembled-report.txt
+```
+(this is the saved playbook file — no output until you run it in Step 2)
 ```
 
-> If you choose `shell: cat /tmp/lab19b/fragments/* > ...`, pair it with `copy` or checksum gating; otherwise idempotence reporting is often noisy.
+**Line-by-line breakdown:**
 
-### Journal write
+- `ansible.builtin.assemble: src/dest:` → Concatenate the fragments directory into the destination, sorted by filename.
+- `regexp: '\.txt$'` → Only include fragments whose name ends in `.txt`.
+- `register:` + `debug:` → Report whether the assembled file changed.
 
-```bash
-mkdir -p /root/rhcsa_journal/lab-19b/task1
-cp /tmp/lab19b/task1-apply-1.txt /root/rhcsa_journal/lab-19b/task1/apply-1.txt
-cp /tmp/lab19b/task1-apply-2.txt /root/rhcsa_journal/lab-19b/task1/apply-2.txt
-cp /tmp/lab19b/assembled-report.txt /root/rhcsa_journal/lab-19b/task1/assembled-report.txt
-```
+**New words in this step:**
+
+- **`ansible.builtin.assemble`** — the idempotent `cat fragments/* > dest` module.
 
 ---
 
-## Task 2 — `lineinfile` vs `blockinfile` trap
+### Step 2 of 2 — Run it twice and watch `changed=0`
 
-### Purpose
+**In plain English:** We run the play twice; the first assembles the file, the second sees the fragments unchanged and does nothing.
 
-Practice the decision rule:
+```bash
+ansible-playbook /root/rhcsa_journal/lab-19b/playbooks/task1.yml
+ansible-playbook /root/rhcsa_journal/lab-19b/playbooks/task1.yml
+cat /tmp/lab-19/combined.txt
+echo "exit was: $?"
+```
 
-- Use `lineinfile` for single-line key/value enforcement.
-- Use `blockinfile` for multi-line managed blocks.
+**Expected output:**
 
-### Playbook (`/root/rhcsa_journal/lab-19b/playbooks/task2.yml`)
+```
+PLAY RECAP ********************************************************************
+localhost                  : ok=2    changed=1    unreachable=0    failed=0
+PLAY RECAP ********************************************************************
+localhost                  : ok=2    changed=0    unreachable=0    failed=0
+header line
+body line
+footer line
+exit was: 0
+```
+
+**Line-by-line breakdown:**
+
+- two runs → `changed=1` then `changed=0`, proving `assemble` only rewrites on fragment changes.
+- `cat combined.txt` → Confirm the fragments are concatenated in sorted order.
+
+**New words in this step:**
+
+- **drop-in assembly** — building one file from many small fragments, the `conf.d` pattern.
+
+---
+
+### Concept card (Task 1)
+
+| Concept | What it does | Exam trap |
+|---|---|---|
+| `assemble` | concat dir → file | fragments sorted by name |
+| `regexp:` | filter fragments | applies to names, not content |
+| idempotent | re-run `changed=0` | editing a fragment flips it |
+
+---
+
+### Troubleshoot (Task 1)
+
+| Symptom | Likely cause | Fix |
+|---|---|---|
+| Wrong order | Fragment names unsorted | Zero-pad names (`01-`) |
+| Extra files included | No/loose `regexp:` | Tighten the `regexp:` |
+
+---
+
+## TASK 2 of 2 — Read the result back with `slurp`
+
+**In plain English:** We read the assembled file into a variable and decode it to assert its content.
+
+---
+
+### Step 1 of 2 — Write the slurp-and-decode playbook
+
+**In plain English:** We create `task2.yml`, which slurps the combined file and prints its decoded text.
 
 ```yaml
 ---
-- name: "Lab 19b Task 2 - line vs block management"
+- name: "Lab 19b Task 2 — read a file with slurp"
   hosts: localhost
   connection: local
   gather_facts: false
-
   vars:
-    target: /tmp/lab19b/policy.conf
-
+    dest: /tmp/lab-19/combined.txt
   tasks:
-    - name: "Ensure single setting via lineinfile"
-      ansible.builtin.lineinfile:
-        path: "{{ target }}"
-        create: true
-        regexp: '^merge_mode='
-        line: 'merge_mode=cat'
+    - name: "Read the assembled file (base64)"
+      ansible.builtin.slurp:
+        src: "{{ dest }}"
+      register: slurped
 
-    - name: "Ensure multi-line stanza via blockinfile"
-      ansible.builtin.blockinfile:
-        path: "{{ target }}"
-        marker: "# {mark} ANSIBLE MANAGED CAT BLOCK"
-        block: |
-          [cat_join]
-          show_hidden=true
-          squeeze_blank=true
+    - name: "Decode and show the content"
+      ansible.builtin.debug:
+        msg: "{{ (slurped.content | b64decode).split('\n') }}"
+
+    - name: "Assert the header is present"
+      ansible.builtin.assert:
+        that:
+          - "'header line' in (slurped.content | b64decode)"
+        success_msg: "header found"
+        fail_msg: "header missing"
 ```
 
-### Run and inspect
+**Expected output:**
 
-```bash
-ansible-playbook /root/rhcsa_journal/lab-19b/playbooks/task2.yml 2>&1 | tee /tmp/lab19b/task2-apply-1.txt
-ansible-playbook /root/rhcsa_journal/lab-19b/playbooks/task2.yml 2>&1 | tee /tmp/lab19b/task2-apply-2.txt
-cat -A /tmp/lab19b/policy.conf
+```
+(this is the saved playbook file — no output until you run it in Step 2)
 ```
 
-### Trap callout
+**Line-by-line breakdown:**
 
-- Misusing `lineinfile` to manage multi-line blocks causes brittle, duplicated config.
-- Misusing `blockinfile` for one-line key replacement can leave multiple conflicting keys.
-- `cat -A` is your T19-B sanity check when strange whitespace appears.
+- `ansible.builtin.slurp: src:` → Read the remote file; the content comes back base64-encoded in `.content`.
+- `b64decode` → Decode it to readable text for display and assertions.
+- `assert: that: "'header line' in ..."` → Gate on the decoded content containing the expected line.
 
-### Journal write
+**New words in this step:**
+
+- **`ansible.builtin.slurp`** — read a remote file into a variable (base64-encoded).
+- **`b64decode`** — Jinja filter that decodes base64 back to text.
+
+---
+
+### Step 2 of 2 — Run it and read the assertion
+
+**In plain English:** We run the play and confirm the decoded content prints and the assertion passes.
 
 ```bash
-mkdir -p /root/rhcsa_journal/lab-19b/task2
-cp /tmp/lab19b/task2-apply-1.txt /root/rhcsa_journal/lab-19b/task2/apply-1.txt
-cp /tmp/lab19b/task2-apply-2.txt /root/rhcsa_journal/lab-19b/task2/apply-2.txt
-cp /tmp/lab19b/policy.conf /root/rhcsa_journal/lab-19b/task2/policy.conf
+ansible-playbook /root/rhcsa_journal/lab-19b/playbooks/task2.yml
+echo "exit was: $?"
+```
+
+**Expected output:**
+
+```
+TASK [Decode and show the content] ****************************************
+ok: [localhost] => {"msg": ["header line", "body line", "footer line", ""]}
+TASK [Assert the header is present] **************************************
+ok: [localhost] => {"msg": "header found"}
+PLAY RECAP **************************************************************
+localhost                  : ok=3    changed=0    unreachable=0    failed=0
+exit was: 0
+```
+
+**Line-by-line breakdown:**
+
+- `ansible-playbook ...` → Slurp, decode, assert; all read-only so `changed=0`.
+
+**New words in this step:**
+
+- **content assertion** — proving a file holds an expected string via decoded slurp content.
+
+---
+
+### Concept card (Task 2)
+
+| Concept | What it does | Exam trap |
+|---|---|---|
+| `slurp` | read remote file | content is base64 — decode it |
+| `b64decode` | decode to text | forgetting it yields gibberish |
+| `assert` on content | gate on text | quote the `in` expression |
+
+---
+
+### Troubleshoot (Task 2)
+
+| Symptom | Likely cause | Fix |
+|---|---|---|
+| Gibberish output | Forgot `b64decode` | Pipe `.content` through `b64decode` |
+| `src not found` | Wrong path | Point `slurp` at the assembled file |
+
+---
+
+## ✅ Lab Checklist
+
+- [ ] Task 1 · Step 1 — Write the assemble playbook
+- [ ] Task 1 · Step 2 — Run it twice and watch `changed=0`
+- [ ] Task 2 · Step 1 — Write the slurp-and-decode playbook
+- [ ] Task 2 · Step 2 — Run it and read the assertion
+- [ ] Every 🎯 Focus Coverage row (Anchor + NEW) mapped to a step
+- [ ] 🧹 Teardown run — sandbox + any system state removed
+
+---
+
+## 🧹 Teardown
+
+**In plain English:** Delete everything this lab created so the box is clean for the next run.
+
+> Run this after you've verified the lab. `lab_teardown.sh` safely removes the single sandbox root — it refuses to touch `/`, `$HOME`, or any protected path. This lab changed **no** system state.
+
+```bash
+bash lab_teardown.sh "$LAB_ROOT"     # = /tmp/lab-19
+rm -rf /root/rhcsa_journal/lab-19b
+```
+
+**Expected output:**
+
+```
+✅ Removed /tmp/lab-19 — lab workspace is clean.
 ```
 
 ---
 
-## Lab Closeout — Bulletproof Teardown (Section 6)
+## ⚠️ Common Pitfalls
 
-```bash
-set +e
-
-if getent passwd "${USER}" >/dev/null 2>&1; then
-  userdel -r "${USER}" 2>/dev/null
-fi
-if getent group "${GROUP}" >/dev/null 2>&1; then
-  groupdel "${GROUP}" 2>/dev/null
-fi
-
-rm -rf "${SANDBOX}"
-
-echo "── Lab 19b cleanup audit ──"
-getent passwd "${USER}" >/dev/null && echo "❌ user remains" || echo "✅ user gone"
-getent group "${GROUP}" >/dev/null && echo "❌ group remains" || echo "✅ group gone"
-test -d "${SANDBOX}" && echo "❌ sandbox remains" || echo "✅ sandbox gone"
-test -d "${USER_HOME}" && echo "❌ home remains" || echo "✅ home gone"
-
-set -e
-```
+| Mistake | Symptom | Fix |
+|---|---|---|
+| `cat` shell-out to assemble | Non-idempotent | Use `ansible.builtin.assemble` |
+| Forgetting `b64decode` | Unreadable slurp output | Decode the content |
+| Unsorted fragments | Wrong assembled order | Zero-pad fragment names |
 
 ---
 
-## Lab 19b Checklist
+## 📌 Exam Strategy
 
-- [ ] Task 1 completed (idempotent fragment merge via `assemble` or controlled `shell cat` + `copy`)
-- [ ] Task 2 completed (`lineinfile` for single-line + `blockinfile` for stanza)
-- [ ] Section 6 closeout audit shows four `✅` lines
+Assemble drop-in configs with `ansible.builtin.assemble` (idempotent, sorted), and read remote files with `slurp` + `b64decode` for assertions. Filter fragments with `regexp:` so only intended pieces are included.
+
+- `assemble` is the idempotent `cat fragments/*`.
+- `slurp` + `b64decode` is how you read content into a variable.
+- Re-run to confirm `assemble` settles at `changed=0`.
 
 ---
 
-## Author
+## 🔗 Related Labs
 
-**Kelvin R. Tobias**
+- [Lab 19a — Concatenating Files (RHCSA)](../lab-19a-cat-concatenate-files-rhcsa/) — the `cat` this play mirrors
+- [Lab 19c — Concatenating Files (Verify)](../lab-19c-cat-concatenate-files-verify/) — prove order and content integrity
+- [Lab 16b — Search and Save Output (Ansible)](../lab-16b-grep-search-save-output-ansible/) — capturing/asserting file content
+
+---
+
+## 👤 Author
+
+**Kelvin R. Tobias**  
 [kelvinintech.com](https://kelvinintech.com) · [GitHub](https://github.com/kelvintechnical) · [LinkedIn](https://www.linkedin.com/in/kelvin-r-tobias-211949219)

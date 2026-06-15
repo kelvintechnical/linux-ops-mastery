@@ -1,345 +1,363 @@
-# Lab 23b: Comparing File Differences (Ansible) - `ansible.builtin.copy`, `ansible.builtin.template`, `--check --diff`
+# Lab 23b: Comparing File Differences (Ansible) — `--check --diff`, `diff:` mode
 
-- **Series:** linux-ops-mastery - File Inspection and Verification
-- **Trilogy:** `23a` (RHCSA) -> **`23b` (Ansible - you are here)** -> `23c` (Verify)
-- **Career arcs covered:** RHCE EX294 (module-first diffs and backups), SRE (safe config rollout with rollback path), DevOps (idempotent preview before apply)
-- **Prerequisite:** Lab 00 (Ansible control node), Lab 23a (shell `diff` baseline)
-- **Time Estimate:** 25-35 minutes
-- **Tasks:** 2 (Task 1 copy+backup diff proof, Task 2 template `--check --diff` preview + register parsing)
-- **Practice Directory (rotation #23):** `/root`
-- **Sandbox (Tier B):** `/tmp/lab23b` with `USER=labuser_23_diff`, `GROUP=labgrp_23_diff`
-- **Playbooks path:** `/root/rhcsa_journal/lab-23b/playbooks/`
-- **Traps rehearsed this lab:** **T23-A** (misread `diff` exit code), **T23-B** (`diff -r` and symlink surprises during verify), **T41** (skip restore drill), **T44** (cleanup residue)
-
-> **This lab's practice directory is `/root`**. Playbooks and journal artifacts persist in `/root/rhcsa_journal/lab-23b/`.
+**Series:** linux-ops-mastery — Text Processing & Filters · **Lab 23b of the Novice → RHCA path**  
+**Certifications covered:** RHCE EX294 (preview changes safely with check/diff mode), RHCSA EX200 (the `diff` behavior underneath), DevOps (dry-run review)  
+**Prerequisite:** [Lab 23a](../lab-23a-diff-comparing-files-rhcsa/) completed and a working control node  
+**Time Estimate:** 25–35 minutes  
+**Difficulty:** Intermediate
 
 ---
 
-## LAB HEADER BLOCK
+## 🎯 Today's Focus Coverage
 
-```bash
-echo "ENV:   ${ENV:-DECLARE_ME}"
-echo "OS:    $(cat /etc/redhat-release 2>/dev/null || grep PRETTY_NAME /etc/os-release)"
-echo "TIME:  $(date -Is)"
-echo "USER:  $(whoami)@$(hostname)"
-echo "PRACTICE DIR: /root"
-echo "TRAP REMINDERS THIS LAB: T23-A T23-B T41 T44"
-ansible --version | head -n 2
-ansible -m ping localhost 2>&1 | tail -n 4
+> Stay on-subject via the ANCHOR rows; expand vocabulary via the NEW rows. Every row is exercised by a STEP below.
+
+**⚓ Anchor — already learned (on-topic reuse)**
+
+| # | Command / switch | Covered by |
+|---|---|---|
+| A1 | unified diff format | _Task 1 · Step 2_ |
+| A2 | `ansible.builtin.copy` | _Task 1 · Step 1_ |
+
+**🆕 NEW this lab — introduced for the first time** (minimum 3)
+
+| # | Command / switch | First taught in | Covered by |
+|---|---|---|---|
+| N1 | `--check` (dry run) | Task 1 · Step 2 | _Task 1 · Step 2_ |
+| N2 | `--diff` (show changes) | Task 1 · Step 2 | _Task 1 · Step 2_ |
+| N3 | `command: diff` with `failed_when` | Task 2 · Step 1 | _Task 2 · Step 1_ |
+| N4 | `diff` rc handling (0/1/2) | Task 2 · Step 1 | _Task 2 · Step 1_ |
+
+---
+
+## 🎯 Objective
+
+Preview changes before you make them — the safest habit in automation. You will run a `copy` task in `--check --diff` mode to see the unified diff of what *would* change without touching the file, then run a `command: diff` inside a play with proper exit-code handling to compare two files programmatically. This is dry-run review, the Ansible way.
+
+---
+
+## 🧠 Concept
+
+Ansible has `diff` built in. `--check` is a dry run: modules report what they *would* do but make no changes. `--diff` prints the unified diff of file-content modules (`copy`, `template`, `lineinfile`). Together (`--check --diff`) you get a no-risk preview — exactly the RHCE habit of "show me before you do it." Separately, when you need to compare two arbitrary files inside a play, `command: diff a b` works, but `diff` returns rc 1 for "differ," so you must set `failed_when: result.rc not in [0,1]` so a normal difference isn't treated as a failure.
+
+```
+SHELL (23a)                          ANSIBLE (23b)
+─────────────────────────────       ──────────────────────────────────────
+diff -u current proposed            ansible-playbook task1.yml --check --diff
+                                       └─ shows the would-be unified diff, no write
+diff a b; echo $?                    command: diff a b   (failed_when rc not in [0,1])
 ```
 
-> **STOP - if Ansible ping does not return `pong`, return to Lab 00 first.**
+> **Why this matters:** Running `--check --diff` before a real apply prevents surprises on production configs. And knowing `diff` rc 1 ≠ failure keeps comparison tasks from aborting good plays.
 
 ---
 
-## Objective
+## 📚 Command Reference
 
-Translate shell diff habits into Ansible workflows:
-
-1. Use `ansible.builtin.copy` with `backup: true`, then verify old/new content with shell `diff`.
-2. Use `ansible.builtin.template` with `--check --diff` to preview unified changes safely.
-3. Capture and parse `register` output so your playbook reports exactly what changed.
-
----
-
-## Concept: Ansible `--diff` is preview, shell `diff` is proof
-
-- `--check --diff` tells you what the module *would* change.
-- Shell `diff` on resulting files proves what actually changed on disk.
-- In real ops, use both: preview before apply, proof after apply.
+| Command | Purpose | Critical flags |
+|---|---|---|
+| `--check` | Dry run, no changes | combine with `--diff` |
+| `--diff` | Show unified diffs | for content modules |
+| `ansible.builtin.copy` | Manage file content | diff-aware |
+| `command: diff` | Compare two files | guard rc with `failed_when` |
+| `failed_when:` | Exit-code policy | `rc not in [0,1]` |
 
 ---
 
-## Quick Reference
+## 🧰 LAB-WIDE SETUP
 
-| Tool | Use |
-|---|---|
-| `ansible.builtin.copy` | Deploy byte-identical file with ownership/mode controls |
-| `backup: true` | Preserve prior destination as timestamped backup |
-| `ansible.builtin.template` | Render Jinja2 and deploy managed config |
-| `ansible-playbook --check --diff` | Show unified diff without writing |
-| `register:` + `debug` | Emit `changed`, `dest`, `backup_file` for audit |
-| `diff -u old new` | Post-apply verification in shell |
+**In plain English:** Build the sandbox and playbook folder with a baseline config and a proposed version.
 
----
-
-## Lab-Wide Setup - Tier B Sandbox Stack
+> Run this block **once** before Task 1. It builds the clean, private workspace that both tasks depend on.
 
 ```bash
-sudo -i
+export LAB_ROOT=/tmp/lab-23
+mkdir -p "$LAB_ROOT"
+mkdir -p /root/rhcsa_journal/lab-23b/playbooks
+printf 'LogLevel INFO\nPort 22\n'   > "$LAB_ROOT/current.conf"
+printf 'LogLevel DEBUG\nPort 22\n'  > "$LAB_ROOT/proposed.conf"
+ls "$LAB_ROOT"
+echo "exit was: $?"
+```
 
-export LAB_NUM=23
-export LAB_SLUG=diff
-export SANDBOX=/tmp/lab23b
-export GROUP=labgrp_${LAB_NUM}_${LAB_SLUG}
-export USER=labuser_${LAB_NUM}_${LAB_SLUG}
-export USER_HOME=${SANDBOX}/home_${USER}
+**Expected output:**
 
-mkdir -p "${SANDBOX}" "${USER_HOME}" "${SANDBOX}/templates" /root/rhcsa_journal/lab-23b/playbooks
-mkdir -p /root/rhcsa_journal/lab-23b/task1 /root/rhcsa_journal/lab-23b/task2
-getent group  "${GROUP}" >/dev/null || groupadd "${GROUP}"
-getent passwd "${USER}"  >/dev/null || useradd -d "${USER_HOME}" -M -s /bin/bash -g "${GROUP}" "${USER}"
-chown -R "${USER}:${GROUP}" "${SANDBOX}"
-
-# Seed files for copy/template tasks
-cat > "${SANDBOX}/sshd_config.managed" <<'EOF'
-Port 22
-PermitRootLogin prohibit-password
-PasswordAuthentication yes
-EOF
-
-cat > "${SANDBOX}/templates/sshd_config.j2" <<'EOF'
-Port {{ ssh_port }}
-PermitRootLogin {{ permit_root_login }}
-PasswordAuthentication {{ password_auth }}
-# managed_by=ansible
-EOF
+```
+current.conf
+proposed.conf
+exit was: 0
 ```
 
 ---
 
-## Task 1 - `ansible.builtin.copy` with `backup: true`, then shell `diff`
+## TASK 1 of 2 — Preview with `--check --diff`
 
-**Practice directory this task:** `/root` + `/tmp/lab23b`
+**In plain English:** We write a copy task and preview its change before applying it.
 
-### Purpose
+---
 
-Prove that backup rotation happened and compare the backup against the new destination using `diff -u`.
+### Step 1 of 2 — Write the copy playbook
 
-### Playbook: `task1-copy.yml`
+**In plain English:** We create `task1.yml`, which manages `current.conf` so its `LogLevel` becomes DEBUG.
 
 ```yaml
 ---
-- name: "Lab 23b Task 1 copy with backup"
+- name: "Lab 23b Task 1 — manage config content"
   hosts: localhost
   connection: local
   gather_facts: false
   vars:
-    src_file: "/tmp/lab23b/sshd_config.managed"
-    dest_file: "/tmp/lab23b/sshd_config.deploy"
+    conf: /tmp/lab-23/current.conf
   tasks:
-    - name: "Seed destination so backup has something to rotate"
+    - name: "Ensure the config has the desired content"
       ansible.builtin.copy:
+        dest: "{{ conf }}"
         content: |
+          LogLevel DEBUG
           Port 22
-          PermitRootLogin yes
-          PasswordAuthentication yes
-        dest: "{{ dest_file }}"
-        mode: '0600'
-
-    - name: "Deploy managed file with backup enabled"
-      ansible.builtin.copy:
-        src: "{{ src_file }}"
-        dest: "{{ dest_file }}"
-        remote_src: true
-        owner: root
-        group: root
-        mode: '0600'
-        backup: true
+        mode: '0644'
       register: copy_result
-
-    - name: "Show copy result fields"
-      ansible.builtin.debug:
-        msg:
-          - "changed={{ copy_result.changed }}"
-          - "dest={{ copy_result.dest }}"
-          - "backup={{ copy_result.backup_file | default('none') }}"
 ```
 
-### Main command block
+**Expected output:**
 
-```bash
-cat > /root/rhcsa_journal/lab-23b/playbooks/task1-copy.yml <<'YAML'
----
-- name: "Lab 23b Task 1 copy with backup"
-  hosts: localhost
-  connection: local
-  gather_facts: false
-  vars:
-    src_file: "/tmp/lab23b/sshd_config.managed"
-    dest_file: "/tmp/lab23b/sshd_config.deploy"
-  tasks:
-    - name: "Seed destination so backup has something to rotate"
-      ansible.builtin.copy:
-        content: |
-          Port 22
-          PermitRootLogin yes
-          PasswordAuthentication yes
-        dest: "{{ dest_file }}"
-        mode: '0600'
-    - name: "Deploy managed file with backup enabled"
-      ansible.builtin.copy:
-        src: "{{ src_file }}"
-        dest: "{{ dest_file }}"
-        remote_src: true
-        owner: root
-        group: root
-        mode: '0600'
-        backup: true
-      register: copy_result
-    - name: "Show copy result fields"
-      ansible.builtin.debug:
-        msg:
-          - "changed={{ copy_result.changed }}"
-          - "dest={{ copy_result.dest }}"
-          - "backup={{ copy_result.backup_file | default('none') }}"
-YAML
-
-ansible-playbook /root/rhcsa_journal/lab-23b/playbooks/task1-copy.yml \
-  2>&1 | tee /tmp/lab23b/task1.txt
-
-BACKUP_FILE=$(awk -F'backup=' '/backup=/{print $2}' /tmp/lab23b/task1.txt | tail -n1)
-echo "backup file: ${BACKUP_FILE}" | tee -a /tmp/lab23b/task1.txt
-
-if [ -n "${BACKUP_FILE}" ] && [ -f "${BACKUP_FILE}" ]; then
-  diff -u "${BACKUP_FILE}" /tmp/lab23b/sshd_config.deploy | tee -a /tmp/lab23b/task1.txt
-  echo "diff exit: ${PIPESTATUS[0]}" | tee -a /tmp/lab23b/task1.txt
-fi
+```
+(this is the saved playbook file — no output until you run it in Step 2)
 ```
 
-### Journal write
+**Line-by-line breakdown:**
 
-```bash
-cp /tmp/lab23b/task1.txt /root/rhcsa_journal/lab-23b/task1/evidence.txt
-```
+- `ansible.builtin.copy: content:` → Declare the desired file content; the module diffs it against the current file.
+
+**New words in this step:**
+
+- **declared content** — the target state `copy` compares against and converges to.
 
 ---
 
-## Task 2 - `ansible.builtin.template` with `--check --diff`, register and parse
+### Step 2 of 2 — Preview, then apply
 
-**Practice directory this task:** `/root` + `/tmp/lab23b`
+**In plain English:** We run with `--check --diff` to see the change safely, then run for real and confirm idempotence.
 
-### Purpose
+```bash
+cd /root/rhcsa_journal/lab-23b/playbooks
+ansible-playbook task1.yml --check --diff
+ansible-playbook task1.yml
+ansible-playbook task1.yml
+echo "exit was: $?"
+```
 
-Preview unified diff safely before changing files, then parse registered results to prove changed/no-changed states.
+**Expected output:**
 
-### Playbook: `task2-template.yml`
+```
+--- before: /tmp/lab-23/current.conf
++++ after
+@@ -1,2 +1,2 @@
+-LogLevel INFO
++LogLevel DEBUG
+ Port 22
+changed: [localhost]   (check mode — no file written)
+
+PLAY RECAP (real run 1)  : ok=1  changed=1  ...
+PLAY RECAP (real run 2)  : ok=1  changed=0  ...
+exit was: 0
+```
+
+**Line-by-line breakdown:**
+
+- `--check --diff` → Shows the unified diff of the would-be change **without writing** the file.
+- real run 1 → Applies the change (`changed=1`).
+- real run 2 → No change needed (`changed=0`), proving idempotence.
+
+**New words in this step:**
+
+- **`--check`** — dry run; modules report intent, make no changes.
+- **`--diff`** — print the unified diff of content changes.
+
+---
+
+### Concept card (Task 1)
+
+| Concept | What it does | Exam trap |
+|---|---|---|
+| `--check` | dry run | some modules can't predict fully |
+| `--diff` | show content diff | works on file modules |
+| copy idempotence | re-run `changed=0` | content must match exactly |
+
+---
+
+### Troubleshoot (Task 1)
+
+| Symptom | Likely cause | Fix |
+|---|---|---|
+| No diff shown | Module not diff-aware | Use file-content modules |
+| Check mode "changed" but no file | That's correct | It's a preview only |
+
+---
+
+## TASK 2 of 2 — Compare two files in a play
+
+**In plain English:** We run `diff` inside a play with correct exit-code handling and assert on the result.
+
+---
+
+### Step 1 of 2 — Write the diff playbook
+
+**In plain English:** We create `task2.yml`, which diffs `current.conf` against `proposed.conf` and treats rc 1 (differ) as normal.
 
 ```yaml
 ---
-- name: "Lab 23b Task 2 template diff preview"
+- name: "Lab 23b Task 2 — compare two files"
   hosts: localhost
   connection: local
   gather_facts: false
   vars:
-    dest_file: "/tmp/lab23b/sshd_config.templated"
-    ssh_port: 2222
-    permit_root_login: "no"
-    password_auth: "no"
+    a: /tmp/lab-23/current.conf
+    b: /tmp/lab-23/proposed.conf
   tasks:
-    - name: "Render template to destination"
-      ansible.builtin.template:
-        src: "/tmp/lab23b/templates/sshd_config.j2"
-        dest: "{{ dest_file }}"
-        owner: root
-        group: root
-        mode: '0600'
-        backup: true
-      register: tpl_result
+    - name: "Diff the two files"
+      ansible.builtin.command: "diff -u {{ a }} {{ b }}"
+      register: diff_out
+      changed_when: false
+      failed_when: diff_out.rc not in [0, 1]
 
-    - name: "Parse register values for audit"
+    - name: "Report identical or different"
       ansible.builtin.debug:
-        msg:
-          - "changed={{ tpl_result.changed }}"
-          - "dest={{ tpl_result.dest }}"
-          - "checksum={{ tpl_result.checksum | default('none') }}"
-          - "backup={{ tpl_result.backup_file | default('none') }}"
-```
+        msg: "{{ 'identical' if diff_out.rc == 0 else 'differ' }}"
 
-### Main command block
-
-```bash
-cat > /root/rhcsa_journal/lab-23b/playbooks/task2-template.yml <<'YAML'
----
-- name: "Lab 23b Task 2 template diff preview"
-  hosts: localhost
-  connection: local
-  gather_facts: false
-  vars:
-    dest_file: "/tmp/lab23b/sshd_config.templated"
-    ssh_port: 2222
-    permit_root_login: "no"
-    password_auth: "no"
-  tasks:
-    - name: "Render template to destination"
-      ansible.builtin.template:
-        src: "/tmp/lab23b/templates/sshd_config.j2"
-        dest: "{{ dest_file }}"
-        owner: root
-        group: root
-        mode: '0600'
-        backup: true
-      register: tpl_result
-    - name: "Parse register values for audit"
+    - name: "Show the unified diff if any"
       ansible.builtin.debug:
-        msg:
-          - "changed={{ tpl_result.changed }}"
-          - "dest={{ tpl_result.dest }}"
-          - "checksum={{ tpl_result.checksum | default('none') }}"
-          - "backup={{ tpl_result.backup_file | default('none') }}"
-YAML
-
-ansible-playbook --check --diff /root/rhcsa_journal/lab-23b/playbooks/task2-template.yml \
-  2>&1 | tee /tmp/lab23b/task2-check-diff.txt
-
-ansible-playbook /root/rhcsa_journal/lab-23b/playbooks/task2-template.yml \
-  2>&1 | tee /tmp/lab23b/task2-apply.txt
-
-awk '/changed=/{print}' /tmp/lab23b/task2-apply.txt | tee /tmp/lab23b/task2.txt
-awk '/backup=|checksum=|dest=/{print}' /tmp/lab23b/task2-apply.txt | tee -a /tmp/lab23b/task2.txt
+        var: diff_out.stdout_lines
+      when: diff_out.rc == 1
 ```
 
-### Journal write
+**Expected output:**
+
+```
+(this is the saved playbook file — no output until you run it in Step 2)
+```
+
+**Line-by-line breakdown:**
+
+- `command: diff -u {{ a }} {{ b }}` → Compare the two files, capturing the unified diff.
+- `failed_when: diff_out.rc not in [0, 1]` → Treat "differ" (rc 1) as success; only rc ≥ 2 (real error) fails.
+- `when: diff_out.rc == 1` → Only print the diff when the files actually differ.
+
+**New words in this step:**
+
+- **`diff` rc handling** — accepting rc 0/1 and failing only on rc 2.
+
+---
+
+### Step 2 of 2 — Run it and read the result
+
+**In plain English:** We run the play and confirm it reports the difference without failing.
 
 ```bash
-cp /tmp/lab23b/task2-check-diff.txt /root/rhcsa_journal/lab-23b/task2/check-diff.txt
-cp /tmp/lab23b/task2-apply.txt /root/rhcsa_journal/lab-23b/task2/apply.txt
-cp /tmp/lab23b/task2.txt /root/rhcsa_journal/lab-23b/task2/evidence.txt
+ansible-playbook /root/rhcsa_journal/lab-23b/playbooks/task2.yml
+echo "exit was: $?"
 ```
+
+**Expected output:**
+
+```
+TASK [Report identical or different] *************************************
+ok: [localhost] => {"msg": "differ"}
+TASK [Show the unified diff if any] *************************************
+ok: [localhost] => {"diff_out.stdout_lines": ["--- ...", "-LogLevel INFO", "+LogLevel DEBUG", ...]}
+PLAY RECAP **********************************************************
+localhost                  : ok=3    changed=0    unreachable=0    failed=0
+exit was: 0
+```
+
+**Line-by-line breakdown:**
+
+- `ansible-playbook ...` → Reports "differ" and shows the diff; `failed=0` proves rc 1 was handled gracefully.
+
+**New words in this step:**
+
+- **graceful diff** — a comparison task that reports differences without aborting the play.
 
 ---
 
-## Lab Closeout - Bulletproof Teardown (Section 6)
+### Concept card (Task 2)
+
+| Concept | What it does | Exam trap |
+|---|---|---|
+| `failed_when rc not in [0,1]` | accept "differ" | default treats 1 as fail |
+| `changed_when: false` | read-only | diff changes nothing |
+| `when: rc == 1` | conditional output | only show real diffs |
+
+---
+
+### Troubleshoot (Task 2)
+
+| Symptom | Likely cause | Fix |
+|---|---|---|
+| Play fails on difference | Default rc handling | Add `failed_when: rc not in [0,1]` |
+| Always shows diff block | Missing `when:` | Gate on `rc == 1` |
+
+---
+
+## ✅ Lab Checklist
+
+- [ ] Task 1 · Step 1 — Write the copy playbook
+- [ ] Task 1 · Step 2 — Preview, then apply
+- [ ] Task 2 · Step 1 — Write the diff playbook
+- [ ] Task 2 · Step 2 — Run it and read the result
+- [ ] Every 🎯 Focus Coverage row (Anchor + NEW) mapped to a step
+- [ ] 🧹 Teardown run — sandbox + any system state removed
+
+---
+
+## 🧹 Teardown
+
+**In plain English:** Delete everything this lab created so the box is clean for the next run.
+
+> Run this after you've verified the lab. `lab_teardown.sh` safely removes the single sandbox root — it refuses to touch `/`, `$HOME`, or any protected path. This lab changed **no** system state.
 
 ```bash
-set +e
-awk -v s="${SANDBOX}" '$2 ~ s {print $2}' /proc/mounts | tac | xargs -r -n1 umount -l 2>/dev/null
-getent passwd "${USER}" >/dev/null 2>&1 && userdel -r "${USER}" 2>/dev/null
-getent group "${GROUP}" >/dev/null 2>&1 && groupdel "${GROUP}" 2>/dev/null
-rm -rf "${SANDBOX}"
+bash lab_teardown.sh "$LAB_ROOT"     # = /tmp/lab-23
+rm -rf /root/rhcsa_journal/lab-23b
+```
 
-echo "-- Lab 23b cleanup audit --"
-getent passwd "${USER}" >/dev/null && echo "FAIL user remains" || echo "OK user gone"
-getent group "${GROUP}" >/dev/null && echo "FAIL group remains" || echo "OK group gone"
-test -d "${SANDBOX}" && echo "FAIL sandbox remains" || echo "OK sandbox gone"
-test -d "${USER_HOME}" && echo "FAIL home remains" || echo "OK home gone"
-set -e
+**Expected output:**
+
+```
+✅ Removed /tmp/lab-23 — lab workspace is clean.
 ```
 
 ---
 
-## Lab 23b Checklist
+## ⚠️ Common Pitfalls
 
-- [ ] Tier B setup completed in `/tmp/lab23b`
-- [ ] Task 1 used `ansible.builtin.copy` with `backup: true`
-- [ ] Task 1 compared backup file vs deployed file with shell `diff -u`
-- [ ] Task 2 ran `ansible-playbook --check --diff` and reviewed unified output
-- [ ] Task 2 parsed registered result fields (`changed`, `dest`, `checksum`, `backup`)
-- [ ] Section 6 closeout returned four `OK` audit lines
-
----
-
-## Related Labs
-
-| Lab | Connection |
-|---|---|
-| `23a` | Hand-typed `diff` foundations this lab automates |
-| `23c` | Auditor replay + destroy-restore proof |
-| `00a/00b` | Required Ansible control node and module fluency |
+| Mistake | Symptom | Fix |
+|---|---|---|
+| Skipping `--check --diff` | Surprise changes | Always preview first |
+| `diff` rc 1 unhandled | Play aborts | `failed_when: rc not in [0,1]` |
+| Reads marked changed | Missing `changed_when: false` | Add it |
 
 ---
 
-## Author
+## 📌 Exam Strategy
+
+Preview every risky change with `--check --diff`, and when comparing files in a play, handle `diff`'s rc 1 as "differ," not failure. Dry-run review is the difference between confident and reckless automation.
+
+- `--check --diff` shows the unified diff with zero risk.
+- `failed_when: rc not in [0,1]` for any `diff` command.
+- Gate diff output with `when: rc == 1`.
+
+---
+
+## 🔗 Related Labs
+
+- [Lab 23a — Comparing File Differences (RHCSA)](../lab-23a-diff-comparing-files-rhcsa/) — the `diff` formats this builds on
+- [Lab 23c — Comparing File Differences (Verify)](../lab-23c-diff-comparing-files-verify/) — prove identity and drift
+- [Lab 22b — Filtering with grep and Regex (Ansible)](../lab-22b-grep-regex-ansible/) — idempotent config edits
+
+---
+
+## 👤 Author
 
 **Kelvin R. Tobias**  
 [kelvinintech.com](https://kelvinintech.com) · [GitHub](https://github.com/kelvintechnical) · [LinkedIn](https://www.linkedin.com/in/kelvin-r-tobias-211949219)

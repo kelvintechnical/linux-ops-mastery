@@ -1,0 +1,39 @@
+---
+# Lab 22b Task 2 — canonical line with lineinfile
+#
+# Run (twice, to prove idempotence):
+#   ansible-playbook /root/rhcsa_journal/lab-22b/playbooks/task2.yml
+#   ansible-playbook /root/rhcsa_journal/lab-22b/playbooks/task2.yml
+#
+# An anchored regexp (^Port ) makes lineinfile edit the existing directive in
+# place instead of appending a duplicate. The read-only grep -Ec count and the
+# assertion prove exactly one Port directive exists.
+
+- name: "Lab 22b Task 2 — canonical line with lineinfile"
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars:
+    conf: /tmp/lab-22/sshd_demo.conf
+
+  tasks:
+    - name: "Ensure a single canonical Port directive"
+      ansible.builtin.lineinfile:
+        path: "{{ conf }}"
+        regexp: '^Port '
+        line: 'Port 2222'
+        backup: true
+      register: line_result
+
+    - name: "Verify exactly one Port line via regex (read-only)"
+      ansible.builtin.command: "grep -Ec '^Port ' {{ conf }}"
+      register: port_count
+      changed_when: false
+      failed_when: port_count.rc not in [0, 1]
+
+    - name: "Assert only one Port directive exists"
+      ansible.builtin.assert:
+        that:
+          - "port_count.stdout | int == 1"
+        success_msg: "exactly one Port directive"
+        fail_msg: "found {{ port_count.stdout }} Port directives"

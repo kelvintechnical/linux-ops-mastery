@@ -1,387 +1,328 @@
-# Lab 17c: Find and Save Config Files (Verify Capstone) — audit, destroy, restore
+# Lab 17c: Find and Save Config Files (Verify) — `wc -l`, `grep -q`, `diff`
 
-- **Series:** linux-ops-mastery — Verification reflex and persistence proof
-- **Trilogy:** [`17a`](../lab-17a-find-save-config-files-rhcsa/) (RHCSA) → [`17b`](../lab-17b-find-save-config-files-ansible/) (Ansible) → `17c` (Verify)
-- **Time Estimate:** 30–40 minutes
-- **Tasks:** 2 (Task 1 audit 17a evidence · Task 2 destroy-restore and rerun as verify user)
-- **Practice Directory (rotation #03):** `/lib`
-- **Sandbox (Tier B):** `/tmp/lab17c`, `USER=labuser_17_findsave`, `GROUP=labgrp_17_findsave`, `USER_HOME=/tmp/lab17c/home_labuser_17_findsave`
-- **Traps rehearsed:** **T14-A**, **T14-B**, **T41**, **T44**
-
-> **This lab's practice directory is: `/lib`**. We use `/lib` references each task while auditing and re-verifying file-search evidence.
+**Series:** linux-ops-mastery — Text Processing & Filters · **Lab 17c of the Novice → RHCA path**  
+**Certifications covered:** RHCSA EX200 (proving a discovery list is complete and correct), SRE (inventory audits), DevOps (config compliance gates)  
+**Prerequisite:** [Lab 17a](../lab-17a-find-save-config-files-rhcsa/) and [Lab 17b](../lab-17b-find-save-config-files-ansible/) completed  
+**Time Estimate:** 15–25 minutes  
+**Difficulty:** Beginner
 
 ---
 
-## LAB HEADER BLOCK
+## 🎯 Today's Focus Coverage
 
-```bash
-echo "🖥️  ENV:   ${ENV:-DECLARE_ME}"
-echo "💿  DISK:  $(lsblk 2>/dev/null | awk '$NF=="disk"{print "/dev/"$1}' | paste -sd, -)"
-echo "🌐  NIC:   $(ip -o addr show 2>/dev/null | awk '$2!="lo"{print $2}' | sort -u | paste -sd, -)"
-echo "🔐  SE:    $(getenforce 2>/dev/null || echo n/a)"
-echo "📦  OS:    $(cat /etc/redhat-release 2>/dev/null || grep PRETTY_NAME /etc/os-release)"
-echo "🕒  TIME:  $(date -Is)"
-echo "👤  USER:  $(whoami)@$(hostname)"
-echo "⚠️  TRAP REMINDERS THIS LAB: T14-A T14-B T41 T44"
-echo "📁  PRACTICE DIR: /lib"
-ls -ld /lib
-```
+> Stay on-subject via the ANCHOR rows; expand vocabulary via the NEW rows. Every row is exercised by a STEP below.
 
----
+**⚓ Anchor — already learned (on-topic reuse)**
 
-## Objective
-
-Take the auditor seat:
-
-1. Validate the list produced in Lab 17a (count, path existence, ownership assumptions).
-2. Run a destroy-restore drill and prove commands still work after cleanup/rebuild.
-3. Re-run verification search as the Tier B user.
-
----
-
-## Lab-Wide Setup — Tier B Sandbox Stack
-
-```bash
-sudo -i
-
-export LAB_NUM=17
-export LAB_SLUG=findsave
-export SANDBOX=/tmp/lab17c
-export GROUP=labgrp_17_findsave
-export USER=labuser_17_findsave
-export USER_HOME=${SANDBOX}/home_${USER}
-
-mkdir -p "${SANDBOX}" "${USER_HOME}"
-getent group  "${GROUP}" >/dev/null || groupadd "${GROUP}"
-getent passwd "${USER}"  >/dev/null || useradd -d "${USER_HOME}" -M -s /bin/bash -g "${GROUP}" "${USER}"
-chown -R "${USER}:${GROUP}" "${SANDBOX}"
-
-cat > "${SANDBOX}/THIS_DIRECTORY.txt" <<'EOF'
-/lib is the shared-library runtime path that lets essential binaries execute.
-Even verification labs keep the rotation directory in scope to reinforce recall.
-EOF
-
-id "${USER}"
-ls -ld "${SANDBOX}" "${USER_HOME}" /lib
-echo "Sandbox built by $(whoami) at $(date -Is)"
-echo "exit was: $?"
-```
-
----
-
-## Task 1 — Audit Lab 17a list: count, path validity, ownership
-
-**Practice directory this task:** `/lib`.
-
-### Warm-Up
-
-```bash
-ls -ld /lib
-find /lib -maxdepth 1 -type f 2>/dev/null | head -n 3
-echo "verify warmup $(date -Is)" | tee /tmp/lab17c/warmup1.txt
-echo "Warm-up done by $(whoami) at $(date -Is)"
-echo "exit was: $?"
-```
-
-### Purpose
-
-Audit the list generated in Lab 17a using RHCSA inspection commands only: line count, existence validation, and ownership checks on sampled paths.
-
-### WEAVE TRACE
-
-| Warm-up / setup command | Role inside Task 1 |
-|---|---|
-| `find ... | head` | Sampling approach reused for audited list |
-| `tee` | Captures audit transcript |
-| `ls -ld /lib` | Practice directory continuity |
-| Tier B user/group | Used for verify-user rerun prep in next task |
-
-### Main command block
-
-```bash
-LIST17A=/tmp/lab17a/root-owned-conf-from-root.txt
-AUDIT1=/tmp/lab17c/task1-audit.log
-
-test -f "${LIST17A}" || { echo "Missing ${LIST17A} from lab 17a"; exit 1; }
-
-echo "line count:"                                      | tee "${AUDIT1}"
-wc -l "${LIST17A}"                                     | tee -a "${AUDIT1}"
-
-echo "first 20 entries:"                               | tee -a "${AUDIT1}"
-head -n 20 "${LIST17A}"                                | tee -a "${AUDIT1}"
-
-echo "validate first 20 paths exist:"                  | tee -a "${AUDIT1}"
-head -n 20 "${LIST17A}" | while read -r p; do test -e "$p" && echo "OK $p" || echo "MISS $p"; done | tee -a "${AUDIT1}"
-
-echo "ownership spot-check first 10 paths:"            | tee -a "${AUDIT1}"
-head -n 10 "${LIST17A}" | xargs -r stat -c '%U:%G %n' 2>/dev/null | tee -a "${AUDIT1}"
-
-ls -ld /lib                                            | tee -a "${AUDIT1}"
-echo "exit was: $?"
-```
-
-### Human-Readable Breakdown
-
-- `wc -l` measures captured inventory size.
-- `test -e` confirms listed paths still exist.
-- `stat -c '%U:%G %n'` samples ownership assumptions from 17a.
-- No Ansible is used in this capstone audit task.
-
-### Reading it left to right
-
-```text
-head -n 10 LIST | xargs -r stat -c '%U:%G %n' 2>/dev/null
-│                │        │                    └─ hide transient stat errors
-│                │        └─ print owner:group path
-│                └─ run stat on each sampled path (skip if empty with -r)
-└─ select sample set for audit
-```
-
-### The story
-
-Creating a list is not enough. Auditors verify that list quality is real: entries exist, ownership matches expectation, and the data can survive handoff between labs.
-
-### Expected output
-
-```text
-line count:
-N /tmp/lab17a/root-owned-conf-from-root.txt
-OK /etc/...
-root:root /etc/...
-```
-
-### Switches
-
-| Token | Meaning |
-|---|---|
-| `wc -l` | Line count |
-| `head -n` | Sample first entries |
-| `test -e` | Path existence check |
-| `xargs -r` | Do not run target command when input is empty |
-| `stat -c` | Structured metadata output |
-
-### Concept Card
-
-| ✅ | Concept | What it does |
+| # | Command / switch | Covered by |
 |---|---|---|
-| ✅ | Auditor sampling | Validate representative subset quickly |
-| ✅ | Existence checks | Detect stale or broken list entries |
-| ✅ | Ownership checks | Confirm root-owned expectation from 17a |
-| ✅ | Evidence capture | Build reusable audit log |
-| 🪤 Trap Risk | **T41:** skipping verification after build | Always run explicit audit commands |
+| A1 | `wc -l` | _Task 1 · Step 1_ |
+| A2 | `grep -q` | _Task 1 · Step 2_ |
 
-### 🔁 PERSISTENCE CHECK
+**🆕 NEW this lab — introduced for the first time** (minimum 3)
 
-| What was configured | Verification command | Why it matters |
+| # | Command / switch | First taught in | Covered by |
+|---|---|---|---|
+| N1 | `comm` (set compare) | Task 1 · Step 2 | _Task 1 · Step 2_ |
+| N2 | `find ... | wc -l` recount | Task 1 · Step 1 | _Task 1 · Step 1_ |
+| N3 | `stat -c %a` perm audit | Task 2 · Step 1 | _Task 2 · Step 1_ |
+| N4 | `sort -c` (is-sorted check) | Task 2 · Step 2 | _Task 2 · Step 2_ |
+
+---
+
+## 🎯 Objective
+
+Take the auditor's seat: prove the saved config inventory is complete and the permission normalization held. You will recount with a fresh `find` and compare, set-compare the saved list against a fresh one with `comm`, audit modes with `stat`, and confirm the list is sorted. A complete, sorted, correctly-permissioned inventory is the deliverable.
+
+---
+
+## 🧠 Concept
+
+Inventory verification has two halves. **Completeness**: a fresh `find ... | wc -l` should equal the saved list's line count, and `comm -3` between the saved list and a freshly generated one should be empty (no lines unique to either side). **Correctness**: `stat -c %a` proves the discovered files carry the intended mode, and `sort -c` proves the saved list is in canonical order (so diffs against it are stable). Set comparison with `comm` is stronger than a line count because it catches *which* entries differ.
+
+```
+find ... | wc -l == wc -l < saved.txt   → same count
+comm -3 saved.txt fresh.txt → (empty)   → exact same set
+stat -c %a file → 640                    → correct perms
+sort -c saved.txt → (silent)             → already sorted
+```
+
+> **Why this matters:** A count match alone can hide a swapped entry. `comm` proves the *exact* set, and a sortedness check keeps future diffs trustworthy.
+
+---
+
+## 📚 Command Reference
+
+| Command | Purpose | Critical flags |
 |---|---|---|
-| 17a list still present | `test -s /tmp/lab17a/root-owned-conf-from-root.txt` | Confirms carry-over artifact |
-| Audit log saved | `test -s /tmp/lab17c/task1-audit.log` | Proof of verification actions |
-| Sample paths valid | `rg "^OK " /tmp/lab17c/task1-audit.log` | Confirms list quality |
-
-### Journal write
-
-```bash
-mkdir -p /root/rhcsa_journal/lab-17c/task1
-cp /tmp/lab17c/task1-audit.log /root/rhcsa_journal/lab-17c/task1/evidence.txt
-echo "LAB: lab-17c TASK: task1 DATE: $(date -Is) STATUS: COMPLETE" > /root/rhcsa_journal/lab-17c/task1/done.txt
-echo "TOPIC: audit 17a list count+existence+ownership" > /root/rhcsa_journal/lab-17c/task1/notes.txt
-```
-
-### 🧹 Cleanup
-
-```bash
-rm -f /tmp/lab17c/warmup1.txt
-echo "exit was: $?"
-```
-
-### Troubleshoot
-
-| Symptom | Fix |
-|---|---|
-| Missing 17a list file | Re-run Lab 17a Task 2 before continuing |
-| Many `MISS` rows | Source system changed; regenerate inventory |
-| `stat` permission errors | Keep `2>/dev/null` for noisy paths |
-
-> **STOP — paste `wc -l`, at least 3 `OK` rows, and ownership sample before Task 2.**
+| `wc -l` | Count lines | `< file` for the bare number |
+| `comm -3` | Lines unique to either file | inputs must be sorted |
+| `grep -q` | Presence assertion | exit 0 found |
+| `stat -c %a` | Mode audit | per-file permission |
+| `sort -c` | Verify a file is sorted | silent if sorted, errors if not |
 
 ---
 
-## Task 2 — Destroy-Restore drill + re-run find as verify user
+## 🧰 LAB-WIDE SETUP
 
-**Practice directory this task:** `/lib`.
+**In plain English:** Rebuild the tree, the saved sorted list, and normalized permissions so there is a real inventory to audit.
 
-### Warm-Up
+> Run this block **once** before Task 1. It builds the clean, private workspace that both tasks depend on.
 
 ```bash
-ls -ld /lib
-find /lib -maxdepth 2 -type f -name '*.so*' 2>/dev/null | head -n 5
-echo "destroy-restore warmup $(date -Is)" | tee /tmp/lab17c/warmup2.txt
-echo "Warm-up done by $(whoami) at $(date -Is)"
+export LAB_ROOT=/tmp/lab-17
+mkdir -p "$LAB_ROOT/etc/app" "$LAB_ROOT/etc/svc"
+cd "$LAB_ROOT"
+echo a > etc/app/app.conf
+echo b > etc/svc/svc.conf
+chmod 640 etc/app/app.conf etc/svc/svc.conf
+find etc -type f -name '*.conf' | sort > configs.txt
+cat configs.txt
 echo "exit was: $?"
 ```
 
-### Purpose
+**Expected output:**
 
-Perform T44-style cleanup/rebuild rehearsal, then rerun the search as `${USER}` to prove the verification flow is repeatable after state reset.
+```
+etc/app/app.conf
+etc/svc/svc.conf
+exit was: 0
+```
 
-### WEAVE TRACE
+---
 
-| Warm-up / setup command | Role inside Task 2 |
-|---|---|
-| `find /lib ...` | Keeps search muscle active before rerun |
-| `tee` | Captures destroy/restore evidence |
-| `sudo -u "${USER}"` | Required verify-user rerun |
-| `/lib` check | Maintains rotation constraint |
+## TASK 1 of 2 — Prove the list is complete
 
-### Main command block
+**In plain English:** We recount and set-compare the saved list against a fresh discovery.
+
+---
+
+### Step 1 of 2 — Recount and compare totals
+
+**In plain English:** We count the saved list and a fresh `find` and assert they match.
 
 ```bash
-LOG2=/tmp/lab17c/task2-drill.log
-VERIFY_LIST=/tmp/lab17c/verify-user-find.txt
+cd "$LAB_ROOT"
+SAVED=$(wc -l < configs.txt)
+FRESH=$(find etc -type f -name '*.conf' | wc -l)
+echo "saved=$SAVED fresh=$FRESH"
+[ "$SAVED" -eq "$FRESH" ] && echo "COUNT OK" || echo "COUNT MISMATCH (FAIL)"
+```
 
-echo "destroy phase (local artifacts only)" | tee "${LOG2}"
-rm -f /tmp/lab17c/rebuild.marker "${VERIFY_LIST}" 2>/dev/null || true
-echo "destroy complete at $(date -Is)" | tee -a "${LOG2}"
+**Expected output:**
 
-echo "restore phase" | tee -a "${LOG2}"
-mkdir -p /tmp/lab17c
-echo "restored $(date -Is)" > /tmp/lab17c/rebuild.marker
-stat -c '%U:%G %a %n' /tmp/lab17c/rebuild.marker | tee -a "${LOG2}"
+```
+saved=2 fresh=2
+COUNT OK
+```
 
-echo "rerun find as verify user with stderr suppression" | tee -a "${LOG2}"
-sudo -u "${USER}" bash -c "find /etc -type f -name '*.conf' 2>/dev/null > '${VERIFY_LIST}'"
-wc -l "${VERIFY_LIST}" | tee -a "${LOG2}"
-head -n 10 "${VERIFY_LIST}" | tee -a "${LOG2}"
-stat -c '%U:%G %a %n' "${VERIFY_LIST}" | tee -a "${LOG2}"
+**Line-by-line breakdown:**
 
-ls -ld /lib | tee -a "${LOG2}"
+- `SAVED=$(wc -l < configs.txt)` → Count the saved inventory lines.
+- `FRESH=$(find ... | wc -l)` → Count a fresh discovery.
+- `[ "$SAVED" -eq "$FRESH" ]` → Equal totals are the first completeness check.
+
+**New words in this step:**
+
+- **recount** — independently re-deriving a count to compare against a saved one.
+
+---
+
+### Step 2 of 2 — Set-compare with `comm`
+
+**In plain English:** We prove the saved list and a fresh list contain exactly the same entries.
+
+```bash
+cd "$LAB_ROOT"
+find etc -type f -name '*.conf' | sort > fresh.txt
+comm -3 configs.txt fresh.txt
+[ -z "$(comm -3 configs.txt fresh.txt)" ] && echo "SETS IDENTICAL (OK)" || echo "SETS DIFFER (FAIL)"
 echo "exit was: $?"
 ```
 
-### Human-Readable Breakdown
+**Expected output:**
 
-- Destroy step removes only task-local artifacts (safe reset).
-- Restore step recreates marker evidence and verifies metadata.
-- Verify step re-runs canonical search as lab user with `2>/dev/null`.
-- If this rerun works, the workflow is resilient and repeatable.
-
-### Reading it left to right
-
-```text
-sudo -u "${USER}" bash -c "find /etc -type f -name '*.conf' 2>/dev/null > VERIFY_LIST"
-│                 │       └─ executes the redirected find as verify user
-│                 └─ launch subshell for proper redirection context
-└─ switch identity for Tier B repetition
+```
+SETS IDENTICAL (OK)
+exit was: 0
 ```
 
-### The story
+**Line-by-line breakdown:**
 
-Verification that only works once is not verification. Operators must recover from cleanup, rerun quickly, and get consistent evidence. This drill closes the loop on T41/T44.
+- `find ... | sort > fresh.txt` → Build a fresh, sorted list.
+- `comm -3 configs.txt fresh.txt` → Print lines unique to either side; empty output means the sets match exactly.
+- `[ -z "$(...)" ]` → Assert the comparison produced nothing — identical sets.
 
-### Expected output
+**New words in this step:**
 
-```text
-destroy phase (local artifacts only)
-restore phase
-... /tmp/lab17c/rebuild.marker
-N /tmp/lab17c/verify-user-find.txt
-labuser_17_findsave:labgrp_17_findsave ...
-```
+- **`comm -3`** — show lines unique to each of two sorted files (suppressing the common column).
 
-### Switches
+---
 
-| Token | Meaning |
-|---|---|
-| `rm -f` | Remove file if present, no prompt |
-| `|| true` | Keep teardown moving despite missing artifact |
-| `sudo -u USER` | Run verify command as lab user |
-| `2>/dev/null` | Suppress permission noise |
-| `stat -c` | Confirm ownership and mode |
+### Concept card (Task 1)
 
-### Concept Card
-
-| ✅ | Concept | What it does |
+| Concept | What it does | Exam trap |
 |---|---|---|
-| ✅ | Destroy-restore drill | Proves recoverability after cleanup |
-| ✅ | Verify-user rerun | Confirms non-root workflow still valid |
-| ✅ | Deterministic evidence | `wc/head/stat` give repeatable checks |
-| ✅ | Safe teardown style | Guarded cleanup avoids abort cascades |
-| 🪤 Trap Risk | **T44:** skipping cleanup audit | Always prove environment is clean |
+| `wc -l` recount | count completeness | count match can hide a swap |
+| `comm -3` | exact set diff | inputs MUST be sorted |
+| `-z` empty test | "no differences" | quote the command substitution |
 
-### 🔁 PERSISTENCE CHECK
+---
 
-| What was configured | Verification command | Why it matters |
+### Troubleshoot (Task 1)
+
+| Symptom | Likely cause | Fix |
 |---|---|---|
-| Rebuild marker exists | `test -f /tmp/lab17c/rebuild.marker` | Confirms restore phase executed |
-| Verify-user list exists | `test -s /tmp/lab17c/verify-user-find.txt` | Confirms rerun succeeded |
-| Ownership is lab user | `stat -c '%U:%G' /tmp/lab17c/verify-user-find.txt` | Proves command ran as `${USER}` |
+| `comm` shows garbage | Inputs not sorted | Sort both before `comm` |
+| Count match but set differs | Swapped entries | Trust `comm` over the count |
 
-### Journal write
+---
+
+## TASK 2 of 2 — Prove permissions and order
+
+**In plain English:** We audit each file's mode and confirm the saved list is sorted.
+
+---
+
+### Step 1 of 2 — Audit modes with `stat`
+
+**In plain English:** We confirm each discovered config is mode 640.
 
 ```bash
-mkdir -p /root/rhcsa_journal/lab-17c/task2
-cp /tmp/lab17c/task2-drill.log /root/rhcsa_journal/lab-17c/task2/evidence.txt
-echo "LAB: lab-17c TASK: task2 DATE: $(date -Is) STATUS: COMPLETE" > /root/rhcsa_journal/lab-17c/task2/done.txt
-echo "TOPIC: destroy-restore drill + rerun find as ${USER}" > /root/rhcsa_journal/lab-17c/task2/notes.txt
-```
-
-### 🧹 Cleanup (per-task; full teardown in closeout)
-
-```bash
-rm -f /tmp/lab17c/warmup2.txt
+cd "$LAB_ROOT"
+while read -r f; do
+  M=$(stat -c %a "$f")
+  [ "$M" = "640" ] && echo "$f 640 OK" || echo "$f $M WRONG (FAIL)"
+done < configs.txt
 echo "exit was: $?"
 ```
 
-### Troubleshoot
+**Expected output:**
 
-| Symptom | Fix |
-|---|---|
-| Verify list owned by root | You forgot `sudo -u "${USER}"` |
-| No results in rerun | Recheck pattern quoting `-name '*.conf'` |
-| Drill fails halfway | Use guarded cleanup (`2>/dev/null || true`) |
+```
+etc/app/app.conf 640 OK
+etc/svc/svc.conf 640 OK
+exit was: 0
+```
 
-> **STOP — paste rerun `wc -l`, `head`, and `stat` before closeout.**
+**Line-by-line breakdown:**
+
+- `while read -r f; do ... done < configs.txt` → Iterate the saved paths.
+- `M=$(stat -c %a "$f")` → Read each file's octal mode.
+- `[ "$M" = "640" ]` → Assert it equals the intended permission.
+
+**New words in this step:**
+
+- **mode audit** — checking each file's permission bits against a policy.
 
 ---
 
-## Section 6 Closeout — Bulletproof Teardown Audit
+### Step 2 of 2 — Confirm the list is sorted with `sort -c`
+
+**In plain English:** We verify the saved inventory is in sorted order so future diffs stay stable.
 
 ```bash
-set +e
-podman ps -aq --filter "name=^${CTR}$" 2>/dev/null | xargs -r podman rm -f >/dev/null 2>&1
-awk -v s="${SANDBOX}" '$2 ~ s {print $2}' /proc/mounts | tac | xargs -r -n1 umount -l 2>/dev/null
-if vgs "${VG}" >/dev/null 2>&1; then
-    lvremove -fy "${VG}" 2>/dev/null
-    vgremove -fy "${VG}" 2>/dev/null
-    pvremove -ffy /dev/loop* 2>/dev/null
-fi
-losetup -j "${SANDBOX}/disk.img" 2>/dev/null | cut -d: -f1 | xargs -r losetup -d 2>/dev/null
-if getent passwd "${USER}" >/dev/null 2>&1; then userdel -r "${USER}" 2>/dev/null; fi
-if getent group "${GROUP}" >/dev/null 2>&1; then groupdel "${GROUP}" 2>/dev/null; fi
-rm -rf "${SANDBOX}"
-echo "── cleanup audit ──"
-getent passwd "${USER}" && echo "❌ user remains" || echo "✅ user gone"
-getent group "${GROUP}" && echo "❌ group remains" || echo "✅ group gone"
-vgs "${VG}" 2>/dev/null && echo "❌ VG remains" || echo "✅ vg gone"
-losetup -l | grep -q "${SANDBOX}" && echo "❌ loop remains" || echo "✅ loop gone"
-podman ps -a --filter "name=^${CTR}$" --format '{{.Names}}' | grep -q . && echo "❌ ctr remains" || echo "✅ ctr gone"
-test -d "${SANDBOX}" && echo "❌ sandbox remains" || echo "✅ sandbox gone"
-set -e
-echo "Cleanup complete by $(whoami) at $(date -Is)"
+cd "$LAB_ROOT"
+sort -c configs.txt && echo "LIST SORTED (OK)" || echo "LIST UNSORTED (FAIL)"
 echo "exit was: $?"
+```
+
+**Expected output:**
+
+```
+LIST SORTED (OK)
+exit was: 0
+```
+
+**Line-by-line breakdown:**
+
+- `sort -c configs.txt` → Check (do not rewrite) whether the file is already sorted; silent success means yes, an error line means no.
+- `&& echo OK || echo FAIL` → Convert to a verdict.
+
+**New words in this step:**
+
+- **`sort -c`** — check mode: verify a file is sorted without changing it.
+
+---
+
+### Concept card (Task 2)
+
+| Concept | What it does | Exam trap |
+|---|---|---|
+| `stat -c %a` loop | per-file perms | quote `"$f"` for spaces |
+| `sort -c` | is-sorted check | does not sort, only verifies |
+| sorted inventory | stable diffs | unsorted lists break `comm` |
+
+---
+
+### Troubleshoot (Task 2)
+
+| Symptom | Likely cause | Fix |
+|---|---|---|
+| `WRONG (FAIL)` mode | Normalization missed a file | Re-run the 17b mode task |
+| `sort -c` errors | List not sorted | Regenerate with `| sort` |
+
+---
+
+## ✅ Lab Checklist
+
+- [ ] Task 1 · Step 1 — Recount and compare totals
+- [ ] Task 1 · Step 2 — Set-compare with `comm`
+- [ ] Task 2 · Step 1 — Audit modes with `stat`
+- [ ] Task 2 · Step 2 — Confirm the list is sorted with `sort -c`
+- [ ] Every 🎯 Focus Coverage row (Anchor + NEW) mapped to a step
+- [ ] 🧹 Teardown run — sandbox + any system state removed
+
+---
+
+## 🧹 Teardown
+
+**In plain English:** Delete everything this lab created so the box is clean for the next run.
+
+> Run this after you've verified the lab. `lab_teardown.sh` safely removes the single sandbox root — it refuses to touch `/`, `$HOME`, or any protected path. This verify lab changed **no** system state.
+
+```bash
+cd /tmp
+bash lab_teardown.sh "$LAB_ROOT"     # = /tmp/lab-17
+```
+
+**Expected output:**
+
+```
+✅ Removed /tmp/lab-17 — lab workspace is clean.
 ```
 
 ---
 
-## Lab 17c Checklist
+## ⚠️ Common Pitfalls
 
-- [ ] Tier B setup complete with `/tmp/lab17c/THIS_DIRECTORY.txt`
-- [ ] Task 1 audited 17a list count, existence, and ownership
-- [ ] Task 2 completed destroy-restore and reran find as `${USER}`
-- [ ] Section 6 closeout produced all ✅ audit lines
+| Mistake | Symptom | Fix |
+|---|---|---|
+| Trusting count over set | Swapped entries unnoticed | Use `comm -3` |
+| `comm` on unsorted input | Bogus output | Sort both inputs |
+| Unquoted `"$f"` in loop | Breaks on spaces | Always quote |
 
 ---
 
-## Author
+## 📌 Exam Strategy
 
-**Kelvin R. Tobias**
+Certify a discovery list by completeness (`wc -l` + `comm`) and correctness (`stat` + `sort -c`). `comm` proves the exact set, not just a count, and a sortedness check keeps your audits repeatable.
+
+- `comm -3` is the strongest "same set" proof.
+- Always sort lists before set comparisons.
+- Audit modes per file when normalization is required.
+
+---
+
+## 🔗 Related Labs
+
+- [Lab 17a — Find and Save Config Files (RHCSA)](../lab-17a-find-save-config-files-rhcsa/) — the discovery this audits
+- [Lab 17b — Find and Save Config Files (Ansible)](../lab-17b-find-save-config-files-ansible/) — the playbook output you verify
+- [Lab 23c — Comparing File Differences (Verify)](../lab-23c-diff-comparing-files-verify/) — deeper `diff`/`comm` comparison
+
+---
+
+## 👤 Author
+
+**Kelvin R. Tobias**  
+[kelvinintech.com](https://kelvinintech.com) · [GitHub](https://github.com/kelvintechnical) · [LinkedIn](https://www.linkedin.com/in/kelvin-r-tobias-211949219)

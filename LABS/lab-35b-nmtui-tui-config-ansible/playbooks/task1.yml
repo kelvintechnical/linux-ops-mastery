@@ -1,0 +1,18 @@
+---
+- name: "Lab 35b Task 1 — connection as code"
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  become: true
+  tasks:
+    - name: "Ensure lab-tui exists with a static IPv4"
+      community.general.nmcli:
+        conn_name: lab-tui
+        ifname: dummy0
+        type: dummy
+        method4: manual
+        ip4: 10.55.55.3/24
+        dns4:
+          - 10.55.55.53
+        state: present
+      register: nm

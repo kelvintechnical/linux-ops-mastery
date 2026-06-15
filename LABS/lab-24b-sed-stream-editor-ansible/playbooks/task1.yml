@@ -1,0 +1,30 @@
+---
+# Lab 24b Task 1 — remove comment lines
+#
+# Run (twice, to prove idempotence):
+#   ansible-playbook /root/rhcsa_journal/lab-24b/playbooks/task1.yml
+#   ansible-playbook /root/rhcsa_journal/lab-24b/playbooks/task1.yml
+#
+# lineinfile with state:absent is the idempotent equivalent of sed '/^#/d'.
+# After the first run removes the comments, the second run has nothing to do
+# and reports changed=0.
+
+- name: "Lab 24b Task 1 — remove comment lines"
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars:
+    conf: /tmp/lab-24/app.conf
+
+  tasks:
+    - name: "Remove all comment lines (like sed '/^#/d')"
+      ansible.builtin.lineinfile:
+        path: "{{ conf }}"
+        regexp: '^#'
+        state: absent
+        backup: true
+      register: rm_result
+
+    - name: "Show whether anything changed"
+      ansible.builtin.debug:
+        msg: "changed: {{ rm_result.changed }} ({{ rm_result.found }} matched)"

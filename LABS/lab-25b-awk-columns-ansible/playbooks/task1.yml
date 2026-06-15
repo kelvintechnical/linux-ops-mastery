@@ -1,0 +1,26 @@
+---
+# Lab 25b Task 1 — capture an awk extraction
+#
+# Run:
+#   ansible-playbook /root/rhcsa_journal/lab-25b/playbooks/task1.yml
+#
+# There is no awk module; awk is a shell tool. Shell out with command: and
+# capture the result read-only (changed_when:false). Single-quote the awk
+# program so the shell does not expand $1.
+
+- name: "Lab 25b Task 1 — capture an awk extraction"
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars:
+    data: /tmp/lab-25/sales.txt
+
+  tasks:
+    - name: "Extract the name column with awk"
+      ansible.builtin.command: "awk '{print $1}' {{ data }}"
+      register: names
+      changed_when: false
+
+    - name: "Show the captured names"
+      ansible.builtin.debug:
+        var: names.stdout_lines

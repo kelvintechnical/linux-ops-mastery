@@ -1,0 +1,39 @@
+---
+# Lab 09b Task 2 — atomic symlink repoint
+#
+# Run (default points at v5, then override to repoint at v4):
+#   ansible-playbook /root/rhcsa_journal/lab-09b/playbooks/task2.yml
+#   ansible-playbook -e release=/tmp/lab-09/releases/v4 \
+#       /root/rhcsa_journal/lab-09b/playbooks/task2.yml
+#
+# Expected: state: link with force: true repoints the "current" symlink from
+# one release to another — the atomic deploy cutover pattern.
+
+- name: "Lab 09b Task 2 — atomic symlink repoint"
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars:
+    release: /tmp/lab-09/releases/v5
+    current: /tmp/lab-09/current
+
+  tasks:
+    - name: "Point current at the chosen release (repointable)"
+      ansible.builtin.file:
+        src: "{{ release }}"
+        path: "{{ current }}"
+        state: link
+        force: true
+      register: link_result
+
+    - name: "Show where current points"
+      ansible.builtin.stat:
+        path: "{{ current }}"
+      register: cur_stat
+
+    - name: "Report the symlink target"
+      ansible.builtin.debug:
+        msg:
+          - "changed: {{ link_result.changed }}"
+          - "is link: {{ cur_stat.stat.islnk }}"
+          - "target: {{ cur_stat.stat.lnk_target }}"

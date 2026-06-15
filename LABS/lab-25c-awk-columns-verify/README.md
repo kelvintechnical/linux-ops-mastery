@@ -1,245 +1,329 @@
-# Lab 25c: Verifying `awk` Column Extraction (Capstone) — Audit + Destroy-Restore
+# Lab 25c: Extracting Columns with awk (Verify) — cross-checking fields and totals
 
-- **Series:** linux-ops-mastery — Text Processing and Parsing
-- **Trilogy:** [`25a`](../lab-25a-awk-columns-rhcsa/) → [`25b`](../lab-25b-awk-columns-ansible/) → **`25c`**
-- **Prerequisite:** Labs 25a and 25b complete
-- **Time Estimate:** 20–30 minutes
-- **Tasks:** 2 (Task 1 = audit 25a awk outputs and trap evidence · Task 2 = destroy-restore drill and re-verify)
-- **Practice Directory (rotation slot):** `/tmp`
-- **Sandbox (Tier B):** `/tmp/lab25c` with `USER=labuser_25_awk`, `GROUP=labgrp_25_awk`
-- **Traps rehearsed:** **T25-A** · **T25-B** · **T41** · **T44**
+**Series:** linux-ops-mastery — Text Processing & Filters · **Lab 25c of the Novice → RHCA path**  
+**Certifications covered:** RHCSA EX200 (proving field extractions and aggregates), SRE (data-pipeline validation), DevOps (report verification)  
+**Prerequisite:** [Lab 25a](../lab-25a-awk-columns-rhcsa/) and [Lab 25b](../lab-25b-awk-columns-ansible/) completed  
+**Time Estimate:** 15–25 minutes  
+**Difficulty:** Beginner → Intermediate
 
 ---
 
-## LAB HEADER BLOCK
+## 🎯 Today's Focus Coverage
 
-```bash
-echo "🔐 SE: $(getenforce 2>/dev/null || echo n/a)"
-ls -la /root/rhcsa_journal/lab-25a/ /root/rhcsa_journal/lab-25b/
-echo "⚠️ TRAPS: T25-A T25-B T41 T44"
-echo "exit was: $?"
+> Stay on-subject via the ANCHOR rows; expand vocabulary via the NEW rows. Every row is exercised by a STEP below.
+
+**⚓ Anchor — already learned (on-topic reuse)**
+
+| # | Command / switch | Covered by |
+|---|---|---|
+| A1 | `awk` totals | _Task 2 · Step 1_ |
+| A2 | `cut` field extraction | _Task 1 · Step 1_ |
+
+**🆕 NEW this lab — introduced for the first time** (minimum 3)
+
+| # | Command / switch | First taught in | Covered by |
+|---|---|---|---|
+| N1 | `awk` vs `cut` cross-check | Task 1 · Step 1 | _Task 1 · Step 1_ |
+| N2 | `awk NF` field-count proof | Task 1 · Step 2 | _Task 1 · Step 2_ |
+| N3 | `awk` sum vs `paste`/`bc` | Task 2 · Step 1 | _Task 2 · Step 1_ |
+| N4 | per-group totals proof | Task 2 · Step 2 | _Task 2 · Step 2_ |
+
+---
+
+## 🎯 Objective
+
+Prove an `awk` extraction or aggregate is correct by computing it a *second*, independent way. You will cross-check a column extraction (`awk` vs `cut`), confirm every row has the expected field count, verify a total with an independent sum, and prove per-group subtotals add up to the grand total. Two methods agreeing is the cheapest reliable proof that your parse is right.
+
+---
+
+## 🧠 Concept
+
+Parsing bugs hide in plain sight — a wrong field index or separator yields output that *looks* plausible. The fix is independent confirmation. For a column, `awk '{print $1}'` and `cut -d' ' -f1` should produce the same list. For structure, `awk '{print NF}' | sort -u` should show a single field count if the data is well-formed. For a total, `awk '{s+=$3}END{print s}'` should match a sum computed by another path (`cut | paste -sd+ | bc`). And per-group subtotals (`awk` grouping) must add up to the grand total — an internal consistency check.
+
+```
+awk '{print $1}' f == cut -d' ' -f1 f   → extraction agrees
+awk '{print NF}' f | sort -u → 3        → every row has 3 fields
+awk '{s+=$3}END{print s}' f == cut -d' ' -f3 | paste -sd+ | bc → total agrees
+sum(group subtotals) == grand total     → internal consistency
 ```
 
----
-
-## Objective
-
-Take the auditor seat:
-
-1. Confirm 25a produced correct `awk` outputs for `-F:`, `$1`, `$3>1000`, `NR`, `NF`, `BEGIN/END`, and `printf`.
-2. Validate trap coverage evidence.
-3. Rebuild from partial destruction to prove repeatability (T41).
-4. Finish with strict teardown auditing so no Tier B residue remains (T44).
+> **Why this matters:** A report built on a mis-parsed column is worse than no report. Cross-checking with a second tool catches off-by-one fields and separator mistakes before they reach a decision.
 
 ---
 
-## Lab-Wide Setup (Tier B)
+## 📚 Command Reference
 
-```bash
-sudo -i
-
-export LAB_NUM=25
-export LAB_SLUG=awk
-export SANDBOX=/tmp/lab25c
-export GROUP=labgrp_${LAB_NUM}_${LAB_SLUG}
-export USER=labuser_${LAB_NUM}_${LAB_SLUG}
-export USER_HOME=${SANDBOX}/home_${USER}
-
-mkdir -p "${SANDBOX}" "${USER_HOME}"
-mkdir -p /root/rhcsa_journal/lab-25c/task1 /root/rhcsa_journal/lab-25c/task2
-
-getent group  "${GROUP}" >/dev/null || groupadd "${GROUP}"
-getent passwd "${USER}"  >/dev/null || useradd -d "${USER_HOME}" -M -s /bin/bash -g "${GROUP}" "${USER}"
-chown -R "${USER}:${GROUP}" "${SANDBOX}"
-echo "Setup complete at $(date -Is)"
-echo "exit was: $?"
-```
+| Command | Purpose | Critical flags |
+|---|---|---|
+| `awk '{print $N}'` | Extract column | cross-check with `cut` |
+| `cut -d -f` | Independent extract | delimiter + field |
+| `awk '{print NF}'` | Field count | `sort -u` for uniformity |
+| `paste -sd+ | bc` | Independent sum | arithmetic |
+| `awk` grouping | Per-group totals | array by key |
 
 ---
 
-## Task 1 — Audit Lab 25a outputs
+## 🧰 LAB-WIDE SETUP
 
-### Main command block
+**In plain English:** Recreate the columnar data to audit.
 
-```bash
-TASKLOG=/tmp/lab25c/task1.txt
-
-echo "═══ Part A: completeness checks ═══"                             2>&1 | tee $TASKLOG
-EXPECTED=(
-  /root/rhcsa_journal/lab-25a/task1/evidence.txt
-  /root/rhcsa_journal/lab-25a/task2/evidence.txt
-  /root/rhcsa_journal/lab-25a/task2/passwd-summary.txt
-  /root/rhcsa_journal/lab-25a/task2/task2-asuser.txt
-)
-M=0
-for f in "${EXPECTED[@]}"; do
-  test -s "$f" && echo "✅ $f" || { echo "❌ $f"; M=$((M+1)); }
-done | tee -a $TASKLOG
-
-echo "═══ Part B: verify required Task 1 commands were executed ═══"   | tee -a $TASKLOG
-rg "awk -F: '\\{print \\$1\\}' /etc/passwd \\| head" /root/rhcsa_journal/lab-25a/task1/evidence.txt \
-  && echo "✅ required command #1 found" \
-  || echo "❌ missing required command #1" \
-  | tee -a $TASKLOG
-
-rg "awk '\\$3>1000 \\{print \\$1\\}' /etc/passwd" /root/rhcsa_journal/lab-25a/task1/evidence.txt \
-  && echo "✅ required command #2 found" \
-  || echo "❌ missing required command #2" \
-  | tee -a $TASKLOG
-
-echo "═══ Part C: verify BEGIN/END + printf evidence ═══"              | tee -a $TASKLOG
-rg "TOTAL=.*UID_GT_1000=" /root/rhcsa_journal/lab-25a/task2/passwd-summary.txt \
-  && echo "✅ BEGIN/END totals captured" \
-  || echo "❌ missing totals" \
-  | tee -a $TASKLOG
-
-rg "^USER\\s+UID\\s+SHELL" /root/rhcsa_journal/lab-25a/task2/passwd-summary.txt \
-  && echo "✅ printf header captured" \
-  || echo "❌ missing printf header" \
-  | tee -a $TASKLOG
-
-echo "═══ Part D: trap evidence audit ═══"                             | tee -a $TASKLOG
-rg "single-quoted shell var literal" /root/rhcsa_journal/lab-25a/task2/evidence.txt \
-  && echo "✅ T25-B proof captured" \
-  || echo "❌ T25-B proof missing" \
-  | tee -a $TASKLOG
-
-stat -c '%U:%G %a %n' /root/rhcsa_journal/lab-25a/task2/task2-asuser.txt | tee -a $TASKLOG
-echo "exit was: $?"
-```
-
-### Journal write
+> Run this block **once** before Task 1. It builds the clean, private workspace that both tasks depend on.
 
 ```bash
-LAB=lab-25c
-TASK=task1
-JDIR="/root/rhcsa_journal/${LAB}/${TASK}"
-mkdir -p "$JDIR"
-cp /tmp/lab25c/task1.txt "$JDIR/evidence.txt"
-
-cat > "$JDIR/done.txt" <<EOF
-LAB:    ${LAB}
-TASK:   ${TASK}
-DATE:   $(date -Is)
-USER:   $(whoami)@$(hostname)
-LAB_USER: ${USER}
-LAB_GROUP: ${GROUP}
-STATUS: COMPLETE
+export LAB_ROOT=/tmp/lab-25
+mkdir -p "$LAB_ROOT"
+cd "$LAB_ROOT"
+cat > sales.txt <<'EOF'
+alice east 120
+bob west 90
+carol east 200
+dave west 60
 EOF
-```
-
----
-
-## Task 2 — Destroy-restore drill (T41)
-
-### Main command block
-
-```bash
-TASKLOG=/tmp/lab25c/task2.txt
-PB1=/root/rhcsa_journal/lab-25b/playbooks/task1.yml
-PB2=/root/rhcsa_journal/lab-25b/playbooks/task2.yml
-
-echo "═══ Part A: snapshot before destroy ═══"                         2>&1 | tee $TASKLOG
-ls -la /tmp/lab25b 2>/dev/null                                        | tee -a $TASKLOG
-
-echo "═══ Part B: destroy working state ═══"                           | tee -a $TASKLOG
-rm -rf /tmp/lab25b
-test ! -d /tmp/lab25b \
-  && echo "✅ destroyed /tmp/lab25b" \
-  || echo "❌ destroy failed" \
-  | tee -a $TASKLOG
-
-echo "═══ Part C: restore minimal state and re-apply playbooks ═══"    | tee -a $TASKLOG
-mkdir -p /tmp/lab25b
-cat > /tmp/lab25b/passwd-sample.txt <<'EOF'
-root:x:0:0:root:/root:/bin/bash
-nobody:x:65534:65534:nobody:/:
-student1:x:1001:1001:Student One:/home/student1:/bin/bash
-student2:x:2002:2002:Student Two:/home/student2:/bin/zsh
-EOF
-
-ansible-playbook "${PB1}"                                              2>&1 | tee -a $TASKLOG
-ansible-playbook "${PB2}"                                              2>&1 | tee -a $TASKLOG
-
-echo "═══ Part D: verify restore artifacts ═══"                        | tee -a $TASKLOG
-test -s /tmp/lab25b/awk-task1-output.txt \
-  && echo "✅ restored task1 artifact" \
-  || echo "❌ task1 artifact missing" \
-  | tee -a $TASKLOG
-
-test -s /tmp/lab25b/passwd-regex-fix.txt \
-  && echo "✅ restored task2 artifact" \
-  || echo "❌ task2 artifact missing" \
-  | tee -a $TASKLOG
-
-echo "═══ Part E: T42 persistence reasoning ═══"                       | tee -a $TASKLOG
-cat <<'EOF' | tee -a $TASKLOG
-SURVIVES REBOOT:
-  /root/rhcsa_journal/lab-25b/playbooks/task1.yml
-  /root/rhcsa_journal/lab-25b/playbooks/task2.yml
-DOES NOT SURVIVE REBOOT:
-  /tmp/lab25b/*
-REBUILD:
-  recreate /tmp/lab25b/passwd-sample.txt, then re-apply both playbooks
-EOF
-
+cat sales.txt
 echo "exit was: $?"
 ```
 
-### Journal write
+**Expected output:**
 
-```bash
-LAB=lab-25c
-TASK=task2
-JDIR="/root/rhcsa_journal/${LAB}/${TASK}"
-mkdir -p "$JDIR"
-cp /tmp/lab25c/task2.txt "$JDIR/evidence.txt"
-
-cat > "$JDIR/done.txt" <<EOF
-LAB:    ${LAB}
-TASK:   ${TASK}
-DATE:   $(date -Is)
-USER:   $(whoami)@$(hostname)
-LAB_USER: ${USER}
-LAB_GROUP: ${GROUP}
-STATUS: COMPLETE
-EOF
+```
+alice east 120
+bob west 90
+carol east 200
+dave west 60
+exit was: 0
 ```
 
 ---
 
-## Lab Closeout — Section 6 Bulletproof Teardown
+## TASK 1 of 2 — Prove the extraction
+
+**In plain English:** We cross-check a column with two tools and confirm field counts.
+
+---
+
+### Step 1 of 2 — `awk` vs `cut`
+
+**In plain English:** We extract the first column two ways and confirm they match.
 
 ```bash
-set +e
-if getent passwd "${USER}" >/dev/null 2>&1; then userdel -r "${USER}" 2>/dev/null; fi
-if getent group "${GROUP}" >/dev/null 2>&1; then groupdel "${GROUP}" 2>/dev/null; fi
-rm -rf "${SANDBOX}" /tmp/lab25b /tmp/lab25c/task1.txt /tmp/lab25c/task2.txt
-
-echo "── Lab 25c cleanup audit ──"
-getent passwd "${USER}"  >/dev/null && echo "❌ user remains"    || echo "✅ user gone"
-getent group  "${GROUP}" >/dev/null && echo "❌ group remains"   || echo "✅ group gone"
-test -d "${SANDBOX}"                && echo "❌ sandbox remains" || echo "✅ sandbox gone"
-test -d /tmp/lab25b                 && echo "❌ lab25b remains"  || echo "✅ lab25b gone"
-set -e
-echo "Cleanup complete by $(whoami) at $(date -Is)"
-echo "exit was: $?"
+cd "$LAB_ROOT"
+awk '{print $1}' sales.txt > a.txt
+cut -d' ' -f1 sales.txt > c.txt
+diff a.txt c.txt && echo "EXTRACTION OK" || echo "MISMATCH (FAIL)"
 ```
 
-> T44 enforcement: closeout is not complete until every audit line is `✅`.
+**Expected output:**
+
+```
+EXTRACTION OK
+```
+
+**Line-by-line breakdown:**
+
+- `awk '{print $1}'` / `cut -d' ' -f1` → Two independent extractions of column 1.
+- `diff a.txt c.txt` → Empty output proves the two tools agree.
+
+**New words in this step:**
+
+- **cross-check** — confirming a result with a second, independent tool.
 
 ---
 
-## Lab 25c Checklist
+### Step 2 of 2 — Prove field counts with `NF`
 
-- [ ] Task 1 audit passed for 25a outputs and trap evidence
-- [ ] Task 2 destroy-restore passed and artifacts rebuilt
-- [ ] T41/T42 reasoning captured in evidence log
-- [ ] Section 6 closeout audit returned all `✅`
+**In plain English:** We confirm every row has exactly three fields.
+
+```bash
+cd "$LAB_ROOT"
+awk '{print NF}' sales.txt | sort -u
+U=$(awk '{print NF}' sales.txt | sort -u | wc -l)
+[ "$U" -eq 1 ] && echo "UNIFORM FIELDS (OK)" || echo "RAGGED ROWS (FAIL)"
+```
+
+**Expected output:**
+
+```
+3
+UNIFORM FIELDS (OK)
+```
+
+**Line-by-line breakdown:**
+
+- `awk '{print NF}' | sort -u` → Print each row's field count, deduplicate; a single value `3` means uniform.
+- `[ "$U" -eq 1 ]` → Exactly one distinct field count proves no ragged rows.
+
+**New words in this step:**
+
+- **`NF` uniformity** — every row having the same number of fields.
 
 ---
 
-## Author
+### Concept card (Task 1)
+
+| Concept | What it does | Exam trap |
+|---|---|---|
+| `awk` vs `cut` | extraction proof | same delimiter |
+| `NF` | field count | catches ragged rows |
+| `sort -u` | distinct values | one = uniform |
+
+---
+
+### Troubleshoot (Task 1)
+
+| Symptom | Likely cause | Fix |
+|---|---|---|
+| Extraction mismatch | Different separators | Align `cut -d` with awk FS |
+| Multiple field counts | Ragged data | Inspect offending rows |
+
+---
+
+## TASK 2 of 2 — Prove the totals
+
+**In plain English:** We verify the grand total and that group subtotals add up.
+
+---
+
+### Step 1 of 2 — Grand total two ways
+
+**In plain English:** We total column 3 with `awk` and with `paste`/`bc` and confirm they match.
+
+```bash
+cd "$LAB_ROOT"
+T1=$(awk '{s+=$3} END{print s}' sales.txt)
+T2=$(cut -d' ' -f3 sales.txt | paste -sd+ | bc)
+echo "awk: $T1  bc: $T2"
+[ "$T1" -eq "$T2" ] && echo "TOTAL OK" || echo "TOTAL MISMATCH (FAIL)"
+```
+
+**Expected output:**
+
+```
+awk: 470  bc: 470
+TOTAL OK
+```
+
+**Line-by-line breakdown:**
+
+- `awk '{s+=$3} END{print s}'` → Total column 3 with awk.
+- `cut -d' ' -f3 | paste -sd+ | bc` → Independent total: extract the column, join with `+`, evaluate with `bc`.
+- `[ "$T1" -eq "$T2" ]` → Agreement proves the total.
+
+**New words in this step:**
+
+- **independent sum** — totaling a column via a different toolchain to confirm awk.
+
+---
+
+### Step 2 of 2 — Group subtotals add to the total
+
+**In plain English:** We compute per-region subtotals and confirm they sum to the grand total.
+
+```bash
+cd "$LAB_ROOT"
+awk '{g[$2]+=$3} END{for (k in g) print k, g[k]}' sales.txt | sort
+SUB=$(awk '{g[$2]+=$3} END{for (k in g) s+=g[k]; print s}' sales.txt)
+GRAND=$(awk '{s+=$3} END{print s}' sales.txt)
+[ "$SUB" -eq "$GRAND" ] && echo "SUBTOTALS CONSISTENT (OK)" || echo "INCONSISTENT (FAIL)"
+```
+
+**Expected output:**
+
+```
+east 320
+west 150
+SUBTOTALS CONSISTENT (OK)
+```
+
+**Line-by-line breakdown:**
+
+- `awk '{g[$2]+=$3} END{for (k in g) print k, g[k]}'` → Accumulate column 3 into an array keyed by region, print each subtotal.
+- `SUB=...` and `GRAND=...` → Sum the subtotals and compute the grand total independently.
+- `[ "$SUB" -eq "$GRAND" ]` → Subtotals summing to the grand total proves internal consistency.
+
+**New words in this step:**
+
+- **per-group total** — `awk` array aggregation keyed by a field.
+
+---
+
+### Concept card (Task 2)
+
+| Concept | What it does | Exam trap |
+|---|---|---|
+| `paste -sd+ | bc` | independent sum | join then evaluate |
+| `g[key]+=val` | grouped total | awk associative array |
+| consistency | parts == whole | catches drops |
+
+---
+
+### Troubleshoot (Task 2)
+
+| Symptom | Likely cause | Fix |
+|---|---|---|
+| Totals differ | Wrong field/separator | Align `cut`/`awk` field |
+| Subtotals ≠ grand | Rows dropped | Check the group key |
+
+---
+
+## ✅ Lab Checklist
+
+- [ ] Task 1 · Step 1 — `awk` vs `cut`
+- [ ] Task 1 · Step 2 — Prove field counts with `NF`
+- [ ] Task 2 · Step 1 — Grand total two ways
+- [ ] Task 2 · Step 2 — Group subtotals add to the total
+- [ ] Every 🎯 Focus Coverage row (Anchor + NEW) mapped to a step
+- [ ] 🧹 Teardown run — sandbox + any system state removed
+
+---
+
+## 🧹 Teardown
+
+**In plain English:** Delete everything this lab created so the box is clean for the next run.
+
+> Run this after you've verified the lab. `lab_teardown.sh` safely removes the single sandbox root — it refuses to touch `/`, `$HOME`, or any protected path. This verify lab changed **no** system state.
+
+```bash
+cd /tmp
+bash lab_teardown.sh "$LAB_ROOT"     # = /tmp/lab-25
+```
+
+**Expected output:**
+
+```
+✅ Removed /tmp/lab-25 — lab workspace is clean.
+```
+
+---
+
+## ⚠️ Common Pitfalls
+
+| Mistake | Symptom | Fix |
+|---|---|---|
+| Trusting one parse | Hidden field bug | Cross-check with `cut`/`bc` |
+| Ignoring ragged rows | Wrong totals | Check `NF` uniformity |
+| Subtotals not reconciled | Silent drops | Sum groups vs grand total |
+
+---
+
+## 📌 Exam Strategy
+
+Validate every parse with a second method: `awk` vs `cut` for columns, `awk` vs `paste|bc` for totals, `NF` for structure, and subtotal-vs-grand-total for consistency. Independent agreement is the proof that your extraction logic is correct.
+
+- Cross-check columns with `cut`.
+- Confirm totals with `paste -sd+ | bc`.
+- `NF | sort -u` catches ragged data instantly.
+
+---
+
+## 🔗 Related Labs
+
+- [Lab 25a — Extracting Columns with awk (RHCSA)](../lab-25a-awk-columns-rhcsa/) — the `awk` this audits
+- [Lab 25b — Extracting Columns with awk (Ansible)](../lab-25b-awk-columns-ansible/) — the parsing plays you verify
+- [Lab 23c — Comparing File Differences (Verify)](../lab-23c-diff-comparing-files-verify/) — diff-based cross-checks
+
+---
+
+## 👤 Author
 
 **Kelvin R. Tobias**  
 [kelvinintech.com](https://kelvinintech.com) · [GitHub](https://github.com/kelvintechnical) · [LinkedIn](https://www.linkedin.com/in/kelvin-r-tobias-211949219)

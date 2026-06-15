@@ -1,0 +1,22 @@
+---
+- name: "Lab 39b Task 1 — generate an SSH key (idempotent)"
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars:
+    key_path: /tmp/lab-39/lab_key
+  tasks:
+    - name: "Generate the key pair once"
+      ansible.builtin.command: "ssh-keygen -t ed25519 -f {{ key_path }} -N '' -C lab-39b"
+      args:
+        creates: "{{ key_path }}"
+      register: gen
+
+    - name: "Read the public key"
+      ansible.builtin.slurp:
+        src: "{{ key_path }}.pub"
+      register: pub
+
+    - name: "Show the public key"
+      ansible.builtin.debug:
+        msg: "{{ (pub.content | b64decode) | trim }}"

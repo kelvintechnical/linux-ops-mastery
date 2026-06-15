@@ -1,334 +1,362 @@
-# Lab 21b: Monitoring Live Log Files — Ansible (`shell`, `register`, `lineinfile`, `failed_when`)
+# Lab 21b: Monitoring Live Logs (Ansible) — capturing recent log lines
 
-- **Series:** linux-ops-mastery — Logging, Troubleshooting, and Real-Time Observability
-- **Trilogy:** [`21a`](../lab-21a-tail-f-live-logs-rhcsa/) (RHCSA hand-typed) → **`21b`** (Ansible automation) → [`21c`](../lab-21c-tail-f-live-logs-verify/) (Verify capstone)
-- **Career arcs covered:** RHCE EX294 (safe shell tasks + explicit failure criteria), SRE (automated log-follow checks), DevOps (pipeline health probes in playbooks)
-- **Prerequisite:** Lab 21a complete with journal artifacts in `/root/rhcsa_journal/lab-21a/`
-- **Time Estimate:** 30–40 minutes
-- **Tasks:** 2 (Task 1 = `timeout 5 tail -F` + register + `lineinfile`; Task 2 = failed_when trap for empty tail output)
-- **Practice Directory (rotation #21):** `/boot` (context) with writes in `/tmp/lab21b`
-- **Sandbox (Tier B):** `/tmp/lab21b` with `USER=labuser_21_livelog`, `GROUP=labgrp_21_livelog`, `USER_HOME=/tmp/lab21b/home_labuser_21_livelog`
-- **Traps rehearsed this lab:** **T21-A** (must use `-F` for rotate-safe follow) · **T21-B** (avoid unbounded tails by forcing timeout) · **T41** (verify in 21c) · **T44** (closeout audit)
-
-> **This lab's practice directory is: `/boot`** — operational context is read-only there while playbook artifacts live in `/tmp/lab21b` and `/root/rhcsa_journal/lab-21b/`.
+**Series:** linux-ops-mastery — Text Processing & Filters · **Lab 21b of the Novice → RHCA path**  
+**Certifications covered:** RHCE EX294 (reading logs to drive decisions), RHCSA EX200 (the `tail` behavior underneath), SRE (log-based assertions in automation)  
+**Prerequisite:** [Lab 21a](../lab-21a-tail-f-live-logs-rhcsa/) completed and a working control node  
+**Time Estimate:** 25–35 minutes  
+**Difficulty:** Beginner → Intermediate
 
 ---
 
-## LAB HEADER BLOCK
+## 🎯 Today's Focus Coverage
+
+> Stay on-subject via the ANCHOR rows; expand vocabulary via the NEW rows. Every row is exercised by a STEP below.
+
+**⚓ Anchor — already learned (on-topic reuse)**
+
+| # | Command / switch | Covered by |
+|---|---|---|
+| A1 | `tail -n N` | _Task 1 · Step 1_ |
+| A2 | `changed_when: false` for reads | _Task 1 · Step 1_ |
+
+**🆕 NEW this lab — introduced for the first time** (minimum 3)
+
+| # | Command / switch | First taught in | Covered by |
+|---|---|---|---|
+| N1 | The follow boundary (no `tail -f` module) | Task 1 · Step 1 | _Task 1 · Step 1_ |
+| N2 | `command: tail -n` snapshot | Task 1 · Step 1 | _Task 1 · Step 1_ |
+| N3 | `select('search', ...)` filter | Task 2 · Step 1 | _Task 2 · Step 1_ |
+| N4 | `assert` on captured lines | Task 2 · Step 1 | _Task 2 · Step 1_ |
+
+---
+
+## 🎯 Objective
+
+Automation can't sit and watch a log forever, so it takes *snapshots*. You will capture the last N lines with `tail -n` via `command:` (read-only), then filter the captured lines for a pattern using Jinja's `select('search', ...)` and assert on the result. This is the playbook pattern for "check the recent log and react."
+
+---
+
+## 🧠 Concept
+
+`tail -f` is a long-running, interactive follow — there is no Ansible module for it, and a playbook task must terminate. The automation equivalent is a *snapshot*: `tail -n 50 file` captured at a moment in time with `ansible.builtin.command`, marked `changed_when: false`. You then process `stdout_lines` in Jinja — `select('search', 'ERROR')` keeps only matching lines — and `assert` on the count to drive the play. For continuous monitoring you'd schedule the playbook (cron/AWX) rather than follow inside one run.
+
+```
+SHELL (21a, continuous)             ANSIBLE (21b, snapshot)
+─────────────────────────────       ──────────────────────────────────────
+tail -f app.log | grep ERROR        command: tail -n 50 app.log  (changed_when:false)
+  (runs forever)                       └─ stdout_lines | select('search','ERROR')
+                                       └─ assert on the filtered count
+                                     (re-run on a schedule to "monitor")
+```
+
+> **Why this matters:** Health checks and remediation playbooks routinely read the tail of a log and act on what they find. Snapshot + filter + assert is the idiomatic, terminating way to do it.
+
+---
+
+## 📚 Command Reference
+
+| Command | Purpose | Critical flags |
+|---|---|---|
+| `command: tail -n N` | Snapshot last N lines | `changed_when: false` |
+| `stdout_lines` | Captured lines as list | iterate/filter |
+| `select('search', P)` | Keep matching lines | regex search filter |
+| `length` | Count filtered lines | for assertions |
+| `ansible.builtin.assert` | Gate on findings | `that:` conditions |
+
+---
+
+## 🧰 LAB-WIDE SETUP
+
+**In plain English:** Build the sandbox and playbook folder with a log holding a known ERROR.
+
+> Run this block **once** before Task 1. It builds the clean, private workspace that both tasks depend on.
 
 ```bash
-echo "--- ansible controller ---"
-ansible --version
-ansible localhost -m ping --connection=local
-echo ""
-echo "--- /boot context ---"
-ls -ld /boot
-ls /boot 2>/dev/null | head -n 5
-echo ""
-echo "--- 21a prereq check ---"
-ls /root/rhcsa_journal/lab-21a/task1/done.txt /root/rhcsa_journal/lab-21a/task2/done.txt 2>/dev/null \
-  && echo "✅ 21a journal exists" || echo "❌ 21a journal missing"
+export LAB_ROOT=/tmp/lab-21
+mkdir -p "$LAB_ROOT"
+mkdir -p /root/rhcsa_journal/lab-21b/playbooks
+seq 1 40 | sed 's/^/event /' > "$LAB_ROOT/app.log"
+echo "ERROR disk pressure" >> "$LAB_ROOT/app.log"
+seq 41 50 | sed 's/^/event /' >> "$LAB_ROOT/app.log"
+wc -l "$LAB_ROOT/app.log"
 echo "exit was: $?"
 ```
 
-> **STOP — paste header output before setup.**
+**Expected output:**
 
----
-
-## Objective
-
-Automate bounded live-log checks with explicit pass/fail logic:
-
-1. Run `timeout 5 tail -F` safely in `ansible.builtin.shell`.
-2. Capture tail output with `register` and persist evidence.
-3. Use `lineinfile` to build a rotate fragment under `/tmp/lab21b`.
-4. Guard against false-success when output is empty using `failed_when`.
-
----
-
-## Lab-Wide Setup — Tier B Stack
-
-```bash
-sudo -i
-
-export LAB_NUM=21
-export LAB_SLUG=livelog
-export SANDBOX=/tmp/lab21b
-export GROUP=labgrp_${LAB_NUM}_${LAB_SLUG}
-export USER=labuser_${LAB_NUM}_${LAB_SLUG}
-export USER_HOME=${SANDBOX}/home_${USER}
-
-mkdir -p "${SANDBOX}" "${USER_HOME}" /root/rhcsa_journal/lab-21b/playbooks /root/rhcsa_journal/lab-21b/task1 /root/rhcsa_journal/lab-21b/task2
-getent group  "${GROUP}" >/dev/null || groupadd "${GROUP}"
-getent passwd "${USER}"  >/dev/null || useradd -d "${USER_HOME}" -M -s /bin/bash -g "${GROUP}" "${USER}"
-chown -R "${USER}:${GROUP}" "${SANDBOX}"
-
-id "${USER}"
-ls -ld "${SANDBOX}" "${USER_HOME}" /boot
-getent group "${GROUP}"
-getent passwd "${USER}"
-echo "setup complete: $(date -Is)"
-echo "exit was: $?"
+```
+51 /tmp/lab-21/app.log
+exit was: 0
 ```
 
 ---
 
-## Task 1 — `timeout 5 tail -F` with `register` + `lineinfile`
+## TASK 1 of 2 — Snapshot the tail
 
-**Practice directory this task:** `/boot` context, `/tmp/lab21b` for ansible artifacts.
+**In plain English:** We capture the last 15 lines of the log into a variable.
 
-### Warm-Up
-
-```bash
-mkdir -p /tmp/lab21b
-echo "seed-1" > /tmp/lab21b/app.log
-tail -n 1 /tmp/lab21b/app.log                       2>&1 | tee /tmp/lab21b/warmup.txt
-echo "exit was: $?"
-```
-
-### Purpose
-
-Run a rotate-safe follower for 5 seconds, collect output with `register`, and create a logrotate fragment file using `ansible.builtin.lineinfile`.
-
-### Main command block
-
-```bash
-TASKLOG=/tmp/lab21b/task1.txt
-PB=/root/rhcsa_journal/lab-21b/playbooks/task1.yml
-
-cat > "${PB}" <<'PLAYBOOK'
 ---
-- name: "Lab 21b Task 1 — timeout tail -F + lineinfile fragment"
+
+### Step 1 of 2 — Write the snapshot playbook
+
+**In plain English:** We create `task1.yml`, which runs `tail -n 15` read-only and shows the captured lines.
+
+```yaml
+---
+- name: "Lab 21b Task 1 — snapshot the tail"
   hosts: localhost
   connection: local
   gather_facts: false
   vars:
-    live_log: /tmp/lab21b/app.log
-    capture_file: /tmp/lab21b/tail-capture.txt
-    rotate_fragment: /tmp/lab21b/logrotate-app.conf
-
+    log: /tmp/lab-21/app.log
   tasks:
-    - name: Ensure practice directory exists
-      ansible.builtin.file:
-        path: /tmp/lab21b
-        state: directory
-        mode: '0755'
-
-    - name: Seed log content
-      ansible.builtin.shell: |
-        echo "pre-1 $(date -Is)" >> "{{ live_log }}"
-        echo "pre-2 $(date -Is)" >> "{{ live_log }}"
-      changed_when: true
-
-    - name: Generate live events in background
-      ansible.builtin.shell: |
-        (
-          sleep 1; echo "ev-1 $(date -Is)" >> "{{ live_log }}"
-          sleep 1; echo "ev-2 $(date -Is)" >> "{{ live_log }}"
-          sleep 1; echo "ev-3 $(date -Is)" >> "{{ live_log }}"
-        ) &
-      changed_when: true
-
-    - name: Capture bounded follower output (rotate-safe)
-      ansible.builtin.shell: timeout 5 tail -n 0 -F "{{ live_log }}"
-      register: tail_capture
+    - name: "Capture the last 15 lines"
+      ansible.builtin.command: "tail -n 15 {{ log }}"
+      register: tail_out
       changed_when: false
-      failed_when: false
 
-    - name: Persist capture content
-      ansible.builtin.copy:
-        dest: "{{ capture_file }}"
-        content: "{{ tail_capture.stdout }}"
-        mode: '0644'
-
-    - name: Build logrotate fragment header
-      ansible.builtin.lineinfile:
-        path: "{{ rotate_fragment }}"
-        create: true
-        line: "/tmp/lab21b/app.log {"
-
-    - name: Add rotate directive
-      ansible.builtin.lineinfile:
-        path: "{{ rotate_fragment }}"
-        insertafter: "^/tmp/lab21b/app.log \\{$"
-        line: "    rotate 3"
-
-    - name: Add size directive
-      ansible.builtin.lineinfile:
-        path: "{{ rotate_fragment }}"
-        insertafter: "    rotate 3"
-        line: "    size 5k"
-
-    - name: Add closing brace
-      ansible.builtin.lineinfile:
-        path: "{{ rotate_fragment }}"
-        insertafter: "    size 5k"
-        line: "}"
-
-    - name: Show captured summary
+    - name: "Show the captured tail"
       ansible.builtin.debug:
-        msg:
-          - "rc={{ tail_capture.rc }}"
-          - "stdout_lines={{ tail_capture.stdout_lines | length }}"
-PLAYBOOK
-
-ansible-playbook "${PB}" 2>&1 | tee "${TASKLOG}"
-echo "═══ verify outputs ═══" | tee -a "${TASKLOG}"
-wc -l /tmp/lab21b/tail-capture.txt | tee -a "${TASKLOG}"
-cat /tmp/lab21b/logrotate-app.conf | tee -a "${TASKLOG}"
-echo "exit was: $?"
+        var: tail_out.stdout_lines
 ```
 
-### Journal write
+**Expected output:**
 
-```bash
-LAB=lab-21b
-TASK=task1
-JDIR="/root/rhcsa_journal/${LAB}/${TASK}"
-mkdir -p "$JDIR"
-cp /tmp/lab21b/task1.txt             "$JDIR/evidence.txt"
-cp /tmp/lab21b/tail-capture.txt      "$JDIR/tail-capture.txt"
-cp /tmp/lab21b/logrotate-app.conf    "$JDIR/logrotate-app.conf"
-
-cat > "$JDIR/done.txt" <<EOF
-LAB:    ${LAB}
-TASK:   ${TASK}
-DATE:   $(date -Is)
-USER:   $(whoami)@$(hostname)
-STATUS: COMPLETE
-EOF
 ```
+(this is the saved playbook file — no output until you run it in Step 2)
+```
+
+**Line-by-line breakdown:**
+
+- `command: tail -n 15` → Capture a point-in-time snapshot of the newest 15 lines.
+- `changed_when: false` → Reading a log never counts as a change.
+- `debug: var: tail_out.stdout_lines` → Show the captured lines as a list.
+
+**New words in this step:**
+
+- **snapshot** — a one-time capture of the log's tail, the automation alternative to following.
 
 ---
 
-## Task 2 — `failed_when` trap for empty capture
+### Step 2 of 2 — Run it and read the snapshot
 
-**Practice directory this task:** `/tmp/lab21b`
-
-### Warm-Up
+**In plain English:** We run the play and confirm the ERROR line is inside the captured tail.
 
 ```bash
-truncate -s 0 /tmp/lab21b/empty.log
-ls -l /tmp/lab21b/empty.log                            2>&1 | tee /tmp/lab21b/warmup2.txt
+ansible-playbook /root/rhcsa_journal/lab-21b/playbooks/task1.yml
 echo "exit was: $?"
 ```
 
-### Purpose
+**Expected output:**
 
-Prove that "command succeeded" is not the same as "useful data captured." Handle T21-B style silent-empty captures with explicit `failed_when`.
+```
+TASK [Show the captured tail] ********************************************
+ok: [localhost] => {
+    "tail_out.stdout_lines": [
+        "ERROR disk pressure", "event 41", "...", "event 50"
+    ]
+}
+PLAY RECAP **************************************************************
+localhost                  : ok=2    changed=0    unreachable=0    failed=0
+exit was: 0
+```
 
-### Main command block
+**Line-by-line breakdown:**
 
-```bash
-TASKLOG=/tmp/lab21b/task2.txt
-PB=/root/rhcsa_journal/lab-21b/playbooks/task2.yml
+- `ansible-playbook ...` → Snapshot and display; `changed=0` confirms it was read-only.
 
-cat > "${PB}" <<'PLAYBOOK'
+**New words in this step:**
+
+- **point-in-time read** — capturing the log state at one moment for inspection.
+
 ---
-- name: "Lab 21b Task 2 — failed_when on empty tail output"
+
+### Concept card (Task 1)
+
+| Concept | What it does | Exam trap |
+|---|---|---|
+| `tail -n` snapshot | last N lines | no follow in a play |
+| `changed_when: false` | read marker | omit and it shows changed |
+| `stdout_lines` | list output | filter it in Jinja |
+
+---
+
+### Troubleshoot (Task 1)
+
+| Symptom | Likely cause | Fix |
+|---|---|---|
+| Task hangs | Used `tail -f` | Use `tail -n`, never `-f` |
+| Shows `changed` | Missing `changed_when` | Add `changed_when: false` |
+
+---
+
+## TASK 2 of 2 — Filter and assert
+
+**In plain English:** We keep only ERROR lines from the snapshot and assert at least one exists.
+
+---
+
+### Step 1 of 2 — Write the filter-and-assert playbook
+
+**In plain English:** We create `task2.yml`, which snapshots the tail, filters for ERROR with `select('search', ...)`, and asserts a hit.
+
+```yaml
+---
+- name: "Lab 21b Task 2 — filter and assert"
   hosts: localhost
   connection: local
   gather_facts: false
   vars:
-    test_log: /tmp/lab21b/empty.log
-
+    log: /tmp/lab-21/app.log
   tasks:
-    - name: Reset log empty
-      ansible.builtin.copy:
-        dest: "{{ test_log }}"
-        content: ""
-        mode: '0644'
-
-    - name: Trap demo (allows empty output)
-      ansible.builtin.shell: timeout 3 tail -n 0 -F "{{ test_log }}"
-      register: weak_capture
+    - name: "Capture the last 20 lines"
+      ansible.builtin.command: "tail -n 20 {{ log }}"
+      register: tail_out
       changed_when: false
-      failed_when: false
 
-    - name: Correct gate (fail if empty)
-      ansible.builtin.shell: timeout 3 tail -n 0 -F "{{ test_log }}"
-      register: strict_capture
-      changed_when: false
-      failed_when: strict_capture.stdout | trim == ""
-      ignore_errors: true
+    - name: "Keep only ERROR lines"
+      ansible.builtin.set_fact:
+        errors: "{{ tail_out.stdout_lines | select('search', 'ERROR') | list }}"
 
-    - name: Emit strict gate status
+    - name: "Show the filtered errors"
       ansible.builtin.debug:
-        msg:
-          - "weak_rc={{ weak_capture.rc }} weak_len={{ weak_capture.stdout_lines | length }}"
-          - "strict_failed={{ strict_capture is failed }}"
-          - "strict_len={{ strict_capture.stdout_lines | length }}"
-PLAYBOOK
+        var: errors
 
-ansible-playbook "${PB}" 2>&1 | tee "${TASKLOG}"
+    - name: "Assert at least one ERROR was seen"
+      ansible.builtin.assert:
+        that:
+          - "errors | length > 0"
+        success_msg: "{{ errors | length }} ERROR line(s) in recent log"
+        fail_msg: "no ERROR lines in the recent tail"
+```
+
+**Expected output:**
+
+```
+(this is the saved playbook file — no output until you run it in Step 2)
+```
+
+**Line-by-line breakdown:**
+
+- `tail -n 20` → Snapshot a slightly larger window.
+- `select('search', 'ERROR')` → Jinja filter keeping only lines matching the regex `ERROR` — the in-play `grep`.
+- `assert: errors | length > 0` → Gate the play on having found at least one error.
+
+**New words in this step:**
+
+- **`select('search', P)`** — Jinja filter that keeps list items matching a regex.
+
+---
+
+### Step 2 of 2 — Run it and read the assertion
+
+**In plain English:** We run the play and confirm the filtered errors and passing assertion.
+
+```bash
+ansible-playbook /root/rhcsa_journal/lab-21b/playbooks/task2.yml
 echo "exit was: $?"
 ```
 
-### Trap callout
+**Expected output:**
 
-- **T21-B pattern:** without `failed_when`, empty output can look "green."
-- **Fix:** explicit semantic gate: `failed_when: strict_capture.stdout | trim == ""`.
-- **T21-A reinforcement:** use `-F` (not `-f`) whenever rotate resilience is required.
+```
+TASK [Show the filtered errors] ******************************************
+ok: [localhost] => {"errors": ["ERROR disk pressure"]}
+TASK [Assert at least one ERROR was seen] *******************************
+ok: [localhost] => {"msg": "1 ERROR line(s) in recent log"}
+PLAY RECAP **********************************************************
+localhost                  : ok=4    changed=0    unreachable=0    failed=0
+exit was: 0
+```
 
-### Journal write
+**Line-by-line breakdown:**
+
+- `ansible-playbook ...` → Snapshot, filter, assert; read-only so `changed=0`.
+
+**New words in this step:**
+
+- **log-driven assertion** — making a play succeed/fail based on recent log content.
+
+---
+
+### Concept card (Task 2)
+
+| Concept | What it does | Exam trap |
+|---|---|---|
+| `select('search', ...)` | regex filter list | `search` ≠ `match` (anchored) |
+| `set_fact` | store filtered list | reuse across tasks |
+| schedule to monitor | cron/AWX re-run | one play ≠ continuous |
+
+---
+
+### Troubleshoot (Task 2)
+
+| Symptom | Likely cause | Fix |
+|---|---|---|
+| Filter matches nothing | Used `match` not `search` | `search` is unanchored |
+| Assert fails unexpectedly | Window too small | Increase `tail -n` |
+
+---
+
+## ✅ Lab Checklist
+
+- [ ] Task 1 · Step 1 — Write the snapshot playbook
+- [ ] Task 1 · Step 2 — Run it and read the snapshot
+- [ ] Task 2 · Step 1 — Write the filter-and-assert playbook
+- [ ] Task 2 · Step 2 — Run it and read the assertion
+- [ ] Every 🎯 Focus Coverage row (Anchor + NEW) mapped to a step
+- [ ] 🧹 Teardown run — sandbox + any system state removed
+
+---
+
+## 🧹 Teardown
+
+**In plain English:** Delete everything this lab created so the box is clean for the next run.
+
+> Run this after you've verified the lab. `lab_teardown.sh` safely removes the single sandbox root — it refuses to touch `/`, `$HOME`, or any protected path. This lab changed **no** system state.
 
 ```bash
-LAB=lab-21b
-TASK=task2
-JDIR="/root/rhcsa_journal/${LAB}/${TASK}"
-mkdir -p "$JDIR"
-cp /tmp/lab21b/task2.txt "$JDIR/evidence.txt"
+bash lab_teardown.sh "$LAB_ROOT"     # = /tmp/lab-21
+rm -rf /root/rhcsa_journal/lab-21b
+```
 
-cat > "$JDIR/done.txt" <<EOF
-LAB:    ${LAB}
-TASK:   ${TASK}
-DATE:   $(date -Is)
-USER:   $(whoami)@$(hostname)
-STATUS: COMPLETE
-EOF
+**Expected output:**
+
+```
+✅ Removed /tmp/lab-21 — lab workspace is clean.
 ```
 
 ---
 
-## Lab Closeout — Bulletproof Teardown (Section 6)
+## ⚠️ Common Pitfalls
 
-```bash
-set +e
-
-awk -v s="${SANDBOX}" '$2 ~ s {print $2}' /proc/mounts | tac | xargs -r -n1 umount -l 2>/dev/null
-
-if getent passwd "${USER}" >/dev/null 2>&1; then
-  userdel -r "${USER}" 2>/dev/null
-fi
-if getent group "${GROUP}" >/dev/null 2>&1; then
-  groupdel "${GROUP}" 2>/dev/null
-fi
-
-rm -rf "${SANDBOX}"
-
-echo "── Lab 21b cleanup audit ──"
-getent passwd "${USER}" >/dev/null && echo "❌ user remains" || echo "✅ user gone"
-getent group  "${GROUP}" >/dev/null && echo "❌ group remains" || echo "✅ group gone"
-test -d "${SANDBOX}" && echo "❌ sandbox remains" || echo "✅ sandbox gone"
-test -d "${USER_HOME}" && echo "❌ home remains" || echo "✅ home gone"
-
-set -e
-echo "Cleanup complete at $(date -Is)"
-echo "exit was: $?"
-```
+| Mistake | Symptom | Fix |
+|---|---|---|
+| `tail -f` in a play | Task never finishes | Snapshot with `tail -n` |
+| `match` vs `search` | No matches | `search` for unanchored |
+| Reads marked changed | Missing `changed_when: false` | Add it |
 
 ---
 
-## Lab 21b Checklist (2 tasks + closeout)
+## 📌 Exam Strategy
 
-- [ ] Task 1: `timeout 5 tail -F` registered; capture persisted; `/tmp/lab21b/logrotate-app.conf` created via `lineinfile`
-- [ ] Task 2: strict `failed_when` detects empty capture and reports controlled failure path
-- [ ] Journal: both `done.txt` files written under `/root/rhcsa_journal/lab-21b/`
-- [ ] Closeout: four `✅` audit lines
+Plays snapshot logs, they don't follow them. Capture the tail read-only, filter with `select('search', ...)`, assert on the count, and schedule the play if you need ongoing monitoring.
+
+- Never `tail -f` in a play — it won't terminate.
+- `select('search', P)` is the Jinja `grep`.
+- Re-run on a schedule for continuous monitoring.
 
 ---
 
-## Author
+## 🔗 Related Labs
+
+- [Lab 21a — Monitoring Live Logs (RHCSA)](../lab-21a-tail-f-live-logs-rhcsa/) — the `tail -f` this snapshots
+- [Lab 21c — Monitoring Live Logs (Verify)](../lab-21c-tail-f-live-logs-verify/) — prove the right tail was captured
+- [Lab 20b — Scrolling Large Files (Ansible)](../lab-20b-less-more-scrolling-ansible/) — range extraction and in-play search
+
+---
+
+## 👤 Author
 
 **Kelvin R. Tobias**  
 [kelvinintech.com](https://kelvinintech.com) · [GitHub](https://github.com/kelvintechnical) · [LinkedIn](https://www.linkedin.com/in/kelvin-r-tobias-211949219)

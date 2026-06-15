@@ -1,205 +1,323 @@
-# Lab 33a: Display IP and Routing Info (RHCSA)
+# Lab 33a: Display IP and Routing Info (RHCSA) — `ip addr`, `ip route`, `ip -br`
 
-- **Series:** linux-ops-mastery - Documentation & Networking
-- **Trilogy:** `33a` (RHCSA hand-typed) -> `33b` (Ansible mirror) -> `33c` (Verify capstone)
-- **Time Estimate:** 25-35 minutes
-- **Tasks:** 2
-- **Practice Directory (rotation #33):** `/mnt`
-- **Sandbox (Tier B):** `/tmp/lab33a` with `USER=labuser_33_ipshow`, `GROUP=labgrp_33_ipshow`
-- **Traps rehearsed this lab:** **T33-A** (`ip addr show` vs `ip a`; avoid deprecated `ifconfig`) · **T33-B** (`ip route show` alone can miss policy routes; compare with `show table all`) · **T41** · **T44**
-
-> **This lab's topic:** inspect local interface addressing and routing state using `ip addr show`, `ip -br addr`, `ip route show`, `ip -6 route`, and `ip link`.
+**Series:** linux-ops-mastery — Networking · **Lab 33a of the Novice → RHCA path**  
+**Certifications covered:** RHCSA EX200 (inspect interfaces & routes), SRE/DevOps (network state triage)  
+**Prerequisite:** [Lab 32c](../lab-32c-ping-traceroute-verify/) completed  
+**Time Estimate:** 20–30 minutes  
+**Difficulty:** Beginner
 
 ---
 
-## LAB HEADER BLOCK
+## 🎯 Today's Focus Coverage
 
-```bash
-echo "🖥️  ENV:   ${ENV:-DECLARE_ME}"
-echo "📦  OS:    $(cat /etc/redhat-release 2>/dev/null || grep PRETTY_NAME /etc/os-release)"
-echo "🕒  TIME:  $(date -Is)"
-echo "👤  USER:  $(whoami)@$(hostname)"
-echo "📁  PRACTICE DIR: /mnt"
-echo "⚠️  TRAP REMINDERS THIS LAB: T33-A T33-B T41 T44"
-ls -ld /mnt /tmp 2>/dev/null || true
-ip -V
+> Stay on-subject via the ANCHOR rows; expand vocabulary via the NEW rows. Every row is exercised by a STEP below.
+
+**⚓ Anchor — already learned (on-topic reuse)**
+
+| # | Command / switch | Covered by |
+|---|---|---|
+| A1 | `ip addr` (from Lab 31) | _Task 1 · Step 1_ |
+| A2 | `ip route` (from Lab 31) | _Task 2 · Step 1_ |
+
+**🆕 NEW this lab — introduced for the first time** (minimum 3)
+
+| # | Command / switch | First taught in | Covered by |
+|---|---|---|---|
+| N1 | `ip -br addr` (brief) | Task 1 · Step 1 | _Task 1 · Step 1_ |
+| N2 | `ip -4 addr show dev` | Task 1 · Step 2 | _Task 1 · Step 2_ |
+| N3 | `ip route` / default gw | Task 2 · Step 1 | _Task 2 · Step 1_ |
+| N4 | `ip route get` (path picker) | Task 2 · Step 2 | _Task 2 · Step 2_ |
+
+---
+
+## 🎯 Objective
+
+Read the live network state with the modern `ip` suite. You'll list interfaces and addresses (including the compact `-br` view), filter to one device's IPv4, read the routing table and identify the default gateway, and use `ip route get` to ask the kernel which route a given destination would take. This is the read-only counterpart to configuring with `nmcli`.
+
+> **Note:** Examples use the always-present loopback (`lo`) so they run anywhere. Substitute a real device (e.g. `eth0`) on a configured host.
+
+---
+
+## 🧠 Concept
+
+`ip` is the modern replacement for `ifconfig`/`route`. `ip addr` (or `ip a`) shows every interface with its addresses and flags; `ip -br addr` gives a one-line-per-interface summary that's ideal for scanning. Add `-4`/`-6` to filter by family and `show dev NAME` to focus one interface. `ip route` (or `ip r`) prints the routing table; the line starting `default via` is your gateway. `ip route get DEST` is the killer diagnostic: it asks the kernel exactly which source address and gateway *would* be used to reach `DEST`, resolving the routing decision without sending traffic. These are all read-only — perfect for triage.
+
+```
+ip addr / ip a            → full interface + address list
+ip -br addr               → compact one-line summary
+ip -4 addr show dev lo    → just IPv4 on one device
+ip route / ip r           → routing table (default via = gateway)
+ip route get 127.0.0.1    → which route/source the kernel picks
 ```
 
-> **STOP - paste header output before setup.**
+> **Why this matters:** "What's my IP, what's my gateway, and how would I reach X?" are the first three questions in any network problem. `ip` answers all three without changing anything.
 
 ---
 
-## Objective
+## 📚 Command Reference
 
-Build exam-safe reflexes for quick network inspection:
-
-1. Read interface and address state clearly with `ip -br addr show` and `ip addr show lo`.
-2. Compare visible routes from default table output vs all policy tables.
-3. Capture IPv4 + IPv6 route evidence to files under the sandbox for replay and verification.
-
----
-
-## Core Reference
-
-| Command | Meaning |
-|---|---|
-| `ip -br addr show` | Brief one-line-per-interface address view |
-| `ip addr show lo` | Full detail for loopback device |
-| `ip link` | Link state (UP/DOWN, MTU, flags, qdisc) |
-| `ip route show` | IPv4 routes from main/default view |
-| `ip route show table all` | Routes across all policy tables |
-| `ip -6 route` | IPv6 routing table |
+| Command | Purpose | Notes |
+|---|---|---|
+| `ip addr` / `ip a` | List addresses | full detail |
+| `ip -br addr` | Brief view | one line/iface |
+| `ip -4 addr show dev` | IPv4 of one device | family filter |
+| `ip route` / `ip r` | Routing table | `default via` = gw |
+| `ip route get` | Route decision | no traffic sent |
+| `ip link` | Link/MAC/state | layer 2 |
 
 ---
 
-## Lab-Wide Setup - Tier B Sandbox
+## 🧰 LAB-WIDE SETUP
+
+**In plain English:** Create a sandbox for any saved snapshots; inspection targets are live interfaces.
+
+> Run this block **once** before Task 1.
 
 ```bash
-sudo -i
-
-export LAB_NUM=33
-export LAB_SLUG=ipshow
-export SANDBOX=/tmp/lab33a
-export GROUP=labgrp_33_ipshow
-export USER=labuser_33_ipshow
-export USER_HOME=${SANDBOX}/home_${USER}
-
-mkdir -p "${SANDBOX}" "${USER_HOME}" /root/rhcsa_journal/lab-33a/task1 /root/rhcsa_journal/lab-33a/task2
-getent group "${GROUP}" >/dev/null || groupadd "${GROUP}"
-getent passwd "${USER}" >/dev/null || useradd -d "${USER_HOME}" -M -s /bin/bash -g "${GROUP}" "${USER}"
-chown -R "${USER}:${GROUP}" "${SANDBOX}"
-
-id "${USER}"
-ls -ld "${SANDBOX}" "${USER_HOME}"
+export LAB_ROOT=/tmp/lab-33
+mkdir -p "$LAB_ROOT"
+cd "$LAB_ROOT"
+echo "ready"
+echo "exit was: $?"
 ```
 
-> **STOP - paste `id` and both `ls -ld` lines before Task 1.**
+**Expected output:**
 
----
-
-## Task 1 - Inspect interface addressing (`ip -br`, `ip addr`, `ip link`)
-
-### Purpose
-
-Read both compact and detailed views of interface state and store evidence to disk:
-
-- `ip -br addr show` gives the fast exam scan.
-- `ip addr show lo` gives full structured output for one interface.
-- `ip link` confirms carrier/state context around interface addresses.
-
-### Main command block
-
-```bash
-TASKLOG=/tmp/lab33a/task1.txt
-
-echo "=== ip -br addr show ==="                   | tee "${TASKLOG}"
-ip -br addr show                                 | tee -a "${TASKLOG}"
-
-echo "=== ip addr show lo ==="                   | tee -a "${TASKLOG}"
-ip addr show lo                                  | tee -a "${TASKLOG}"
-
-echo "=== ip link ==="                           | tee -a "${TASKLOG}"
-ip link                                          | tee -a "${TASKLOG}"
-
-cp "${TASKLOG}" /tmp/lab33a/ip-addressing-snapshot.txt
-ls -l /tmp/lab33a/ip-addressing-snapshot.txt     | tee -a "${TASKLOG}"
-echo "exit was: $?"                              | tee -a "${TASKLOG}"
 ```
-
-### Trap callout
-
-- **T33-A:** `ip a` is an alias shorthand, but RHCSA clarity standard is `ip addr show`; avoid `ifconfig` because it is deprecated and often absent on minimal systems.
-
-### Journal write
-
-```bash
-JDIR=/root/rhcsa_journal/lab-33a/task1
-cp /tmp/lab33a/task1.txt "${JDIR}/evidence.txt"
-cp /tmp/lab33a/ip-addressing-snapshot.txt "${JDIR}/ip-addressing-snapshot.txt"
+ready
+exit was: 0
 ```
 
 ---
 
-## Task 2 - Inspect routes (`ip route show`, `table all`, `ip -6 route`)
+## TASK 1 of 2 — Inspect interfaces and addresses
 
-### Purpose
+**In plain English:** We list interfaces, then focus one device's IPv4.
 
-Capture IPv4/IPv6 routing data and compare the default route view to full policy-table output.
+---
 
-### Main command block
+### Step 1 of 2 — Brief interface summary
+
+**In plain English:** We use the compact `-br` view to scan all interfaces at a glance.
 
 ```bash
-TASKLOG=/tmp/lab33a/task2.txt
-
-echo "=== ip route show ==="                     | tee "${TASKLOG}"
-ip route show                                    | tee -a "${TASKLOG}"
-
-echo "=== ip route show table all ==="           | tee -a "${TASKLOG}"
-ip route show table all                          | tee -a "${TASKLOG}"
-
-echo "=== ip -6 route ==="                       | tee -a "${TASKLOG}"
-ip -6 route                                      | tee -a "${TASKLOG}"
-
-ip route show > /tmp/lab33a/routes-main.txt
-ip route show table all > /tmp/lab33a/routes-all.txt
-ip -6 route > /tmp/lab33a/routes-ipv6.txt
-
-wc -l /tmp/lab33a/routes-main.txt /tmp/lab33a/routes-all.txt /tmp/lab33a/routes-ipv6.txt \
-  | tee -a "${TASKLOG}"
-echo "exit was: $?"                              | tee -a "${TASKLOG}"
+ip -br addr
+echo "exit was: $?"
 ```
 
-### Trap callout
+**Expected output:**
 
-- **T33-B:** `ip route show` may omit routes from non-main policy tables; always compare with `ip route show table all` during troubleshooting.
+```
+lo               UNKNOWN        127.0.0.1/8 ::1/128
+eth0             UP             192.168.x.x/24 ...
+exit was: 0
+```
 
-### Journal write
+**Line-by-line breakdown:**
+
+- `ip -br addr` → One line per interface: name, operational state, and addresses — fast to scan.
+- The state column (`UP`/`DOWN`/`UNKNOWN`) tells you whether the link is usable.
+
+**New words in this step:**
+
+- **`-br` (brief)** — compact, one-line-per-interface output.
+
+---
+
+### Step 2 of 2 — One device's IPv4
+
+**In plain English:** We filter to a single interface and the IPv4 family.
 
 ```bash
-JDIR=/root/rhcsa_journal/lab-33a/task2
-cp /tmp/lab33a/task2.txt "${JDIR}/evidence.txt"
-cp /tmp/lab33a/routes-main.txt "${JDIR}/routes-main.txt"
-cp /tmp/lab33a/routes-all.txt "${JDIR}/routes-all.txt"
-cp /tmp/lab33a/routes-ipv6.txt "${JDIR}/routes-ipv6.txt"
+ip -4 addr show dev lo
+echo "---"
+ip -4 -br addr show dev lo
+```
+
+**Expected output:**
+
+```
+1: lo: <LOOPBACK,UP,LOWER_UP> mtu 65536 ...
+    inet 127.0.0.1/8 scope host lo
+       valid_lft forever preferred_lft forever
+---
+lo               UNKNOWN        127.0.0.1/8
+```
+
+**Line-by-line breakdown:**
+
+- `ip -4 addr show dev lo` → IPv4 only (`-4`), just the `lo` device — the `inet` line is the address.
+- `ip -4 -br ... dev lo` → Same info, compact form for scripting.
+
+**New words in this step:**
+
+- **`show dev NAME`** — restrict output to one interface.
+
+---
+
+### Concept card (Task 1)
+
+| Concept | What it does | Exam trap |
+|---|---|---|
+| `ip addr` | addresses | replaces `ifconfig` |
+| `-br` | brief | great for scanning |
+| `-4`/`show dev` | filter | family + device |
+
+---
+
+### Troubleshoot (Task 1)
+
+| Symptom | Likely cause | Fix |
+|---|---|---|
+| No `inet` line | No IPv4 assigned | Configure with `nmcli` |
+| Device DOWN | Link not up | `ip link set DEV up` |
+
+---
+
+## TASK 2 of 2 — Read routes and route decisions
+
+**In plain English:** We read the routing table and ask the kernel how it would reach a target.
+
+---
+
+### Step 1 of 2 — Routing table and gateway
+
+**In plain English:** We print the routing table and pick out the default gateway.
+
+```bash
+ip route
+echo "---"
+ip route | awk '/^default/{print "gateway:", $3; exit}'
+```
+
+**Expected output:**
+
+```
+default via 192.168.x.1 dev eth0 proto dhcp ...
+127.0.0.0/8 dev lo ...
+---
+gateway: 192.168.x.1
+```
+
+**Line-by-line breakdown:**
+
+- `ip route` → The full routing table; each line is a destination network and how to reach it.
+- `awk '/^default/{print $3}'` → The `default` route's third field is the gateway IP.
+
+**New words in this step:**
+
+- **default route** — `default via GW` is the path for anything not otherwise matched.
+
+---
+
+### Step 2 of 2 — Ask the kernel: `ip route get`
+
+**In plain English:** We ask which source and route would be used to reach a destination.
+
+```bash
+ip route get 127.0.0.1
+echo "---"
+ip route get 127.0.0.1 | awk '{print "src:", $NF; exit}'
+```
+
+**Expected output:**
+
+```
+local 127.0.0.1 dev lo src 127.0.0.1 uid ...
+    cache <local>
+---
+src: <uid value>
+```
+
+**Line-by-line breakdown:**
+
+- `ip route get 127.0.0.1` → The kernel reports the chosen `dev` and `src` for that destination — without sending a packet.
+- For a real target it shows the outgoing device, source IP, and gateway it would use.
+
+**New words in this step:**
+
+- **`ip route get`** — query the routing decision for a specific destination.
+
+---
+
+### Concept card (Task 2)
+
+| Concept | What it does | Exam trap |
+|---|---|---|
+| `ip route` | routing table | `default via` = gw |
+| `ip route get` | route decision | no packet sent |
+| `proto` | route source | dhcp/static/kernel |
+
+---
+
+### Troubleshoot (Task 2)
+
+| Symptom | Likely cause | Fix |
+|---|---|---|
+| No default route | No gateway set | Set `gw4` via `nmcli` |
+| `route get` unexpected dev | Routing misconfig | Review routes/metrics |
+
+---
+
+## ✅ Lab Checklist
+
+- [ ] Task 1 · Step 1 — Brief interface summary
+- [ ] Task 1 · Step 2 — One device's IPv4
+- [ ] Task 2 · Step 1 — Routing table and gateway
+- [ ] Task 2 · Step 2 — Ask the kernel: `ip route get`
+- [ ] Every 🎯 Focus Coverage row (Anchor + NEW) mapped to a step
+- [ ] 🧹 Teardown run — sandbox + any system state removed
+
+---
+
+## 🧹 Teardown
+
+**In plain English:** Delete everything this lab created so the box is clean for the next run.
+
+> Run this after you've verified the lab. `lab_teardown.sh` safely removes the single sandbox root — it refuses to touch `/`, `$HOME`, or any protected path. This lab changed **no** system state.
+
+```bash
+cd /tmp
+bash lab_teardown.sh "$LAB_ROOT"     # = /tmp/lab-33
+```
+
+**Expected output:**
+
+```
+✅ Removed /tmp/lab-33 — lab workspace is clean.
 ```
 
 ---
 
-## Lab Closeout - Bulletproof Teardown (Section 6)
+## ⚠️ Common Pitfalls
 
-```bash
-set +e
-
-if getent passwd "${USER}" >/dev/null 2>&1; then
-  userdel -r "${USER}" 2>/dev/null
-fi
-if getent group "${GROUP}" >/dev/null 2>&1; then
-  groupdel "${GROUP}" 2>/dev/null
-fi
-
-rm -rf "${SANDBOX}"
-
-echo "── Lab 33a cleanup audit ──"
-getent passwd "${USER}" >/dev/null && echo "❌ user remains" || echo "✅ user gone"
-getent group "${GROUP}" >/dev/null && echo "❌ group remains" || echo "✅ group gone"
-test -d "${SANDBOX}" && echo "❌ sandbox remains" || echo "✅ sandbox gone"
-test -d "${USER_HOME}" && echo "❌ home remains" || echo "✅ home gone"
-
-set -e
-```
+| Mistake | Symptom | Fix |
+|---|---|---|
+| Using `ifconfig` | Deprecated/missing | Use `ip addr` |
+| Reading wrong field | Wrong gateway | `default` line, field 3 |
+| Confusing link vs addr | Missing info | `ip link` vs `ip addr` |
 
 ---
 
-## Lab 33a Checklist
+## 📌 Exam Strategy
 
-- [ ] Task 1 completed (`ip -br addr show`, `ip addr show lo`, and `ip link` captured to files)
-- [ ] Task 2 completed (`ip route show`, `ip route show table all`, and `ip -6 route` captured to files)
-- [ ] T33-A and T33-B trap notes recorded in evidence
-- [ ] Section 6 closeout audit shows four `✅` lines
+`ip` answers the three triage questions: addresses (`ip addr`), gateway (`ip route`), and route decision (`ip route get`). Use `-br` to scan quickly and `-4`/`show dev` to focus. All read-only — safe to run anytime.
+
+- `ip -br addr` for a fast overview.
+- `default via` is the gateway.
+- `ip route get` resolves routing without sending traffic.
 
 ---
 
-## Author
+## 🔗 Related Labs
 
-**Kelvin R. Tobias**
+- [Lab 33b — Display IP and Routing Info (Ansible)](../lab-33b-ip-addr-route-show-ansible/) — gather and assert on network facts
+- [Lab 33c — Display IP and Routing Info (Verify)](../lab-33c-ip-addr-route-show-verify/) — prove addresses and routes
+- [Lab 31a — Configure a Static IP (RHCSA)](../lab-31a-static-ip-nmcli-rhcsa/) — setting the addresses you inspect here
+
+---
+
+## 👤 Author
+
+**Kelvin R. Tobias**  
 [kelvinintech.com](https://kelvinintech.com) · [GitHub](https://github.com/kelvintechnical) · [LinkedIn](https://www.linkedin.com/in/kelvin-r-tobias-211949219)

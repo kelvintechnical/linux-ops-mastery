@@ -1,0 +1,32 @@
+---
+# Lab 29b Task 2 — tool inventory by keyword
+#
+# Run:
+#   ansible-playbook /root/rhcsa_journal/lab-29b/playbooks/task2.yml
+#
+# apropos builds a keyword-driven tool inventory. Count results with
+# stdout_lines | length (varies by system) and assert a required tool is
+# present rather than a fixed count. rc 16 means "no match", so it is allowed.
+
+- name: "Lab 29b Task 2 — tool inventory by keyword"
+  hosts: localhost
+  connection: local
+  gather_facts: false
+
+  tasks:
+    - name: "Find ownership-related tools"
+      ansible.builtin.command: "apropos owner"
+      register: ap
+      changed_when: false
+      failed_when: ap.rc not in [0, 16]
+
+    - name: "Report how many matched"
+      ansible.builtin.debug:
+        msg: "{{ ap.stdout_lines | length }} ownership tools found"
+
+    - name: "Assert chown is in the inventory"
+      ansible.builtin.assert:
+        that:
+          - "ap.stdout_lines | select('search', '^chown ') | list | length > 0"
+        success_msg: "chown present in inventory"
+        fail_msg: "chown not found among ownership tools"

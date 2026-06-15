@@ -1,379 +1,324 @@
-# Lab 31c: Configure a Static IP Address (Verify Capstone)
+# Lab 31c: Configure a Static IP (Verify) — `nmcli -g`, `ip addr`, `ping`
 
-- **Series:** linux-ops-mastery
-- **Trilogy:** `31a` (RHCSA) -> `31b` (Ansible) -> `31c` (Verify)
-- **Practice Directory:** `/run`
-- **Tier B Sandbox:** `/tmp/lab31c`
-- **Lab User/Group:** `labuser_31_staticip` / `labgrp_31_staticip`
-- **Test Connection:** `lab31test` only (do not touch management interface)
-- **Traps rehearsed:** `T31-A`, `T31-B`, `T41`, `T44`
-
-This lab's practice directory is: `/run`
+**Series:** linux-ops-mastery — Networking · **Lab 31c of the Novice → RHCA path**  
+**Certifications covered:** RHCSA EX200 (proving a static IP is set and persistent), SRE (network-config validation), DevOps (host networking checks)  
+**Prerequisite:** [Lab 31a](../lab-31a-static-ip-nmcli-rhcsa/) and [Lab 31b](../lab-31b-static-ip-nmcli-ansible/) completed · **root/sudo required**  
+**Time Estimate:** 15–25 minutes  
+**Difficulty:** Intermediate
 
 ---
 
-## LAB HEADER
+## 🎯 Today's Focus Coverage
 
-```bash
-echo "TIME: $(date -Is)"
-echo "USER: $(whoami)@$(hostname)"
-echo "PRACTICE DIR: /run"
-echo "VERIFY TARGET: lab31test journal + restore drill"
-nmcli con show | tee /tmp/lab31c_header_connections.txt
-find /root/rhcsa_journal -maxdepth 2 -type d -name 'lab-31*' | sort
-echo "TRAPS: T31-A T31-B T41 T44"
-echo "exit was: $?"
-```
+> Stay on-subject via the ANCHOR rows; expand vocabulary via the NEW rows. Every row is exercised by a STEP below.
 
-> STOP and confirm header output before continuing.
+**⚓ Anchor — already learned (on-topic reuse)**
 
----
-
-## Lab-Wide Tier B Setup (run before Task 1)
-
-```bash
-sudo -i
-export LAB_NUM=31
-export LAB_SLUG=staticip
-export SANDBOX=/tmp/lab31c
-export GROUP=labgrp_31_staticip
-export USER=labuser_31_staticip
-export USER_HOME=${SANDBOX}/home_${USER}
-export CON_NAME=lab31test
-
-mkdir -p "${SANDBOX}" "${USER_HOME}" /root/rhcsa_journal/lab-31c/task1 /root/rhcsa_journal/lab-31c/task2
-getent group "${GROUP}" >/dev/null || groupadd "${GROUP}"
-getent passwd "${USER}" >/dev/null || useradd -d "${USER_HOME}" -M -s /bin/bash -g "${GROUP}" "${USER}"
-chown -R "${USER}:${GROUP}" "${SANDBOX}"
-
-cat > "${SANDBOX}/THIS_DIRECTORY.txt" <<'EOF'
-/run holds runtime data that is rebuilt each boot. Verification labs use it
-to reinforce "active now" versus "persistent config" thinking.
-EOF
-
-id "${USER}"
-ls -ld /run "${SANDBOX}" "${USER_HOME}"
-echo "Sandbox built by $(whoami) at $(date -Is)"
-echo "exit was: $?"
-```
-
----
-
-## Task 1 - Audit Lab 31a/31b journal artifacts
-
-Practice directory this task: `/run`
-
-### Warm-Up
-
-```bash
-ls -ld /run /root/rhcsa_journal
-find /root/rhcsa_journal -maxdepth 2 -type d -name 'lab-31*' | sort
-nmcli con show | head -n 10
-echo "Warm-up done by $(whoami) at $(date -Is)"
-echo "exit was: $?"
-```
-
-### WEAVE TRACE
-
-- `find /root/rhcsa_journal...` -> drives which artifacts must be audited.
-- `nmcli con show` -> compares journal intent to current state.
-- `ls -ld /run` -> confirms runtime context for evidence output.
-
-### Purpose
-
-Audit evidence from `31a` and `31b` and confirm expected files exist and contain key signals (static fields, check/diff outputs, and teardown evidence).
-
-### Main Block
-
-```bash
-export SANDBOX=/tmp/lab31c
-export JROOT=/root/rhcsa_journal
-
-{
-  echo "=== LAB31 JOURNAL AUDIT ==="
-  find "${JROOT}" -maxdepth 3 -type f \( -name done.txt -o -name notes.txt -o -name '*.txt' \) | sort
-  echo "--- 31a done files ---"
-  find "${JROOT}/lab-31a" -name done.txt -print 2>/dev/null
-  echo "--- 31b done files ---"
-  find "${JROOT}/lab-31b" -name done.txt -print 2>/dev/null
-  echo "--- grep static indicators ---"
-  rg -n "lab31test|IP4.ADDRESS|changed=0|con delete" "${JROOT}/lab-31a" "${JROOT}/lab-31b" 2>/dev/null || true
-  echo "--- current nm state ---"
-  nmcli con show | grep -w lab31test || echo "lab31test currently absent"
-} 2>&1 | tee "${SANDBOX}/task1.txt"
-
-sudo -u "${USER}" bash -c 'echo "Task1 audit signed by $(whoami) at $(date -Is)" >> /tmp/lab31c/task1-reviewed-by-user.txt'
-stat -c '%U:%G %a %n' /tmp/lab31c/task1-reviewed-by-user.txt | tee -a "${SANDBOX}/task1.txt"
-echo "exit was: $?"
-```
-
-### Breakdown
-
-- enumerates journal artifacts from previous trilogy labs.
-- scans for key proof markers (`lab31test`, `changed=0`, `con delete`).
-- compares persisted notes with current `nmcli` connection state.
-
-### L->R
-
-`rg -n "lab31test|IP4.ADDRESS|changed=0|con delete" ...`
-
-- `rg` fast recursive search
-- `-n` include line numbers in results
-- regex pattern lists mandatory proof markers
-- paths scope search to `lab-31a` and `lab-31b`
-
-### Story
-
-Verification discipline closes the loop between "I ran commands" and "I can prove state, evidence, and cleanup." This is the operator reflex graders reward.
-
-### Expected Output
-
-- path list of `done.txt`/`notes.txt`/evidence files.
-- marker hits for static IP and idempotence.
-- current `nmcli` state line or explicit absence message.
-
-### Switches
-
-| Token | Meaning |
-|---|---|
-| `find -maxdepth` | limit traversal depth |
-| `-name` | filename filter |
-| `rg -n` | content search with line numbers |
-| `grep -w` | exact connection-name match |
-
-### Concept Card
-
-| ✅ | Concept | What it does |
+| # | Command / switch | Covered by |
 |---|---|---|
-| ✅ | artifact audit | validates previous lab execution evidence |
-| ✅ | marker grep/rg scan | confirms critical proof strings exist |
-| ✅ | state-vs-evidence compare | catches drift between logs and live host |
-| 🪤 Trap Risk | `T41`: skipping persistence verification | always audit both journal files and live `nmcli` state |
+| A1 | `nmcli -g` | _Task 1 · Step 1_ |
+| A2 | `ip addr show` | _Task 1 · Step 2_ |
 
-### PERSISTENCE CHECK
+**🆕 NEW this lab — introduced for the first time** (minimum 3)
 
-| What was configured | Verification command | Why it matters |
-|---|---|---|
-| prior tasks recorded | `find /root/rhcsa_journal/lab-31{a,b} -name done.txt` | proves checkpoints persisted |
-| static fields evidenced | `rg "IP4.ADDRESS|ipv4.method|manual" /root/rhcsa_journal/lab-31b` | confirms static config intent |
-| cleanup intent evidenced | `rg "con delete|cleanup audit" /root/rhcsa_journal/lab-31a` | confirms teardown discipline |
-
-### Journal Write
-
-```bash
-LAB=lab-31c
-TASK=task1
-JDIR="/root/rhcsa_journal/${LAB}/${TASK}"
-mkdir -p "${JDIR}"
-cp /tmp/lab31c/task1.txt "${JDIR}/evidence.txt"
-cat > "${JDIR}/done.txt" <<EOF
-LAB: ${LAB}
-TASK: ${TASK}
-DATE: $(date -Is)
-USER: $(whoami)@$(hostname)
-STATUS: COMPLETE
-EOF
-cat > "${JDIR}/notes.txt" <<EOF
-TOPIC: audit of lab-31a/lab-31b evidence and live state
-COMMANDS: find, rg, nmcli con show, grep -w
-TRAPS: T41 rehearsed
-NEXT: task2 destroy-restore drill
-EOF
-ls -la "${JDIR}"
-echo "exit was: $?"
-```
-
-### Cleanup
-
-```bash
-rm -f /tmp/lab31c/task1-reviewed-by-user.txt
-echo "exit was: $?"
-```
-
-### Troubleshoot
-
-| Symptom | Fix |
-|---|---|
-| missing journal paths | rerun previous labs or reconstruct expected artifacts |
-| no marker matches | inspect notes/evidence and update capture commands |
-| `rg` not found | install ripgrep or fallback to `grep -R` manually |
-
-### STOP
-
-Stop and paste Task 1 output before moving on.
+| # | Command / switch | First taught in | Covered by |
+|---|---|---|---|
+| N1 | config vs live comparison | Task 1 · Step 2 | _Task 1 · Step 2_ |
+| N2 | `ping -c` reachability | Task 2 · Step 1 | _Task 2 · Step 1_ |
+| N3 | persistence (`nmcli con show`) | Task 2 · Step 2 | _Task 2 · Step 2_ |
+| N4 | `method` is manual proof | Task 2 · Step 2 | _Task 2 · Step 2_ |
 
 ---
 
-## Task 2 - Destroy and restore `lab31test` from playbook
+## 🎯 Objective
 
-Practice directory this task: `/run`
+Prove the static IP is configured, live, reachable, and persistent. You will read the stored address with `nmcli -g`, confirm it matches the live interface (`ip addr`), ping it to prove it actually works, and verify the profile is `manual` (persistent) — not DHCP. Config + live + reachable + persistent is a fully verified static IP.
 
-### Warm-Up
-
-```bash
-nmcli con show | grep -w lab31test || true
-ls -l /root/rhcsa_journal/lab-31b/playbooks/task1.yml
-ip addr show lo
-echo "Warm-up done by $(whoami) at $(date -Is)"
-echo "exit was: $?"
-```
-
-### WEAVE TRACE
-
-- `nmcli con show` -> baseline before forced delete and restore.
-- `ls -l task1.yml` -> validates restore source exists.
-- `ip addr show lo` -> runtime proof after restore.
-
-### Purpose
-
-Run a controlled destroy-restore drill: delete the connection, restore it from `31b` playbook, and verify static fields plus active state.
-
-### Main Block
-
-```bash
-export SANDBOX=/tmp/lab31c
-export CON_NAME=lab31test
-export RESTORE_PLAY=/root/rhcsa_journal/lab-31b/playbooks/task1.yml
-
-nmcli con delete "${CON_NAME}" 2>&1 | tee "${SANDBOX}/task2.txt" || true
-nmcli con show | grep -w "${CON_NAME}" 2>&1 | tee -a "${SANDBOX}/task2.txt" || true
-
-ansible-playbook --check --diff "${RESTORE_PLAY}" 2>&1 | tee -a "${SANDBOX}/task2.txt"
-ansible-playbook "${RESTORE_PLAY}"                 2>&1 | tee -a "${SANDBOX}/task2.txt"
-
-nmcli -f NAME,IPV4.METHOD,IP4.ADDRESS,IP4.GATEWAY,IP4.DNS con show "${CON_NAME}" \
-    2>&1 | tee -a "${SANDBOX}/task2.txt"
-ip addr show lo   2>&1 | tee -a "${SANDBOX}/task2.txt"
-ip route show     2>&1 | tee -a "${SANDBOX}/task2.txt"
-
-sudo -u "${USER}" bash -c 'echo "Task2 destroy-restore signed at $(date -Is)" >> /tmp/lab31c/task2-reviewed-by-user.txt'
-stat -c '%U:%G %a %n' /tmp/lab31c/task2-reviewed-by-user.txt | tee -a "${SANDBOX}/task2.txt"
-echo "exit was: $?"
-```
-
-### Breakdown
-
-- deletes profile first to simulate outage/recovery.
-- replays tested playbook artifact to restore desired state.
-- validates both profile metadata and runtime network view.
-
-### L->R
-
-`ansible-playbook /root/rhcsa_journal/lab-31b/playbooks/task1.yml`
-
-- `ansible-playbook` apply automation artifact
-- absolute path guarantees correct source
-- same playbook reuses idempotent desired-state logic
-
-### Story
-
-Recovery drills prove operational resilience. Knowing configuration commands is not enough; you must restore known-good state quickly from versioned artifacts.
-
-### Expected Output
-
-- `lab31test` absent immediately after delete.
-- playbook recreate and activation output.
-- post-restore `nmcli con show` lists manual static IPv4 fields.
-
-### Switches
-
-| Token | Meaning |
-|---|---|
-| `con delete` | removes profile before drill |
-| `--check --diff` | preview restoration effects |
-| `-f` in `nmcli` | focused verification fields |
-| `grep -w` | exact profile-name confirmation |
-
-### Concept Card
-
-| ✅ | Concept | What it does |
-|---|---|---|
-| ✅ | destroy-restore cycle | validates recoverability |
-| ✅ | playbook reuse | ensures reliable reconstruction |
-| ✅ | runtime plus persistent checks | catches activation gaps |
-| 🪤 Trap Risk | `T44`: leaving restored artifacts dirty | always finish with Section 6 teardown audit |
-
-### PERSISTENCE CHECK
-
-| What was configured | Verification command | Why it matters |
-|---|---|---|
-| profile restored | `nmcli con show lab31test` | proves persistent profile recreation |
-| active after restore | `ip addr show lo` and `nmcli con up lab31test` | confirms runtime activation |
-| restore source persisted | `ls -l /root/rhcsa_journal/lab-31b/playbooks/task1.yml` | ensures repeatable recovery artifact |
-
-### Journal Write
-
-```bash
-LAB=lab-31c
-TASK=task2
-JDIR="/root/rhcsa_journal/${LAB}/${TASK}"
-mkdir -p "${JDIR}"
-cp /tmp/lab31c/task2.txt "${JDIR}/evidence.txt"
-cat > "${JDIR}/done.txt" <<EOF
-LAB: ${LAB}
-TASK: ${TASK}
-DATE: $(date -Is)
-USER: $(whoami)@$(hostname)
-STATUS: COMPLETE
-EOF
-cat > "${JDIR}/notes.txt" <<EOF
-TOPIC: destroy-restore static profile from prior playbook
-COMMANDS: nmcli con delete, ansible-playbook, nmcli con show, ip addr, ip route
-TRAPS: T44 rehearsed
-NEXT: trilogy complete
-EOF
-ls -la "${JDIR}"
-echo "exit was: $?"
-```
-
-### Cleanup
-
-```bash
-rm -f /tmp/lab31c/task2-reviewed-by-user.txt
-echo "exit was: $?"
-```
-
-### Troubleshoot
-
-| Symptom | Fix |
-|---|---|
-| restore playbook missing | regenerate from lab-31b task1 instructions |
-| profile restores but no runtime effect | run `nmcli con up lab31test` and re-check |
-| delete command errors on absent profile | acceptable in drill; continue to restore step |
-
-### STOP
-
-Stop and paste Task 2 output before final closeout.
+> **⚠️ System-state lab.** Assumes the `lab-static`/`dummy0` from 31a/31b exist; setup recreates them if needed. Teardown removes them.
 
 ---
 
-## Section 6 Closeout (after Task 2)
+## 🧠 Concept
+
+A static IP claim has four parts. **Stored config**: `nmcli -g ipv4.addresses con show lab-static` returns what the profile *says*. **Live state**: `ip addr show dummy0` returns what the kernel *has*; the two must agree, or the profile isn't active. **Reachability**: `ping -c1 10.99.99.2` proves the address actually responds, not just that it's listed. **Persistence**: `nmcli -g ipv4.method con show lab-static` must be `manual` — a `manual` profile survives reboot, whereas `auto` would mean DHCP. Verifying all four distinguishes "I typed an IP" from "the host has a working, persistent static address."
+
+```
+nmcli -g ipv4.addresses con show lab-static → 10.99.99.2/24 (config)
+ip -o addr show dummy0 | grep 10.99.99.2     → live matches config
+ping -c1 10.99.99.2                          → address responds
+nmcli -g ipv4.method con show lab-static     → manual (persistent)
+```
+
+> **Why this matters:** An IP listed in a profile but not active, or set to `auto`, fails silently. Proving config==live, reachable, and `manual` is the real definition of "static IP configured."
+
+---
+
+## 📚 Command Reference
+
+| Command | Purpose | Critical flags |
+|---|---|---|
+| `nmcli -g ipv4.addresses` | Stored address | one field |
+| `ip -o addr show DEV` | Live address | one line per addr |
+| `ping -c1` | Reachability | one packet |
+| `nmcli -g ipv4.method` | Persistence | `manual` |
+| `nmcli -t` | Terse output | scriptable |
+
+---
+
+## 🧰 LAB-WIDE SETUP
+
+**In plain English:** Ensure the static profile exists so there's something to verify.
+
+> Run this block **once** before Task 1. It recreates `dummy0`/`lab-static` idempotently if 31a/31b's Teardown removed them, so this verify lab stands alone.
 
 ```bash
-set +e
-export SANDBOX=/tmp/lab31c
-export GROUP=labgrp_31_staticip
-export USER=labuser_31_staticip
-export CON_NAME=lab31test
-
-nmcli con delete "${CON_NAME}" 2>/dev/null || true
-if getent passwd "${USER}" >/dev/null 2>&1; then userdel -r "${USER}" 2>/dev/null; fi
-if getent group "${GROUP}" >/dev/null 2>&1; then groupdel "${GROUP}" 2>/dev/null; fi
-rm -rf "${SANDBOX}"
-
-echo "── cleanup audit ──"
-getent passwd "${USER}" >/dev/null && echo "❌ user remains" || echo "✅ user gone"
-getent group "${GROUP}" >/dev/null && echo "❌ group remains" || echo "✅ group gone"
-nmcli con show | grep -w "${CON_NAME}" >/dev/null && echo "❌ connection remains" || echo "✅ connection gone"
-test -d "${SANDBOX}" && echo "❌ sandbox remains" || echo "✅ sandbox gone"
-
-set -e
-echo "Cleanup complete by $(whoami) at $(date -Is)"
+export LAB_ROOT=/tmp/lab-31
+mkdir -p "$LAB_ROOT"
+sudo modprobe dummy 2>/dev/null || true
+nmcli con show lab-static >/dev/null 2>&1 || \
+  sudo nmcli con add type dummy ifname dummy0 con-name lab-static \
+    ipv4.method manual ipv4.addresses 10.99.99.2/24 ipv4.gateway 10.99.99.1
+sudo nmcli con up lab-static >/dev/null 2>&1 || true
+ip -o addr show dummy0 | grep -o '10.99.99.2'
 echo "exit was: $?"
+```
+
+**Expected output:**
+
+```
+10.99.99.2
+exit was: 0
 ```
 
 ---
 
-## Author
+## TASK 1 of 2 — Prove config matches live
 
-Kelvin R. Tobias
+**In plain English:** We read the stored address and confirm it's live on the interface.
+
+---
+
+### Step 1 of 2 — Read the stored address
+
+**In plain English:** We get the configured IPv4 address from the profile.
+
+```bash
+A=$(nmcli -g ipv4.addresses con show lab-static)
+echo "config: $A"
+[ "$A" = "10.99.99.2/24" ] && echo "CONFIG OK" || echo "WRONG CONFIG (FAIL)"
+```
+
+**Expected output:**
+
+```
+config: 10.99.99.2/24
+CONFIG OK
+```
+
+**Line-by-line breakdown:**
+
+- `nmcli -g ipv4.addresses con show lab-static` → Print just the stored address field.
+- `[ "$A" = "10.99.99.2/24" ]` → Assert the profile holds the expected static address.
+
+**New words in this step:**
+
+- **stored config** — what the NetworkManager profile records.
+
+---
+
+### Step 2 of 2 — Confirm config equals live
+
+**In plain English:** We confirm the live interface carries the same address.
+
+```bash
+ip -o addr show dummy0 | grep -q '10.99.99.2/24' && echo "LIVE MATCHES (OK)" || echo "LIVE MISMATCH (FAIL)"
+ip -o -4 addr show dummy0
+```
+
+**Expected output:**
+
+```
+LIVE MATCHES (OK)
+N: dummy0    inet 10.99.99.2/24 brd 10.99.99.255 scope global dummy0 ...
+```
+
+**Line-by-line breakdown:**
+
+- `ip -o addr show dummy0 | grep -q '10.99.99.2/24'` → The live kernel address matches the profile — proof the profile is active.
+- `ip -o -4 addr show dummy0` → One-line IPv4 view of the interface.
+
+**New words in this step:**
+
+- **config-vs-live** — confirming the stored profile equals the kernel's live address.
+
+---
+
+### Concept card (Task 1)
+
+| Concept | What it does | Exam trap |
+|---|---|---|
+| `nmcli -g` | config value | profile, not live |
+| `ip -o addr` | live value | runtime |
+| match | profile active | mismatch = inactive |
+
+---
+
+### Troubleshoot (Task 1)
+
+| Symptom | Likely cause | Fix |
+|---|---|---|
+| Config but no live | Not activated | `nmcli con up lab-static` |
+| Mismatch | Edited but not re-upped | Re-activate the profile |
+
+---
+
+## TASK 2 of 2 — Prove reachable and persistent
+
+**In plain English:** We ping the address and confirm the profile is `manual`.
+
+---
+
+### Step 1 of 2 — Reachability with `ping`
+
+**In plain English:** We send one ping to the static address and confirm a reply.
+
+```bash
+ping -c1 -W2 10.99.99.2 >/dev/null 2>&1 && echo "REACHABLE (OK)" || echo "UNREACHABLE (FAIL)"
+ping -c1 10.99.99.2 | grep -E 'bytes from|packet loss'
+```
+
+**Expected output:**
+
+```
+REACHABLE (OK)
+64 bytes from 10.99.99.2: icmp_seq=1 ttl=64 time=0.0xx ms
+1 packets transmitted, 1 received, 0% packet loss, ...
+```
+
+**Line-by-line breakdown:**
+
+- `ping -c1 -W2 10.99.99.2 >/dev/null && ...` → One packet, 2s timeout; exit 0 means it replied.
+- `... | grep 'packet loss'` → Confirm 0% loss — the address truly responds.
+
+**New words in this step:**
+
+- **reachability** — proving the configured address actually answers.
+
+---
+
+### Step 2 of 2 — Persistence via `method`
+
+**In plain English:** We confirm the profile uses `manual` addressing (persistent across reboot).
+
+```bash
+M=$(nmcli -g ipv4.method con show lab-static)
+echo "method: $M"
+[ "$M" = "manual" ] && echo "PERSISTENT STATIC (OK)" || echo "NOT MANUAL (FAIL)"
+echo "exit was: $?"
+```
+
+**Expected output:**
+
+```
+method: manual
+PERSISTENT STATIC (OK)
+exit was: 0
+```
+
+**Line-by-line breakdown:**
+
+- `nmcli -g ipv4.method con show lab-static` → Read the addressing method.
+- `[ "$M" = "manual" ]` → `manual` confirms a persistent static config (not DHCP `auto`).
+
+**New words in this step:**
+
+- **persistence proof** — confirming `manual` so the address survives reboot.
+
+---
+
+### Concept card (Task 2)
+
+| Concept | What it does | Exam trap |
+|---|---|---|
+| `ping -c1` | reachability | `-W` for timeout |
+| `ipv4.method` | persistence | `manual` vs `auto` |
+| 0% loss | working address | partial loss = problem |
+
+---
+
+### Troubleshoot (Task 2)
+
+| Symptom | Likely cause | Fix |
+|---|---|---|
+| Unreachable | Profile down | `nmcli con up` |
+| method `auto` | DHCP, not static | Set `ipv4.method manual` |
+
+---
+
+## ✅ Lab Checklist
+
+- [ ] Task 1 · Step 1 — Read the stored address
+- [ ] Task 1 · Step 2 — Confirm config equals live
+- [ ] Task 2 · Step 1 — Reachability with `ping`
+- [ ] Task 2 · Step 2 — Persistence via `method`
+- [ ] Every 🎯 Focus Coverage row (Anchor + NEW) mapped to a step
+- [ ] 🧹 Teardown run — sandbox + **profile and dummy interface removed**
+
+---
+
+## 🧹 Teardown
+
+**In plain English:** Delete the test profile and dummy interface, then the sandbox.
+
+> This lab (and its setup) changed system state. These commands **reverse** it; the real NIC was never touched.
+
+```bash
+sudo nmcli con down lab-static 2>/dev/null || true
+sudo nmcli con delete lab-static 2>/dev/null || true
+sudo ip link delete dummy0 2>/dev/null || true
+nmcli con show | grep -q lab-static && echo "still present (FAIL)" || echo "lab-static removed"
+cd /tmp
+bash lab_teardown.sh "$LAB_ROOT"     # = /tmp/lab-31
+```
+
+**Expected output:**
+
+```
+lab-static removed
+✅ Removed /tmp/lab-31 — lab workspace is clean.
+```
+
+---
+
+## ⚠️ Common Pitfalls
+
+| Mistake | Symptom | Fix |
+|---|---|---|
+| Checking config only | Profile may be inactive | Compare to live `ip addr` |
+| Skipping ping | Address may not respond | `ping -c1` |
+| Ignoring `method` | Might be DHCP | Confirm `manual` |
+
+---
+
+## 📌 Exam Strategy
+
+Verify a static IP four ways: stored config (`nmcli -g`), live match (`ip addr`), reachability (`ping`), and persistence (`ipv4.method manual`). All four passing means the address is real, active, working, and reboot-safe.
+
+- Config must equal live, or the profile isn't active.
+- `ping -c1` proves the address responds.
+- `ipv4.method manual` proves it's persistent.
+
+---
+
+## 🔗 Related Labs
+
+- [Lab 31a — Configure a Static IP (RHCSA)](../lab-31a-static-ip-nmcli-rhcsa/) — the `nmcli` config this audits
+- [Lab 31b — Configure a Static IP (Ansible)](../lab-31b-static-ip-nmcli-ansible/) — the `nmcli` module plays you verify
+- [Lab 32a — Check Network Connectivity (RHCSA)](../lab-32a-ping-traceroute-rhcsa/) — deeper reachability testing
+
+---
+
+## 👤 Author
+
+**Kelvin R. Tobias**  
+[kelvinintech.com](https://kelvinintech.com) · [GitHub](https://github.com/kelvintechnical) · [LinkedIn](https://www.linkedin.com/in/kelvin-r-tobias-211949219)

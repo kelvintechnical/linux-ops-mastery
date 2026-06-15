@@ -1,0 +1,28 @@
+---
+# Lab 27b Task 1 — manage a group
+#
+# Run (twice, to prove idempotence):
+#   ansible-playbook /root/rhcsa_journal/lab-27b/playbooks/task1.yml
+#   ansible-playbook /root/rhcsa_journal/lab-27b/playbooks/task1.yml
+#
+# SYSTEM-STATE: creates the labtest99 group in /etc/group. The group module is
+# the automation equivalent of vigr: it handles the locking and is idempotent,
+# so the second run reports changed=0. Remove with the lab Teardown (groupdel).
+
+- name: "Lab 27b Task 1 — manage a group"
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  become: true
+
+  tasks:
+    - name: "Ensure the labtest99 group exists"
+      ansible.builtin.group:
+        name: labtest99
+        gid: 6999
+        state: present
+      register: grp_result
+
+    - name: "Show whether anything changed"
+      ansible.builtin.debug:
+        msg: "changed: {{ grp_result.changed }}"

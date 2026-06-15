@@ -1,359 +1,320 @@
-# Lab 05c: Verifying Directory Navigation (Capstone) — Audit + Destroy/Restore Drill
+# Lab 05c: Directory Navigation (Verify) — `readlink -f`, `pwd -P`, `test`
 
-- **Series:** linux-ops-mastery — File Operations & Shell Fundamentals
-- **Trilogy:** [`05a`](../lab-05a-directory-navigation-rhcsa/) → [`05b`](../lab-05b-directory-navigation-ansible/) → **`05c`** (Verify)
-- **Tasks:** 2 (Task 1 = audit 05a evidence; Task 2 = destroy/restore navigation state drill)
-- **Practice Directory (rotation #05):** `/usr`
-- **Traps rehearsed:** **T41** (state reset assumptions) · **T42** (persistent evidence mismatch) · **T43** (stalling without explicit audit)
-
-> **This lab's practice directory is: `/usr`**.
+**Series:** linux-ops-mastery — Essential Tools & File Operations · **Lab 05c of the Novice → RHCA path**  
+**Certifications covered:** RHCSA EX200 (proving you operated in the right path), SRE (path correctness in incident scripts), DevOps (canonical-path checks in CI)  
+**Prerequisite:** [Lab 05a](../lab-05a-directory-navigation-rhcsa/) and [Lab 05b](../lab-05b-directory-navigation-ansible/) completed  
+**Time Estimate:** 15–25 minutes  
+**Difficulty:** Beginner
 
 ---
 
-## LAB HEADER BLOCK
+## 🎯 Today's Focus Coverage
 
-```bash
-echo "verify-start=$(date -Is)"
-ls -ld /usr
-ls -la /root/rhcsa_journal/lab-05a/task1 /root/rhcsa_journal/lab-05a/task2 2>/dev/null
-echo "⚠️ TRAPS: T41 T42 T43"
-echo "exit was: $?"
-```
+> Stay on-subject via the ANCHOR rows; expand vocabulary via the NEW rows. Every row is exercised by a STEP below.
 
-> **STOP — paste header output before setup.**
+**⚓ Anchor — already learned (on-topic reuse)**
+
+| # | Command / switch | Covered by |
+|---|---|---|
+| A1 | `pwd -P` | _Task 1 · Step 1_ |
+| A2 | `cd` | _Task 1 · Step 1_ |
+
+**🆕 NEW this lab — introduced for the first time** (minimum 3)
+
+| # | Command / switch | First taught in | Covered by |
+|---|---|---|---|
+| N1 | `readlink -f` | Task 1 · Step 2 | _Task 1 · Step 2_ |
+| N2 | `test -L` / `test -d` | Task 1 · Step 1 | _Task 1 · Step 1_ |
+| N3 | `realpath` | Task 2 · Step 1 | _Task 2 · Step 1_ |
+| N4 | `[ a = b ]` string test | Task 2 · Step 2 | _Task 2 · Step 2_ |
 
 ---
 
-## Objective
+## 🎯 Objective
 
-1. Validate that 05a task evidence is complete and internally consistent.
-2. Rebuild navigation evidence after a controlled `/tmp` wipe.
-3. Prove what survives reboot (`/root/rhcsa_journal`) vs what does not (`/tmp` state).
+Take the auditor's seat: prove the logical-vs-physical path story from 05a is real, not a feeling. You will assert a symlink is a symlink, resolve it to its canonical target with `readlink -f` and `realpath`, and prove that standing inside the symlink yields a different `pwd -P` than the path you typed. The verdict is a clean string comparison — pass or fail.
 
 ---
 
-## Lab-Wide Setup
+## 🧠 Concept
+
+Verification of navigation is about *canonical paths*. A symlink (`test -L` true) points at a real directory; `readlink -f` and `realpath` both collapse every symlink in a path to the single real location. When you `cd` through a symlink, `pwd -L` echoes what you typed while `pwd -P` reports the canonical target. Comparing the two with `[ a = b ]` turns "are these the same place?" into a scriptable yes/no — exactly what a grader needs.
+
+```
+test -L link_dir    → true (it is a symlink)
+readlink -f link_dir → /tmp/lab-05/real_dir   (canonical target)
+cd link_dir ; pwd -L → /tmp/lab-05/link_dir   (logical)
+cd link_dir ; pwd -P → /tmp/lab-05/real_dir   (physical = canonical)
+```
+
+> **Why this matters:** Scripts that compute output paths from `pwd` write to the wrong place when a symlink is in play. Asserting canonical paths catches that class of bug before it corrupts data.
+
+---
+
+## 📚 Command Reference
+
+| Command | Purpose | Critical flags |
+|---|---|---|
+| `test -L PATH` | True if PATH is a symlink | pairs with `&&`/`||` for a verdict |
+| `test -d PATH` | True if PATH is a directory | follows symlinks by default |
+| `readlink -f PATH` | Print the canonical resolved path | `-f` resolves every component |
+| `realpath PATH` | Print the absolute canonical path | errors if a component is missing |
+| `pwd -P` | Physical CWD (symlinks resolved) | compare against `pwd -L` |
+
+---
+
+## 🧰 LAB-WIDE SETUP
+
+**In plain English:** Rebuild the sandbox with a real directory and a symlink to it so there is a known structure to audit.
+
+> Run this block **once** before Task 1. It builds the clean, private workspace that both tasks depend on.
 
 ```bash
-sudo -i
-
-export LAB_NUM=05
-export LAB_SLUG=dirnav_verify
-export SANDBOX=/tmp/labsandbox_${LAB_NUM}_c
-export GROUP=labgrp_${LAB_NUM}_${LAB_SLUG}
-export USER=labuser_${LAB_NUM}_${LAB_SLUG}
-export USER_HOME=${SANDBOX}/home_${USER}
-
-mkdir -p "${SANDBOX}" "${USER_HOME}" /root/rhcsa_journal/lab-05c/task1 /root/rhcsa_journal/lab-05c/task2
-getent group  "${GROUP}" >/dev/null || groupadd "${GROUP}"
-getent passwd "${USER}"  >/dev/null || useradd -d "${USER_HOME}" -M -s /bin/bash -g "${GROUP}" "${USER}"
-chown -R "${USER}:${GROUP}" "${SANDBOX}"
-
-cat > "${SANDBOX}/THIS_DIRECTORY.txt" <<'EOF'
-/usr is our reference navigation target.
-This verify lab checks whether previous navigation evidence remains trustworthy and recoverable.
-EOF
-
-id "${USER}"
+export LAB_ROOT=/tmp/lab-05
+mkdir -p "$LAB_ROOT/real_dir/sub"
+ln -sfn "$LAB_ROOT/real_dir" "$LAB_ROOT/link_dir"
+ls -l "$LAB_ROOT"
 echo "exit was: $?"
+```
+
+**Expected output:**
+
+```
+drwxr-xr-x. 3 root root 17 Jun 15 18:20 real_dir
+lrwxrwxrwx. 1 root root 18 Jun 15 18:20 link_dir -> /tmp/lab-05/real_dir
+exit was: 0
 ```
 
 ---
 
-## Task 1 — Audit Lab 05a evidence
+## TASK 1 of 2 — Assert the symlink and resolve it
 
-**Practice directory this task:** `/usr`  
-Audit the RHCSA creator-seat outputs before destructive testing.
-
-### 🔁 Warm-Up
-
-```bash
-ls -la /root/rhcsa_journal/lab-05a/task1 /root/rhcsa_journal/lab-05a/task2
-grep -n "^TOPIC:" /root/rhcsa_journal/lab-05a/task*/notes.txt 2>/dev/null
-pwd
-echo "Warm-up done by $(whoami) at $(date -Is)"
-echo "exit was: $?"
-```
-
-### Purpose
-
-Confirm 05a captured valid navigation evidence for both tasks.
-
-### 🧵 WEAVE TRACE
-
-| Warm-up command | Role inside task |
-|---|---|
-| `ls -la ...` | checks files exist before deeper assertions |
-| `grep -n "^TOPIC:" ...` | verifies notes metadata completeness |
-| `pwd` | baseline for local verification sequence |
-
-### Main Command Block
-
-```bash
-TASKLOG=/tmp/labsandbox_05_c/task1.txt
-
-{
-  echo "=== file existence audit ==="
-  for f in \
-    /root/rhcsa_journal/lab-05a/task1/evidence.txt \
-    /root/rhcsa_journal/lab-05a/task1/task1-asuser-pwd.txt \
-    /root/rhcsa_journal/lab-05a/task2/evidence.txt \
-    /root/rhcsa_journal/lab-05a/task2/task2-asuser-cdminus.txt; do
-      test -s "$f" && echo "✅ $f" || echo "❌ $f"
-  done
-
-  echo "=== content sanity ==="
-  grep -c '/usr' /root/rhcsa_journal/lab-05a/task1/task1-asuser-pwd.txt
-  grep -c '/usr' /root/rhcsa_journal/lab-05a/task2/task2-asuser-cdminus.txt
-  grep -E 'OLDPWD|PWD' /root/rhcsa_journal/lab-05a/task2/evidence.txt | head -n 5
-
-  echo "=== ownership checks ==="
-  stat -c '%U:%G %a %n' /root/rhcsa_journal/lab-05a/task1/task1-asuser-pwd.txt
-  stat -c '%U:%G %a %n' /root/rhcsa_journal/lab-05a/task2/task2-asuser-cdminus.txt
-} 2>&1 | tee "${TASKLOG}"
-
-echo "exit was: $?"
-```
-
-### Human-Readable Breakdown
-
-- First block validates required artifacts exist.
-- Second block checks semantic content (`/usr`, `PWD`, `OLDPWD`) instead of file presence only.
-- Third block confirms ownership context from Tier B runs.
-
-### Reading it left to right
-
-`test -s "$f" && echo "✅" || echo "❌"`
-
-- `test -s` checks file exists and non-empty
-- `&&` prints success marker on true
-- `||` prints failure marker on false
-
-### The story
-
-Audit before destroy is the only way to distinguish "restore bug" from "source evidence was already wrong."
-
-### Expected output
-
-```text
-✅ /root/rhcsa_journal/lab-05a/task1/evidence.txt
-✅ /root/rhcsa_journal/lab-05a/task2/evidence.txt
-```
-
-### Switches table
-
-| Token | Meaning |
-|---|---|
-| `test -s` | file exists and non-empty |
-| `grep -c` | count matching lines |
-| `stat -c` | compact ownership/mode output |
-
-### 🧠 Concept Card
-
-| ✅ | Concept | What it does |
-|---|---|---|
-| ✅ | pre-destroy audit | establishes trusted baseline |
-| ✅ | semantic verification | validates meaning, not just presence |
-| ✅ | ownership audit | confirms user-context evidence |
-| 🪤 Trap Risk | What goes wrong | How to avoid |
-|---|---|---|
-| T43 | skipping structured checks | run fixed checklist before mutation |
-
-### 🔁 PERSISTENCE CHECK
-
-| What was configured | Verification command | Why it matters |
-|---|---|---|
-| task evidence exists | `find /root/rhcsa_journal/lab-05a -name '*.txt' | wc -l` | confirms journal baseline |
-| navigation semantics present | `grep -c '/usr' ...` | confirms topic-specific content |
-| audit transcript | `test -s "${TASKLOG}"` | keeps verifier-seat trail |
-
-### Journal write
-
-```bash
-LAB=lab-05c
-TASK=task1
-JDIR="/root/rhcsa_journal/${LAB}/${TASK}"
-mkdir -p "${JDIR}"
-cp "${TASKLOG}" "${JDIR}/evidence.txt"
-```
-
-### 🧹 Cleanup
-
-```bash
-rm -f /tmp/labsandbox_05_c/task1.txt
-echo "exit was: $?"
-```
-
-### Troubleshoot table
-
-| Symptom | Fix |
-|---|---|
-| missing 05a files | complete/re-run 05a journal write blocks |
-| grep count zero | inspect source files for expected tokens |
-| ownership unexpected | review how files were created in 05a |
-
-> **STOP — paste audit outputs before Task 2.**
+**In plain English:** We prove `link_dir` is genuinely a symlink pointing at a real directory, then resolve it to its canonical target.
 
 ---
 
-## Task 2 — Destroy/restore navigation state drill
+### Step 1 of 2 — Assert link type with `test -L` / `test -d`
 
-**Practice directory this task:** `/usr`  
-Wipe volatile state, restore from journal, and prove continuity.
-
-### 🔁 Warm-Up
+**In plain English:** We confirm `link_dir` is a symlink and that it leads to a real directory.
 
 ```bash
-wc -l /root/rhcsa_journal/lab-05a/task1/evidence.txt /root/rhcsa_journal/lab-05a/task2/evidence.txt
-ls -ld /tmp/labsandbox_05 /tmp/labsandbox_05_c 2>/dev/null
-echo "Warm-up done by $(whoami) at $(date -Is)"
-echo "exit was: $?"
+cd "$LAB_ROOT"
+test -L link_dir && echo "IS A SYMLINK (OK)" || echo "NOT A SYMLINK (FAIL)"
+test -d link_dir && echo "RESOLVES TO A DIR (OK)" || echo "NOT A DIR (FAIL)"
 ```
 
-### Purpose
+**Expected output:**
 
-Destroy `/tmp` navigation artifacts, restore core evidence to a fresh sandbox, and append new verified navigation state.
-
-### 🧵 WEAVE TRACE
-
-| Warm-up command | Role inside task |
-|---|---|
-| `wc -l ...` | baseline evidence size before restore |
-| `ls -ld /tmp/...` | confirms target directories pre-destroy |
-
-### Main Command Block
-
-```bash
-TASKLOG=/tmp/labsandbox_05_c/task2.txt
-RESTORE_DIR=/tmp/labsandbox_05_c/restore
-
-{
-  echo "=== destroy volatile dirs ==="
-  rm -rf /tmp/labsandbox_05 /tmp/labsandbox_05_c
-  test ! -d /tmp/labsandbox_05 -a ! -d /tmp/labsandbox_05_c && echo "✅ destroy clean" || echo "❌ destroy incomplete"
-
-  echo "=== rebuild verifier sandbox ==="
-  mkdir -p "${SANDBOX}" "${USER_HOME}" "${RESTORE_DIR}"
-  chown -R "${USER}:${GROUP}" "${SANDBOX}"
-
-  echo "=== restore 05a evidence ==="
-  cp /root/rhcsa_journal/lab-05a/task1/task1-asuser-pwd.txt "${RESTORE_DIR}/"
-  cp /root/rhcsa_journal/lab-05a/task2/task2-asuser-cdminus.txt "${RESTORE_DIR}/"
-  ls -la "${RESTORE_DIR}"
-
-  echo "=== append new nav proof as verify user ==="
-  sudo -u "${USER}" bash -c 'cd /usr; pwd > "'"${USER_HOME}"'/task2-restore-proof.txt"; cd /etc; cd - >> "'"${USER_HOME}"'/task2-restore-proof.txt"; echo "OLDPWD=$OLDPWD" >> "'"${USER_HOME}"'/task2-restore-proof.txt"'
-  stat -c '%U:%G %a %n' "${USER_HOME}/task2-restore-proof.txt"
-  cat "${USER_HOME}/task2-restore-proof.txt"
-} 2>&1 | tee "${TASKLOG}"
-
-echo "exit was: $?"
+```
+IS A SYMLINK (OK)
+RESOLVES TO A DIR (OK)
 ```
 
-### Human-Readable Breakdown
+**Line-by-line breakdown:**
 
-- Removes old `/tmp` lab state to simulate reboot/ephemeral loss.
-- Restores only durable journal artifacts.
-- Creates fresh as-user navigation proof to demonstrate continued operability.
+- `test -L link_dir && ... || ...` → `-L` is true only for a symlink; the OK branch fires, proving it is a link, not a copy.
+- `test -d link_dir && ... || ...` → `-d` follows the link; OK proves the target is a real directory.
 
-### Reading it left to right
+**New words in this step:**
 
-`sudo -u "${USER}" bash -c 'cd /usr; pwd > file; cd /etc; cd - >> file'`
-
-- user-context shell executes all navigation
-- first write creates proof file
-- second write appends toggle result
-
-### The story
-
-Real persistence is not "my shell still remembers"; it is "I can reconstruct state from durable evidence and keep working."
-
-### Expected output
-
-```text
-✅ destroy clean
-labuser_05_dirnav_verify:labgrp_05_dirnav_verify 644 /tmp/labsandbox_05_c/home_labuser_05_dirnav_verify/task2-restore-proof.txt
-/usr
-/usr
-OLDPWD=/etc
-```
-
-### Switches table
-
-| Token | Meaning |
-|---|---|
-| `rm -rf` | recursive force remove |
-| `test ! -d` | assert directory absent |
-| `cp` | restore durable file copies |
-| `>>` | append output to existing file |
-
-### 🧠 Concept Card
-
-| ✅ | Concept | What it does |
-|---|---|---|
-| ✅ | destroy/restore drill | rehearses volatile-state loss recovery |
-| ✅ | durable journal source | `/root/rhcsa_journal` becomes recovery anchor |
-| ✅ | post-restore continuation | proves resumed navigation workflow |
-| 🪤 Trap Risk | What goes wrong | How to avoid |
-|---|---|---|
-| T41 | assuming `/tmp` survives reboot | always copy critical evidence to `/root/rhcsa_journal` |
-| T42 | restoring files but not validating behavior | run fresh command sequence after restore |
-
-### 🔁 PERSISTENCE CHECK
-
-| What was configured | Verification command | Why it matters |
-|---|---|---|
-| restored artifacts | `test -s "${RESTORE_DIR}/task1-asuser-pwd.txt"` | proves journal recovery worked |
-| new post-restore proof | `test -s "${USER_HOME}/task2-restore-proof.txt"` | proves workflow resumed |
-| ownership correctness | `stat -c '%U:%G' "${USER_HOME}/task2-restore-proof.txt"` | confirms user-context persistence |
-
-### Journal write
-
-```bash
-LAB=lab-05c
-TASK=task2
-JDIR="/root/rhcsa_journal/${LAB}/${TASK}"
-mkdir -p "${JDIR}"
-cp "${TASKLOG}" "${JDIR}/evidence.txt"
-cp "${USER_HOME}/task2-restore-proof.txt" "${JDIR}/task2-restore-proof.txt"
-```
-
-### 🧹 Cleanup
-
-```bash
-rm -f /tmp/labsandbox_05_c/task2.txt
-echo "exit was: $?"
-```
-
-### Troubleshoot table
-
-| Symptom | Fix |
-|---|---|
-| destroy incomplete | find open handles/processes and retry |
-| restore copy fails | verify 05a journal paths exist |
-| proof file empty | inspect quoted `bash -c` command sequence |
-
-> **STOP — paste outputs before Lab Closeout.**
+- **`test -L`** — the file test that is true only for a symbolic link.
 
 ---
 
-## Lab Closeout
+### Step 2 of 2 — Resolve the canonical target with `readlink -f`
+
+**In plain English:** We print the real path the symlink points at, collapsing every link in the chain.
 
 ```bash
-set +e
-if getent passwd "${USER}" >/dev/null 2>&1; then userdel -r "${USER}" 2>/dev/null; fi
-if getent group "${GROUP}" >/dev/null 2>&1; then groupdel "${GROUP}" 2>/dev/null; fi
-rm -rf "${SANDBOX}"
-getent passwd "${USER}" >/dev/null && echo "❌ user remains" || echo "✅ user gone"
-getent group  "${GROUP}" >/dev/null && echo "❌ group remains" || echo "✅ group gone"
-test -d "${SANDBOX}" && echo "❌ sandbox remains" || echo "✅ sandbox gone"
-test -d "${USER_HOME}" && echo "❌ home remains" || echo "✅ home gone"
-set -e
+readlink -f "$LAB_ROOT/link_dir"
+readlink -f "$LAB_ROOT/link_dir" | grep -q '/real_dir$' && echo "TARGET OK" || echo "TARGET WRONG (FAIL)"
 ```
 
-## Lab 05c Checklist
+**Expected output:**
 
-- [ ] Task 1 audited 05a evidence
-- [ ] Task 2 completed destroy/restore drill
-- [ ] Post-restore user proof captured
-- [ ] Closeout audit shows four `✅`
+```
+/tmp/lab-05/real_dir
+TARGET OK
+```
+
+**Line-by-line breakdown:**
+
+- `readlink -f "$LAB_ROOT/link_dir"` → Resolve the symlink to its canonical path; `-f` follows the whole chain.
+- `... | grep -q '/real_dir$'` → Assert the canonical path ends in `real_dir`, turning resolution into a verdict.
+
+**New words in this step:**
+
+- **`readlink -f`** — prints the fully-resolved canonical path of a symlink or file.
+- **canonical path** — the single, symlink-free absolute path to a file.
+
+---
+
+### Concept card (Task 1)
+
+| Concept | What it does | Exam trap |
+|---|---|---|
+| `test -L` | true for symlinks | `test -e` is true for both link and target |
+| `test -d` on a link | follows the link | a dangling link makes `-d` false |
+| `readlink -f` | canonical resolution | `readlink` without `-f` shows only one hop |
+
+---
+
+### Troubleshoot (Task 1)
+
+| Symptom | Likely cause | Fix |
+|---|---|---|
+| `NOT A SYMLINK (FAIL)` | `link_dir` is a real dir/copy | Recreate it with `ln -sfn` |
+| `readlink` prints nothing | Path is not a link | Point it at the symlink, not the target |
+
+---
+
+## TASK 2 of 2 — Prove logical ≠ physical inside the link
+
+**In plain English:** We stand inside the symlink and prove `pwd -P` differs from `pwd -L`, then assert the physical path equals the canonical target.
+
+---
+
+### Step 1 of 2 — Capture both paths with `realpath`
+
+**In plain English:** We `cd` into the symlink, record the logical and physical CWDs, and compute the canonical target with `realpath`.
+
+```bash
+cd "$LAB_ROOT/link_dir"
+LOGICAL=$(pwd -L)
+PHYSICAL=$(pwd -P)
+CANON=$(realpath "$LAB_ROOT/link_dir")
+echo "logical:  $LOGICAL"
+echo "physical: $PHYSICAL"
+echo "canon:    $CANON"
+```
+
+**Expected output:**
+
+```
+logical:  /tmp/lab-05/link_dir
+physical: /tmp/lab-05/real_dir
+canon:    /tmp/lab-05/real_dir
+```
+
+**Line-by-line breakdown:**
+
+- `cd "$LAB_ROOT/link_dir"` → Enter via the symlink so logical and physical diverge.
+- `LOGICAL=$(pwd -L)` / `PHYSICAL=$(pwd -P)` → Capture both views into variables for comparison.
+- `CANON=$(realpath ...)` → Compute the canonical target independently of the CWD.
+
+**New words in this step:**
+
+- **`realpath`** — resolves a path to its absolute canonical form, erroring if a component is missing.
+
+---
+
+### Step 2 of 2 — Assert the relationship with a string test
+
+**In plain English:** We compare the captured paths to prove the logical path differs from the physical one, and that the physical path matches the canonical target.
+
+```bash
+[ "$LOGICAL" != "$PHYSICAL" ] && echo "LOGICAL != PHYSICAL (OK)" || echo "PATHS EQUAL (FAIL)"
+[ "$PHYSICAL" = "$CANON" ] && echo "PHYSICAL = CANON (OK)" || echo "MISMATCH (FAIL)"
+echo "exit was: $?"
+```
+
+**Expected output:**
+
+```
+LOGICAL != PHYSICAL (OK)
+PHYSICAL = CANON (OK)
+exit was: 0
+```
+
+**Line-by-line breakdown:**
+
+- `[ "$LOGICAL" != "$PHYSICAL" ]` → Assert the typed path and the real path differ — the symlink trap, proven numerically.
+- `[ "$PHYSICAL" = "$CANON" ]` → Assert the physical CWD equals the canonical target, confirming `pwd -P` is trustworthy.
+
+**New words in this step:**
+
+- **string test `[ a = b ]`** — a shell comparison returning exit 0 (true) or 1 (false) for use in `&&`/`||`.
+
+---
+
+### Concept card (Task 2)
+
+| Concept | What it does | Exam trap |
+|---|---|---|
+| `pwd -L` vs `-P` | logical vs physical CWD | scripts default to `-L` and misfire |
+| `realpath` | canonical target | fails on a non-existent component |
+| `[ a = b ]` | string equality verdict | use `=`, not `==`, for POSIX `sh` |
+
+---
+
+### Troubleshoot (Task 2)
+
+| Symptom | Likely cause | Fix |
+|---|---|---|
+| `PATHS EQUAL (FAIL)` | You `cd`'d into the real dir | Enter via `link_dir` instead |
+| `realpath: No such file` | Component missing | Re-run SETUP to recreate the tree |
+
+---
+
+## ✅ Lab Checklist
+
+- [ ] Task 1 · Step 1 — Assert link type with `test -L` / `test -d`
+- [ ] Task 1 · Step 2 — Resolve the canonical target with `readlink -f`
+- [ ] Task 2 · Step 1 — Capture both paths with `realpath`
+- [ ] Task 2 · Step 2 — Assert the relationship with a string test
+- [ ] Every 🎯 Focus Coverage row (Anchor + NEW) mapped to a step
+- [ ] 🧹 Teardown run — sandbox + any system state removed
+
+---
+
+## 🧹 Teardown
+
+**In plain English:** Delete everything this lab created so the box is clean for the next run.
+
+> Run this after you've verified the lab. `lab_teardown.sh` safely removes the single sandbox root — it refuses to touch `/`, `$HOME`, or any protected path. This verify lab changed **no** system state.
+
+```bash
+cd /tmp
+bash lab_teardown.sh "$LAB_ROOT"     # = /tmp/lab-05
+```
+
+**Expected output:**
+
+```
+✅ Removed /tmp/lab-05 — lab workspace is clean.
+```
+
+---
+
+## ⚠️ Common Pitfalls
+
+| Mistake | Symptom | Fix |
+|---|---|---|
+| Using `pwd` and trusting it inside a link | Output written to the real dir unexpectedly | Use `pwd -P` for the true location |
+| `readlink` without `-f` | Only one hop resolved | Use `-f` for the full canonical path |
+| Comparing with `==` in `sh` | Portability error | Use `=` in POSIX test |
+
+---
+
+## 📌 Exam Strategy
+
+Verification of navigation means proving you operated in the intended directory. After any `cd` that might cross a symlink, run `pwd -P` and compare against the canonical target with `realpath`. Make path assertions part of your scripts so a stray symlink never silently redirects your writes.
+
+- `readlink -f`/`realpath` are interchangeable for canonical paths — know both.
+- A `[ "$a" = "$b" ]` test is the cleanest pass/fail in a script.
+- When in doubt about "where am I really," `pwd -P` is the answer.
+
+---
+
+## 🔗 Related Labs
+
+- [Lab 05a — Directory Navigation (RHCSA)](../lab-05a-directory-navigation-rhcsa/) — the navigation this audits
+- [Lab 05b — Directory Navigation (Ansible)](../lab-05b-directory-navigation-ansible/) — `chdir:` as the Ansible `cd`
+- [Lab 09c — Hard and Soft Links (Verify)](../lab-09c-hard-and-soft-links-verify/) — deeper link auditing with `inode` and `readlink`
+
+---
+
+## 👤 Author
+
+**Kelvin R. Tobias**  
+[kelvinintech.com](https://kelvinintech.com) · [GitHub](https://github.com/kelvintechnical) · [LinkedIn](https://www.linkedin.com/in/kelvin-r-tobias-211949219)

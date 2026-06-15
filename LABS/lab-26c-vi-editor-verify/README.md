@@ -1,220 +1,339 @@
-# Lab 26c: Verifying `vi` Edits (Capstone) — Audit + Destroy-Restore
+# Lab 26c: Editing Files (Verify) — proving saved edits and managed blocks
 
-- **Series:** linux-ops-mastery — Text File Management
-- **Trilogy:** [`26a`](../lab-26a-vi-editor-rhcsa/) → [`26b`](../lab-26b-vi-editor-ansible/) → **`26c`**
-- **Time Estimate:** 20-30 minutes
-- **Tasks:** 2 (Task 1 = audit 26a substitutions using backup-vs-current `diff` evidence · Task 2 = destroy-restore drill for reproducible recovery)
-- **Practice Directory (rotation #26):** `/opt`
-- **Sandbox (Tier B):** `/tmp/lab26c` with `USER=labuser_26_vi`, `GROUP=labgrp_26_vi`
-- **Traps rehearsed:** **T26-A** · **T26-B** · **T41** · **T44**
+**Series:** linux-ops-mastery — Text Editors · **Lab 26c of the Novice → RHCA path**  
+**Certifications covered:** RHCSA EX200 (proving an edit was saved correctly), SRE (config-edit validation), DevOps (managed-block verification)  
+**Prerequisite:** [Lab 26a](../lab-26a-vi-editor-rhcsa/) and [Lab 26b](../lab-26b-vi-editor-ansible/) completed  
+**Time Estimate:** 15–25 minutes  
+**Difficulty:** Beginner
 
 ---
 
-## LAB HEADER BLOCK
+## 🎯 Today's Focus Coverage
 
-```bash
-echo "TIME: $(date -Is)"
-echo "USER: $(whoami)@$(hostname)"
-echo "PRACTICE DIR: /opt"
-ls -ld /opt
-ls -la /root/rhcsa_journal/lab-26a/ /root/rhcsa_journal/lab-26b/ 2>/dev/null || true
+> Stay on-subject via the ANCHOR rows; expand vocabulary via the NEW rows. Every row is exercised by a STEP below.
+
+**⚓ Anchor — already learned (on-topic reuse)**
+
+| # | Command / switch | Covered by |
+|---|---|---|
+| A1 | `grep -q` presence | _Task 1 · Step 1_ |
+| A2 | `sed -n` range print | _Task 2 · Step 1_ |
+
+**🆕 NEW this lab — introduced for the first time** (minimum 3)
+
+| # | Command / switch | First taught in | Covered by |
+|---|---|---|---|
+| N1 | edit-position proof (`grep -A`) | Task 1 · Step 1 | _Task 1 · Step 1_ |
+| N2 | `vim -es` headless edit | Task 1 · Step 2 | _Task 1 · Step 2_ |
+| N3 | managed-block extraction | Task 2 · Step 1 | _Task 2 · Step 1_ |
+| N4 | marker-pair integrity | Task 2 · Step 2 | _Task 2 · Step 2_ |
+
+---
+
+## 🎯 Objective
+
+Prove an edit landed where intended and that a managed block is well-formed. You will confirm an inserted line sits under the right header (`grep -A`), apply a non-interactive `vim -es` edit and verify it, extract a marker-delimited block, and confirm the BEGIN/END marker pair is balanced. These checks validate both hand edits and Ansible-managed regions.
+
+---
+
+## 🧠 Concept
+
+Editing verification is about *position* and *integrity*, not just presence. A line can exist but be in the wrong place; `grep -A1 '^\[network\]'` proves the inserted line follows its header. `vim` can edit non-interactively with `-es` (ex-silent mode) fed a command script — useful for scripted edits and to prove vim commands do what you expect. For Ansible-managed blocks, the BEGIN/END `marker:` pair must be balanced (exactly one each) or the region is corrupt; `sed -n '/BEGIN/,/END/p'` extracts the block and `grep -c` confirms the markers are paired.
+
+```
+grep -A1 '^\[network\]' f → header then the inserted line
+printf ':...\nx\n' | vim -es f → scripted non-interactive edit
+sed -n '/BEGIN APP/,/END APP/p' f → extract the managed block
+grep -c 'BEGIN APP' f == grep -c 'END APP' f == 1 → markers balanced
 ```
 
----
-
-## Objective
-
-Move into auditor mode:
-
-1. Validate that 26a edits are exactly what was intended (backup vs edited).
-2. Rehearse failure recovery by destroying sandbox artifacts and restoring from known-good commands/playbooks.
+> **Why this matters:** A config line in the wrong section, or a block with a broken/duplicated marker, fails subtly. Position and marker-integrity checks catch what a simple `grep` for the value would miss.
 
 ---
 
-## Lab-Wide Setup (Tier B)
+## 📚 Command Reference
+
+| Command | Purpose | Critical flags |
+|---|---|---|
+| `grep -A N` | Show lines after match | position proof |
+| `vim -es` | Non-interactive ex edit | scripted commands |
+| `sed -n '/B/,/E/p'` | Extract a block | range by marker |
+| `grep -c` | Count markers | balance check |
+| `diff` | Compare expected block | empty = match |
+
+---
+
+## 🧰 LAB-WIDE SETUP
+
+**In plain English:** Recreate an edited config with an inserted line and a managed block.
+
+> Run this block **once** before Task 1. It builds the clean, private workspace that both tasks depend on.
 
 ```bash
-sudo -i
-
-export LAB_NUM=26
-export LAB_SLUG=vi
-export SANDBOX=/tmp/lab26c
-export GROUP=labgrp_26_vi
-export USER=labuser_26_vi
-export USER_HOME=${SANDBOX}/home_${USER}
-
-mkdir -p "${SANDBOX}" "${USER_HOME}" /root/rhcsa_journal/lab-26c/task1 /root/rhcsa_journal/lab-26c/task2
-getent group "${GROUP}" >/dev/null || groupadd "${GROUP}"
-getent passwd "${USER}" >/dev/null || useradd -d "${USER_HOME}" -M -s /bin/bash -g "${GROUP}" "${USER}"
-chown -R "${USER}:${GROUP}" "${SANDBOX}"
-```
-
----
-
-## Task 1 — Audit 26a edits via `diff` against backup
-
-### Purpose
-
-Confirm change intent from Lab 26a:
-
-- original backup exists
-- edited file exists
-- diff shows only expected `old -> new` substitutions
-
-### Main command block
-
-```bash
-TASKLOG=/tmp/lab26c/task1.txt
-J26A=/root/rhcsa_journal/lab-26a/task1
-
-echo "=== verify required artifacts ==="                | tee "${TASKLOG}"
-for f in "${J26A}/app.conf" "${J26A}/app.conf.bak" "${J26A}/evidence.txt"; do
-  test -s "$f" && echo "✅ $f" || echo "❌ $f missing"
-done                                                   | tee -a "${TASKLOG}"
-
-echo "=== diff backup vs edited ==="                   | tee -a "${TASKLOG}"
-diff -u "${J26A}/app.conf.bak" "${J26A}/app.conf"     | tee -a "${TASKLOG}"
-
-echo "=== grep verification ==="                       | tee -a "${TASKLOG}"
-grep -n 'new' "${J26A}/app.conf"                      | tee -a "${TASKLOG}"
-grep -n 'old' "${J26A}/app.conf"                      | tee -a "${TASKLOG}" || true
-
-cat <<'EOF' | tee -a "${TASKLOG}"
-Audit notes:
-- T26-A control: check no literal ':wq' ended up in edited artifacts.
-- T26-B control: no direct edits against /etc/passwd in 26a evidence.
+export LAB_ROOT=/tmp/lab-26
+mkdir -p "$LAB_ROOT"
+cd "$LAB_ROOT"
+cat > app.conf <<'EOF'
+[main]
+name = demo
+[network]
+port = 8080
+# BEGIN APP LIMITS
+max_connections = 100
+timeout = 30
+retries = 3
+# END APP LIMITS
 EOF
-
-echo "task1 exit: $?"
+cat app.conf
+echo "exit was: $?"
 ```
 
-### Journal write
+**Expected output:**
+
+```
+[main]
+name = demo
+[network]
+port = 8080
+# BEGIN APP LIMITS
+max_connections = 100
+timeout = 30
+retries = 3
+# END APP LIMITS
+exit was: 0
+```
+
+---
+
+## TASK 1 of 2 — Prove the line edit
+
+**In plain English:** We confirm the inserted line's position, then make and verify a headless edit.
+
+---
+
+### Step 1 of 2 — Prove the line position
+
+**In plain English:** We confirm `port = 8080` appears immediately after the `[network]` header.
 
 ```bash
-JDIR=/root/rhcsa_journal/lab-26c/task1
-mkdir -p "${JDIR}"
-cp /tmp/lab26c/task1.txt "${JDIR}/evidence.txt"
-echo "TASK1 COMPLETE $(date -Is)" > "${JDIR}/done.txt"
-ls -la "${JDIR}"
+cd "$LAB_ROOT"
+grep -A1 '^\[network\]' app.conf
+grep -A1 '^\[network\]' app.conf | grep -q 'port = 8080' \
+  && echo "POSITION OK" || echo "WRONG POSITION (FAIL)"
 ```
+
+**Expected output:**
+
+```
+[network]
+port = 8080
+POSITION OK
+```
+
+**Line-by-line breakdown:**
+
+- `grep -A1 '^\[network\]'` → Print the header line plus the one after it.
+- `... | grep -q 'port = 8080'` → Confirm the inserted line is exactly that following line — position, not just presence.
+
+**New words in this step:**
+
+- **position proof** — verifying a line's location relative to an anchor, not just that it exists.
 
 ---
 
-## Task 2 — Destroy-restore drill (T41)
+### Step 2 of 2 — Headless edit with `vim -es`
 
-### Purpose
-
-Deliberately remove working files and restore them using documented patterns:
-
-- 26a non-interactive `vi -c` sequence
-- 26b declarative Ansible module sequence
-
-### Main command block
+**In plain English:** We change a value using vim non-interactively and verify the result.
 
 ```bash
-TASKLOG=/tmp/lab26c/task2.txt
-
-echo "=== Part A: seed files ==="                                  | tee "${TASKLOG}"
-mkdir -p /tmp/lab26c/restore
-cat > /tmp/lab26c/restore/base.txt <<'EOF'
-color=old
-mode=old
-EOF
-cp -a /tmp/lab26c/restore/base.txt /tmp/lab26c/restore/base.txt.bak
-ls -l /tmp/lab26c/restore | tee -a "${TASKLOG}"
-
-echo "=== Part B: destroy ==="                                     | tee -a "${TASKLOG}"
-rm -rf /tmp/lab26c/restore
-test ! -d /tmp/lab26c/restore && echo "✅ destroyed" || echo "❌ destroy failed" | tee -a "${TASKLOG}"
-
-echo "=== Part C: restore RHCSA pattern (vi -c) ==="              | tee -a "${TASKLOG}"
-mkdir -p /tmp/lab26c/restore
-cat > /tmp/lab26c/restore/base.txt <<'EOF'
-color=old
-mode=old
-EOF
-cp -a /tmp/lab26c/restore/base.txt /tmp/lab26c/restore/base.txt.bak
-vi -c ':1,$s/old/new/g' -c ':wq' /tmp/lab26c/restore/base.txt
-diff -u /tmp/lab26c/restore/base.txt.bak /tmp/lab26c/restore/base.txt | tee -a "${TASKLOG}"
-
-echo "=== Part D: restore Ansible pattern (replace + lineinfile) ===" | tee -a "${TASKLOG}"
-cat > /root/rhcsa_journal/lab-26c/task2-restore.yml <<'PLAYBOOK'
----
-- name: "Lab 26c restore"
-  hosts: localhost
-  connection: local
-  gather_facts: false
-  tasks:
-    - name: "Ensure state token"
-      ansible.builtin.replace:
-        path: /tmp/lab26c/restore/base.txt
-        regexp: 'new'
-        replace: 'new'
-    - name: "Append restore marker"
-      ansible.builtin.lineinfile:
-        path: /tmp/lab26c/restore/base.txt
-        insertafter: EOF
-        line: "restored_by=ansible"
-PLAYBOOK
-
-ansible-playbook /root/rhcsa_journal/lab-26c/task2-restore.yml      | tee -a "${TASKLOG}"
-cat /tmp/lab26c/restore/base.txt                                     | tee -a "${TASKLOG}"
-
-# Tier B weave
-sudo -u "${USER}" bash -c 'echo "destroy-restore-verified $(date -Is)" > "'"${USER_HOME}"'/task2-asuser.txt"'
-stat -c '%U:%G %a %n' "${USER_HOME}/task2-asuser.txt"               | tee -a "${TASKLOG}"
-
-echo "task2 exit: $?"
+cd "$LAB_ROOT"
+printf '%%s/timeout = 30/timeout = 45/\nwq\n' | vim -es app.conf
+grep -q 'timeout = 45' app.conf && echo "HEADLESS EDIT OK" || echo "EDIT FAILED (FAIL)"
+echo "exit was: $?"
 ```
 
-### Journal write
+**Expected output:**
+
+```
+HEADLESS EDIT OK
+exit was: 0
+```
+
+**Line-by-line breakdown:**
+
+- `printf '%%s/.../.../\nwq\n' | vim -es app.conf` → Feed ex commands (`:%s` then `:wq`) to vim in silent mode — a scripted, non-interactive edit.
+- `grep -q 'timeout = 45'` → Confirm the value changed on disk.
+
+**New words in this step:**
+
+- **`vim -es`** — ex-silent mode; runs vim commands from a script with no UI.
+
+---
+
+### Concept card (Task 1)
+
+| Concept | What it does | Exam trap |
+|---|---|---|
+| `grep -A1` | position check | header + next line |
+| `vim -es` | scripted edit | feed ex commands |
+| presence vs position | where, not just if | a line can be misplaced |
+
+---
+
+### Troubleshoot (Task 1)
+
+| Symptom | Likely cause | Fix |
+|---|---|---|
+| Line present but misplaced | Wrong `insertafter` | Re-anchor and re-run |
+| `vim -es` no change | Command syntax | Check the ex script |
+
+---
+
+## TASK 2 of 2 — Prove the managed block
+
+**In plain English:** We extract the block and confirm its markers are balanced.
+
+---
+
+### Step 1 of 2 — Extract the managed block
+
+**In plain English:** We print just the block between the BEGIN and END markers.
 
 ```bash
-JDIR=/root/rhcsa_journal/lab-26c/task2
-mkdir -p "${JDIR}"
-cp /tmp/lab26c/task2.txt "${JDIR}/evidence.txt"
-cp /root/rhcsa_journal/lab-26c/task2-restore.yml "${JDIR}/"
-cp "${USER_HOME}/task2-asuser.txt" "${JDIR}/"
-echo "TASK2 COMPLETE $(date -Is)" > "${JDIR}/done.txt"
-ls -la "${JDIR}"
+cd "$LAB_ROOT"
+sed -n '/# BEGIN APP LIMITS/,/# END APP LIMITS/p' app.conf
+echo "exit was: $?"
 ```
+
+**Expected output:**
+
+```
+# BEGIN APP LIMITS
+max_connections = 100
+timeout = 45
+retries = 3
+# END APP LIMITS
+exit was: 0
+```
+
+**Line-by-line breakdown:**
+
+- `sed -n '/# BEGIN APP LIMITS/,/# END APP LIMITS/p'` → Range address from BEGIN marker to END marker; `-n p` prints only that region.
+
+**New words in this step:**
+
+- **block extraction** — printing only the marker-delimited managed region.
 
 ---
 
-## Lab Closeout — Bulletproof Teardown (Section 6)
+### Step 2 of 2 — Prove marker integrity
+
+**In plain English:** We confirm there is exactly one BEGIN and one END marker.
 
 ```bash
-set +e
+cd "$LAB_ROOT"
+B=$(grep -c '# BEGIN APP LIMITS' app.conf)
+E=$(grep -c '# END APP LIMITS' app.conf)
+echo "BEGIN: $B  END: $E"
+[ "$B" -eq 1 ] && [ "$E" -eq 1 ] && echo "MARKERS BALANCED (OK)" || echo "MARKER ERROR (FAIL)"
+```
 
-rm -f /tmp/lab26c/task1.txt /tmp/lab26c/task2.txt
-rm -rf /tmp/lab26c/restore
-rm -f /root/rhcsa_journal/lab-26c/task2-restore.yml
-rm -f "${USER_HOME}/task2-asuser.txt"
+**Expected output:**
 
-if getent passwd "${USER}" >/dev/null 2>&1; then userdel -r "${USER}" 2>/dev/null; fi
-if getent group "${GROUP}" >/dev/null 2>&1; then groupdel "${GROUP}" 2>/dev/null; fi
-rm -rf "${SANDBOX}"
+```
+BEGIN: 1  END: 1
+MARKERS BALANCED (OK)
+```
 
-echo "---- lab-26c cleanup audit ----"
-getent passwd "${USER}" >/dev/null && echo "❌ user remains" || echo "✅ user gone"
-getent group "${GROUP}" >/dev/null && echo "❌ group remains" || echo "✅ group gone"
-test -d "${SANDBOX}" && echo "❌ sandbox remains" || echo "✅ sandbox gone"
-test -d "${USER_HOME}" && echo "❌ home remains" || echo "✅ home gone"
-set -e
+**Line-by-line breakdown:**
+
+- `grep -c '# BEGIN ...'` / `grep -c '# END ...'` → Count each marker.
+- `[ "$B" -eq 1 ] && [ "$E" -eq 1 ]` → Exactly one of each means the block is well-formed and re-manageable.
+
+**New words in this step:**
+
+- **marker integrity** — a balanced single BEGIN/END pair around a managed block.
+
+---
+
+### Concept card (Task 2)
+
+| Concept | What it does | Exam trap |
+|---|---|---|
+| `sed` range | extract block | inclusive of markers |
+| marker count | integrity | must be 1 each |
+| balanced pair | re-manageable | dupes break idempotence |
+
+---
+
+### Troubleshoot (Task 2)
+
+| Symptom | Likely cause | Fix |
+|---|---|---|
+| Two BEGIN markers | Marker reused elsewhere | Use unique markers |
+| Empty extraction | Marker text mismatch | Match the exact marker |
+
+---
+
+## ✅ Lab Checklist
+
+- [ ] Task 1 · Step 1 — Prove the line position
+- [ ] Task 1 · Step 2 — Headless edit with `vim -es`
+- [ ] Task 2 · Step 1 — Extract the managed block
+- [ ] Task 2 · Step 2 — Prove marker integrity
+- [ ] Every 🎯 Focus Coverage row (Anchor + NEW) mapped to a step
+- [ ] 🧹 Teardown run — sandbox + any system state removed
+
+---
+
+## 🧹 Teardown
+
+**In plain English:** Delete everything this lab created so the box is clean for the next run.
+
+> Run this after you've verified the lab. `lab_teardown.sh` safely removes the single sandbox root — it refuses to touch `/`, `$HOME`, or any protected path. This verify lab changed **no** system state.
+
+```bash
+cd /tmp
+bash lab_teardown.sh "$LAB_ROOT"     # = /tmp/lab-26
+```
+
+**Expected output:**
+
+```
+✅ Removed /tmp/lab-26 — lab workspace is clean.
 ```
 
 ---
 
-## Lab 26c Checklist
+## ⚠️ Common Pitfalls
 
-- [ ] Task 1 completed (26a backup-vs-edited `diff` audit captured)
-- [ ] Task 2 completed (destroy-restore drill with both `vi -c` and Ansible module restore)
-- [ ] T41/T44 controls rehearsed in verification context
-- [ ] Section 6 closeout audit shows four `✅` lines
+| Mistake | Symptom | Fix |
+|---|---|---|
+| Checking presence only | Misplaced line passes | Verify position with `-A` |
+| Ignoring markers | Corrupt managed block | Count BEGIN/END |
+| Manual block edits | Breaks idempotence | Let Ansible own the block |
 
 ---
 
-## Author
+## 📌 Exam Strategy
+
+Verify edits by position (`grep -A`), not just presence, and verify managed blocks by extracting them and confirming a balanced marker pair. `vim -es` lets you script and test vim edits non-interactively.
+
+- `grep -A1` proves a line followed its anchor.
+- Balanced BEGIN/END markers keep a block re-manageable.
+- `vim -es` is scriptable vim for verification.
+
+---
+
+## 🔗 Related Labs
+
+- [Lab 26a — Command/Insert Mode in vi (RHCSA)](../lab-26a-vi-editor-rhcsa/) — the interactive editing this audits
+- [Lab 26b — Editing Files (Ansible)](../lab-26b-vi-editor-ansible/) — the line/block edits you verify
+- [Lab 27c — Safely Editing System Databases (Verify)](../lab-27c-vipw-vigr-safe-editing-verify/) — verifying locked-file edits
+
+---
+
+## 👤 Author
 
 **Kelvin R. Tobias**  
 [kelvinintech.com](https://kelvinintech.com) · [GitHub](https://github.com/kelvintechnical) · [LinkedIn](https://www.linkedin.com/in/kelvin-r-tobias-211949219)

@@ -1,0 +1,22 @@
+---
+- name: "Lab 35b Task 2 — hostname as code"
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  become: true
+  vars:
+    desired_hostname: labhost.example.com
+  tasks:
+    - name: "Capture the current hostname (to restore later)"
+      ansible.builtin.command: "hostnamectl --static status"
+      register: before
+      changed_when: false
+
+    - name: "Set the static hostname"
+      ansible.builtin.hostname:
+        name: "{{ desired_hostname }}"
+      register: hn
+
+    - name: "Report old vs new"
+      ansible.builtin.debug:
+        msg: "was '{{ before.stdout }}', now '{{ desired_hostname }}' (changed: {{ hn.changed }})"

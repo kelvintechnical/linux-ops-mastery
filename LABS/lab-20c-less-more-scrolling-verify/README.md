@@ -1,213 +1,323 @@
-# Lab 20c: Verifying Scrolling Through Large Files — audit + destroy-restore
+# Lab 20c: Scrolling Large Files (Verify) — `sed -n`, `awk NR`, `wc -l`
 
-- **Series:** linux-ops-mastery — File Operations & Shell Fundamentals
-- **Trilogy:** [`20a`](../lab-20a-less-more-scrolling-rhcsa/) (RHCSA) → [`20b`](../lab-20b-less-more-scrolling-ansible/) (Ansible) → `20c` (Verify)
-- **Time Estimate:** 20-30 minutes
-- **Tasks:** 2 (Task 1 = audit 20a/20b evidence and search captures, Task 2 = destroy-restore drill)
-- **Practice Directory (rotation #20):** `/etc`
-- **Sandbox (Tier B):** `/tmp/lab20c` with `USER=labuser_20_pager`, `GROUP=labgrp_20_pager`
-- **Traps rehearsed:** **T20-A** · **T20-B** · **T41** · **T44**
+**Series:** linux-ops-mastery — Text Processing & Filters · **Lab 20c of the Novice → RHCA path**  
+**Certifications covered:** RHCSA EX200 (proving you read the right lines), SRE (deterministic log slicing), DevOps (range extraction validation)  
+**Prerequisite:** [Lab 20a](../lab-20a-less-more-scrolling-rhcsa/) and [Lab 20b](../lab-20b-less-more-scrolling-ansible/) completed  
+**Time Estimate:** 15–25 minutes  
+**Difficulty:** Beginner
 
 ---
 
-## LAB HEADER BLOCK
+## 🎯 Today's Focus Coverage
+
+> Stay on-subject via the ANCHOR rows; expand vocabulary via the NEW rows. Every row is exercised by a STEP below.
+
+**⚓ Anchor — already learned (on-topic reuse)**
+
+| # | Command / switch | Covered by |
+|---|---|---|
+| A1 | `sed -n 'A,Bp'` | _Task 1 · Step 1_ |
+| A2 | `grep -n` | _Task 2 · Step 1_ |
+
+**🆕 NEW this lab — introduced for the first time** (minimum 3)
+
+| # | Command / switch | First taught in | Covered by |
+|---|---|---|---|
+| N1 | `awk 'NR==N'` line addressing | Task 1 · Step 1 | _Task 1 · Step 1_ |
+| N2 | range line-count proof | Task 1 · Step 2 | _Task 1 · Step 2_ |
+| N3 | `grep -c` match count | Task 2 · Step 1 | _Task 2 · Step 1_ |
+| N4 | `grep -n | cut` line number | Task 2 · Step 2 | _Task 2 · Step 2_ |
+
+---
+
+## 🎯 Objective
+
+Prove a range extraction or search returned exactly the right lines. You will pull a single line by number two ways (`sed -n` and `awk NR`) and confirm they agree, verify a range has the expected line count, count matches with `grep -c`, and extract the precise line number of a hit. This is how you certify a "scroll to line N" or "find pattern" operation in a script.
+
+---
+
+## 🧠 Concept
+
+Verifying a read is about determinism: the same line number must yield the same content every time, and a search must return a known count at a known position. `sed -n 'Np'` and `awk 'NR==N'` both print line N; if they match, your addressing is correct. `sed -n 'A,Bp' | wc -l` proves a range has exactly B−A+1 lines. For searches, `grep -c` counts matches and `grep -n pat | cut -d: -f1` extracts the line number, which you can compare against the expected location.
+
+```
+sed -n '751p' f  == awk 'NR==751' f   → line addressing agrees
+sed -n '748,752p' f | wc -l → 5        → range size correct
+grep -c ERROR f → 1                    → exactly one match
+grep -n ERROR f | cut -d: -f1 → 751    → match is on line 751
+```
+
+> **Why this matters:** When a playbook or script makes decisions off "line 751" or "the ERROR line," you must prove the address and the match are stable. Two independent tools agreeing is the cheap, reliable proof.
+
+---
+
+## 📚 Command Reference
+
+| Command | Purpose | Critical flags |
+|---|---|---|
+| `sed -n 'Np'` | Print one line | `'A,Bp'` for a range |
+| `awk 'NR==N'` | Print line N | independent of `sed` |
+| `wc -l` | Count lines | proves range size |
+| `grep -c` | Count matches | not line count of file |
+| `grep -n | cut -d: -f1` | Line number of match | colon-delimited |
+
+---
+
+## 🧰 LAB-WIDE SETUP
+
+**In plain English:** Rebuild the large log with a known ERROR position to audit.
+
+> Run this block **once** before Task 1. It builds the clean, private workspace that both tasks depend on.
 
 ```bash
-echo "ENV:  ${ENV:-DECLARE_ME}"
-echo "TIME: $(date -Is)"
-echo "USER: $(whoami)@$(hostname)"
-echo "TRAPS THIS LAB: T20-A T20-B T41 T44"
-echo "PRACTICE DIR: /etc"
-test -f /root/rhcsa_journal/lab-20a/task1/evidence.txt && echo "20a task1 evidence present"
-test -f /root/rhcsa_journal/lab-20b/task1/lab20-less-defaults.sh && echo "20b alias/defaults evidence present"
+export LAB_ROOT=/tmp/lab-20
+mkdir -p "$LAB_ROOT"
+cd "$LAB_ROOT"
+seq 1 1000 | sed 's/^/line /' > big.log
+sed -i '750a ERROR disk full' big.log
+wc -l big.log
+echo "exit was: $?"
+```
+
+**Expected output:**
+
+```
+1001 big.log
+exit was: 0
 ```
 
 ---
 
-## Objective
+## TASK 1 of 2 — Prove line addressing and range size
 
-1. Audit that Lab 20a and 20b produced real, reusable pager evidence.
-2. Verify less-defaults profile file exists and contains expected markers/aliases.
-3. Run destroy-restore drill (T41) and confirm artifacts can be reconstructed.
+**In plain English:** We confirm two tools read the same line, then prove a range has the right count.
 
 ---
 
-## Lab-Wide Setup (Tier B)
+### Step 1 of 2 — Two tools, one line
+
+**In plain English:** We read line 751 with `sed` and with `awk` and confirm they match.
 
 ```bash
-sudo -i
+cd "$LAB_ROOT"
+S=$(sed -n '751p' big.log)
+A=$(awk 'NR==751' big.log)
+echo "sed:  $S"
+echo "awk:  $A"
+[ "$S" = "$A" ] && echo "ADDRESSING OK" || echo "MISMATCH (FAIL)"
+```
 
-export LAB_NUM=20
-export LAB_SLUG=pager
-export SANDBOX=/tmp/lab20c
-export GROUP=labgrp_${LAB_NUM}_${LAB_SLUG}
-export USER=labuser_${LAB_NUM}_${LAB_SLUG}
-export USER_HOME=${SANDBOX}/home_${USER}
+**Expected output:**
 
-mkdir -p "${SANDBOX}" "${USER_HOME}" /root/rhcsa_journal/lab-20c/task1 /root/rhcsa_journal/lab-20c/task2
-getent group "${GROUP}" >/dev/null || groupadd "${GROUP}"
-getent passwd "${USER}" >/dev/null || useradd -d "${USER_HOME}" -M -s /bin/bash -g "${GROUP}" "${USER}"
-chown -R "${USER}:${GROUP}" "${SANDBOX}"
+```
+sed:  ERROR disk full
+awk:  ERROR disk full
+ADDRESSING OK
+```
+
+**Line-by-line breakdown:**
+
+- `S=$(sed -n '751p' ...)` → Read line 751 with `sed`.
+- `A=$(awk 'NR==751' ...)` → Read the same line with `awk` (`NR` is the record/line number).
+- `[ "$S" = "$A" ]` → Two independent tools agreeing proves the address is correct.
+
+**New words in this step:**
+
+- **`awk 'NR==N'`** — print the Nth line; `NR` is awk's line counter.
+
+---
+
+### Step 2 of 2 — Prove the range size
+
+**In plain English:** We extract lines 748–752 and confirm the slice is exactly 5 lines.
+
+```bash
+cd "$LAB_ROOT"
+N=$(sed -n '748,752p' big.log | wc -l)
+echo "range lines: $N"
+[ "$N" -eq 5 ] && echo "RANGE SIZE OK" || echo "WRONG SIZE (FAIL)"
+```
+
+**Expected output:**
+
+```
+range lines: 5
+RANGE SIZE OK
+```
+
+**Line-by-line breakdown:**
+
+- `sed -n '748,752p' | wc -l` → Count the lines in the extracted range.
+- `[ "$N" -eq 5 ]` → 748..752 inclusive is exactly 5 lines (B−A+1).
+
+**New words in this step:**
+
+- **range size** — `B − A + 1` lines for an inclusive `A,B` extraction.
+
+---
+
+### Concept card (Task 1)
+
+| Concept | What it does | Exam trap |
+|---|---|---|
+| `sed` vs `awk` line | cross-check address | both 1-indexed |
+| range count | `B-A+1` | off-by-one if exclusive assumed |
+| `wc -l` | counts newlines | missing final newline undercounts |
+
+---
+
+### Troubleshoot (Task 1)
+
+| Symptom | Likely cause | Fix |
+|---|---|---|
+| Addressing mismatch | File changed between reads | Re-extract from same file |
+| Range size off by one | Inclusive vs exclusive confusion | `A,B` is inclusive |
+
+---
+
+## TASK 2 of 2 — Prove the search
+
+**In plain English:** We count matches and extract the matching line number.
+
+---
+
+### Step 1 of 2 — Count matches with `grep -c`
+
+**In plain English:** We confirm there is exactly one ERROR line.
+
+```bash
+cd "$LAB_ROOT"
+C=$(grep -c ERROR big.log)
+echo "matches: $C"
+[ "$C" -eq 1 ] && echo "COUNT OK" || echo "WRONG COUNT (FAIL)"
+```
+
+**Expected output:**
+
+```
+matches: 1
+COUNT OK
+```
+
+**Line-by-line breakdown:**
+
+- `grep -c ERROR big.log` → Count matching lines (not occurrences) — here, exactly one.
+- `[ "$C" -eq 1 ]` → Assert the expected match count.
+
+**New words in this step:**
+
+- **`grep -c`** — count matching lines, not total file lines.
+
+---
+
+### Step 2 of 2 — Extract the matching line number
+
+**In plain English:** We pull the line number of the ERROR and confirm it is where we expect.
+
+```bash
+cd "$LAB_ROOT"
+LN=$(grep -n ERROR big.log | cut -d: -f1)
+echo "ERROR on line: $LN"
+[ "$LN" -eq 751 ] && echo "POSITION OK" || echo "WRONG POSITION (FAIL)"
+```
+
+**Expected output:**
+
+```
+ERROR on line: 751
+POSITION OK
+```
+
+**Line-by-line breakdown:**
+
+- `grep -n ERROR ...` → Output is `751:ERROR disk full`.
+- `cut -d: -f1` → Take the first colon-delimited field — the line number.
+- `[ "$LN" -eq 751 ]` → Confirm the match is at the expected position.
+
+**New words in this step:**
+
+- **`grep -n | cut`** — extract the line number from a numbered match.
+
+---
+
+### Concept card (Task 2)
+
+| Concept | What it does | Exam trap |
+|---|---|---|
+| `grep -c` | match-line count | not occurrence count |
+| `grep -n` | prefixes `line:` | `cut -d:` to split |
+| position check | assert line number | shifts if file edited |
+
+---
+
+### Troubleshoot (Task 2)
+
+| Symptom | Likely cause | Fix |
+|---|---|---|
+| Wrong position | File length changed | Re-derive expected line |
+| `cut` gives content | Wrong delimiter/field | Use `-d: -f1` |
+
+---
+
+## ✅ Lab Checklist
+
+- [ ] Task 1 · Step 1 — Two tools, one line
+- [ ] Task 1 · Step 2 — Prove the range size
+- [ ] Task 2 · Step 1 — Count matches with `grep -c`
+- [ ] Task 2 · Step 2 — Extract the matching line number
+- [ ] Every 🎯 Focus Coverage row (Anchor + NEW) mapped to a step
+- [ ] 🧹 Teardown run — sandbox + any system state removed
+
+---
+
+## 🧹 Teardown
+
+**In plain English:** Delete everything this lab created so the box is clean for the next run.
+
+> Run this after you've verified the lab. `lab_teardown.sh` safely removes the single sandbox root — it refuses to touch `/`, `$HOME`, or any protected path. This verify lab changed **no** system state.
+
+```bash
+cd /tmp
+bash lab_teardown.sh "$LAB_ROOT"     # = /tmp/lab-20
+```
+
+**Expected output:**
+
+```
+✅ Removed /tmp/lab-20 — lab workspace is clean.
 ```
 
 ---
 
-## Task 1 — Audit evidence from 20a and 20b
+## ⚠️ Common Pitfalls
 
-### Purpose
-
-Confirm that:
-
-- 20a captured search/navigation evidence.
-- 20b deployed `/etc/profile.d/lab20-less-defaults.sh`.
-- Search hits were captured and auditable.
-
-### Main command block
-
-```bash
-TASKLOG=/tmp/lab20c/task1.txt
-
-{
-  echo "=== 20a evidence audit ==="
-  ls -la /root/rhcsa_journal/lab-20a/task1 /root/rhcsa_journal/lab-20a/task2
-  test -f /root/rhcsa_journal/lab-20a/task1/less-nav-demo.sh && echo "OK nav demo present"
-  grep -E "error|systemd|/error|\?systemd" /root/rhcsa_journal/lab-20a/task1/evidence.txt | head -n 10 || true
-
-  echo
-  echo "=== 20b evidence audit ==="
-  ls -la /root/rhcsa_journal/lab-20b/task1 /root/rhcsa_journal/lab-20b/task2
-  test -f /root/rhcsa_journal/lab-20b/task1/lab20-less-defaults.sh && echo "OK less defaults file archived"
-  grep -c "LAB 20 LESS DEFAULTS" /root/rhcsa_journal/lab-20b/task1/lab20-less-defaults.sh
-  grep -E "alias less|export LESS" /root/rhcsa_journal/lab-20b/task1/lab20-less-defaults.sh
-
-  echo
-  echo "=== live profile check ==="
-  ls -lZ /etc/profile.d/lab20-less-defaults.sh
-  cat /etc/profile.d/lab20-less-defaults.sh
-  sudo -u "${USER}" bash -c "source /etc/profile.d/lab20-less-defaults.sh; alias less" || true
-} 2>&1 | tee "${TASKLOG}"
-
-echo "task1 exit: $?"
-```
-
-### Expected output
-
-```text
-OK nav demo present
-...
-OK less defaults file archived
-2
-alias less='less -N -S'
-export LESS='-N -S'
-...
-```
-
-### Journal write
-
-```bash
-JDIR=/root/rhcsa_journal/lab-20c/task1
-mkdir -p "${JDIR}"
-cp /tmp/lab20c/task1.txt "${JDIR}/evidence.txt"
-echo "TASK1 COMPLETE $(date -Is)" > "${JDIR}/done.txt"
-```
+| Mistake | Symptom | Fix |
+|---|---|---|
+| Trusting one tool | Hidden addressing bug | Cross-check `sed` vs `awk` |
+| Confusing `-c` with line count | Wrong assertion | `-c` counts matches |
+| Off-by-one ranges | Wrong size | `A,B` inclusive = `B-A+1` |
 
 ---
 
-## Task 2 — Destroy-restore drill (T41)
+## 📌 Exam Strategy
 
-### Purpose
+Verify reads deterministically: cross-check a line with two tools, prove range sizes with `wc -l`, and confirm searches with `grep -c` and the extracted line number. Determinism is what makes a scripted read trustworthy.
 
-Delete local working artifacts, restore required profile defaults from journal copy, and prove pager setup is functional again.
-
-### Main command block
-
-```bash
-TASKLOG=/tmp/lab20c/task2.txt
-SRC=/root/rhcsa_journal/lab-20b/task1/lab20-less-defaults.sh
-DST=/etc/profile.d/lab20-less-defaults.sh
-
-{
-  echo "=== phase 1: snapshot ==="
-  sha256sum "${DST}" 2>/dev/null || echo "no live defaults file yet"
-  ls -la /tmp/lab20a /tmp/lab20b /tmp/lab20c 2>/dev/null || true
-
-  echo
-  echo "=== phase 2: destroy local temp dirs ==="
-  rm -rf /tmp/lab20a /tmp/lab20b /tmp/lab20c
-  test ! -d /tmp/lab20a -a ! -d /tmp/lab20b -a ! -d /tmp/lab20c && echo "destroy clean"
-
-  echo
-  echo "=== phase 3: restore defaults file from journal ==="
-  cp "${SRC}" "${DST}"
-  chmod 0644 "${DST}"
-  restorecon -v "${DST}" 2>/dev/null || true
-  sha256sum "${SRC}" "${DST}"
-  diff -u "${SRC}" "${DST}" && echo "restore byte-identical"
-
-  echo
-  echo "=== phase 4: functional verification ==="
-  mkdir -p "${SANDBOX}" "${USER_HOME}"
-  chown -R "${USER}:${GROUP}" "${SANDBOX}"
-  sudo -u "${USER}" bash -c "source '${DST}'; alias less; less --version | head -n 1" || true
-  awk 'NR<=5{print}' /etc/services > "${USER_HOME}/verify-head.txt"
-  stat -c '%U:%G %a %n' "${USER_HOME}/verify-head.txt"
-} 2>&1 | tee "${TASKLOG}"
-
-echo "task2 exit: $?"
-```
-
-### Concept Card
-
-| Check | Why it matters |
-|---|---|
-| `diff -u SRC DST` empty | Restore fidelity |
-| `alias less` after `source` | Configuration actually loads |
-| user-owned verify file | Tier B path and identity still healthy |
-| **🪤 T41** | Destroy-restore proves journal can rebuild state |
-
-### Journal write
-
-```bash
-JDIR=/root/rhcsa_journal/lab-20c/task2
-mkdir -p "${JDIR}"
-cp /tmp/lab20c/task2.txt "${JDIR}/evidence.txt"
-cp "${USER_HOME}/verify-head.txt" "${JDIR}/verify-head.txt"
-echo "TASK2 COMPLETE $(date -Is)" > "${JDIR}/done.txt"
-```
+- `sed -n 'Np'` and `awk 'NR==N'` agreeing proves the address.
+- `grep -c` for count, `grep -n | cut` for position.
+- Inclusive ranges: `A,B` is `B-A+1` lines.
 
 ---
 
-## Lab Closeout — Bulletproof Teardown (Section 6)
+## 🔗 Related Labs
 
-```bash
-set +e
-rm -f /tmp/lab20c/task1.txt /tmp/lab20c/task2.txt
-rm -f "${USER_HOME}/verify-head.txt"
-
-if getent passwd "${USER}" >/dev/null 2>&1; then userdel -r "${USER}" 2>/dev/null; fi
-if getent group "${GROUP}" >/dev/null 2>&1; then groupdel "${GROUP}" 2>/dev/null; fi
-rm -rf "${SANDBOX}"
-
-echo "---- lab-20c cleanup audit ----"
-getent passwd "${USER}" >/dev/null && echo "❌ user remains" || echo "✅ user gone"
-getent group "${GROUP}" >/dev/null && echo "❌ group remains" || echo "✅ group gone"
-test -d "${SANDBOX}" && echo "❌ sandbox remains" || echo "✅ sandbox gone"
-test -d "${USER_HOME}" && echo "❌ home remains" || echo "✅ home gone"
-set -e
-```
+- [Lab 20a — Scrolling Large Files (RHCSA)](../lab-20a-less-more-scrolling-rhcsa/) — the `less` navigation this audits
+- [Lab 20b — Scrolling Large Files (Ansible)](../lab-20b-less-more-scrolling-ansible/) — the range/search plays you verify
+- [Lab 21c — Monitoring Live Log Files (Verify)](../lab-21c-tail-f-live-logs-verify/) — verifying tail captures
 
 ---
 
-## Related Labs
-
-| Lab | Connection |
-|---|---|
-| **Lab 20a** | Interactive pager key fluency and follow-mode behavior |
-| **Lab 20b** | Ansible-safe pager management and trap handling |
-
----
-
-## Author
+## 👤 Author
 
 **Kelvin R. Tobias**  
 [kelvinintech.com](https://kelvinintech.com) · [GitHub](https://github.com/kelvintechnical) · [LinkedIn](https://www.linkedin.com/in/kelvin-r-tobias-211949219)

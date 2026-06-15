@@ -1,233 +1,329 @@
-# Lab 38c: Verifying DNS Server Configuration (Capstone) — audit + destroy-restore
+# Lab 38c: Configuring DNS Servers (Verify) — prove the resolver
 
-- **Series:** linux-ops-mastery — Networking and Name Resolution
-- **Trilogy:** [`38a`](../lab-38a-resolv-conf-dns-rhcsa/) (RHCSA) → [`38b`](../lab-38b-resolv-conf-dns-ansible/) (Ansible) → **`38c`** (Verify capstone)
-- **Time Estimate:** 30-45 minutes
-- **Tasks:** 2 (Task 1 = audit DNS state and journal artifacts · Task 2 = destroy-restore by deleting `lab38test` and restoring `/etc/resolv.conf` from backup)
-- **Practice Directory (rotation #38):** `/lib`
-- **Sandbox (Tier B):** `/tmp/lab38c` with `USER=labuser_38_resolv`, `GROUP=labgrp_38_resolv`, `USER_HOME=/tmp/lab38c/home_labuser_38_resolv`
-- **Test Connection:** `lab38test` only
-- **Traps rehearsed:** **T38-A** · **T38-B** · **T41** · **T44**
-
-> **Capstone focus:** verify evidence quality, then restore baseline state so no resolver/test-profile residue leaks into later labs.
+**Series:** linux-ops-mastery — Networking · **Lab 38c of the Novice → RHCA path**  
+**Certifications covered:** RHCSA EX200 (evidence-based resolver checks), SRE (DNS config audits)  
+**Prerequisite:** [Lab 38b](../lab-38b-resolv-conf-dns-ansible/) completed  
+**Time Estimate:** 20–30 minutes  
+**Difficulty:** Beginner → Intermediate
 
 ---
 
-## LAB HEADER BLOCK
+## 🎯 Today's Focus Coverage
 
-```bash
-echo "🖥️  ENV:   ${ENV:-DECLARE_ME}"
-echo "🕒  TIME:  $(date -Is)"
-echo "👤  USER:  $(whoami)@$(hostname)"
-echo "⚠️  TRAP REMINDERS THIS LAB: T38-A T38-B T41 T44"
-echo "📁  PRACTICE DIR: /lib"
-ls -ld /lib /etc
-ls -la /root/rhcsa_journal/lab-38a /root/rhcsa_journal/lab-38b 2>/dev/null || true
-nmcli con show | head -n 12
+> Stay on-subject via the ANCHOR rows; expand vocabulary via the NEW rows. Every row is exercised by a STEP below.
+
+**⚓ Anchor — already learned (on-topic reuse)**
+
+| # | Command / switch | Covered by |
+|---|---|---|
+| A1 | `nmcli -g ipv4.dns` | _Task 1 · Step 1_ |
+| A2 | `grep -q` assertions | _Task 1 · Step 2_ |
+
+**🆕 NEW this lab — introduced for the first time** (minimum 3)
+
+| # | Command / switch | First taught in | Covered by |
+|---|---|---|---|
+| N1 | nameserver-in-file assertion | Task 1 · Step 1 | _Task 1 · Step 1_ |
+| N2 | stored-vs-generated consistency | Task 1 · Step 2 | _Task 1 · Step 2_ |
+| N3 | `search` directive check | Task 2 · Step 1 | _Task 2 · Step 1_ |
+| N4 | server-count / order check | Task 2 · Step 2 | _Task 2 · Step 2_ |
+
+---
+
+## 🎯 Objective
+
+Prove the resolver is configured as intended. You will assert the expected `nameserver` is in `/etc/resolv.conf`, confirm the generated file matches the connection's stored DNS, verify the `search` domain, and check the number/order of nameservers. These checks catch the "configured the profile but the file didn't update" gap.
+
+> **Setup note:** Re-create the `lab-dns` dummy profile (as in Lab 38a setup) and activate it before these checks if a prior teardown removed it.
+
+---
+
+## 🧠 Concept
+
+Resolver verification spans two layers that must agree: the **connection's stored DNS** (`nmcli -g ipv4.dns con show NAME`) and the **generated file** (`/etc/resolv.conf`'s `nameserver` lines). If they disagree, the profile was edited but not activated. Use `grep -q '^nameserver 10.88.88.53'` for presence, compare the stored list against the file for consistency, `grep -q '^search '` for the search domain, and `grep -c '^nameserver'` to count/cap servers (the resolver typically honors only the first few). The `^` anchors avoid matching comments. Each check is extract-then-assert producing PASS/FAIL — a real resolver audit.
+
+```
+grep -q '^nameserver 10.88.88.53' /etc/resolv.conf  → server present
+nmcli -g ipv4.dns con show lab-dns  vs  resolv.conf  → stored == generated
+grep -q '^search lab.local' /etc/resolv.conf         → search domain set
+grep -c '^nameserver' /etc/resolv.conf               → server count
 ```
 
-> **STOP — paste header output. If 38a/38b journals are missing, complete those first.**
+> **Why this matters:** "I set the DNS server" must mean "it's in the active resolv.conf". Proving stored == generated, plus search and count, is the difference between configured and actually-working resolution.
 
 ---
 
-## Objective
+## 📚 Command Reference
 
-1. Audit DNS configuration evidence from prior labs plus live resolver state.
-2. Validate trap coverage signals (T38-A, T38-B, T41, T44) in artifacts.
-3. Execute destroy-restore drill: remove test connection and restore resolver baseline.
+| Command | Purpose | Notes |
+|---|---|---|
+| `grep -q '^nameserver'` | Server present | anchored |
+| `nmcli -g ipv4.dns` | Stored servers | comma-list |
+| `grep -q '^search'` | Search domain | name completion |
+| `grep -c '^nameserver'` | Count servers | resolver caps it |
 
 ---
 
-## Lab-Wide Setup — Tier B Sandbox Stack (Section 1.5)
+## 🧰 LAB-WIDE SETUP
+
+**In plain English:** Make the sandbox and ensure the lab-dns profile is active.
+
+> Run this block **once** before Task 1. It re-creates and activates `lab-dns` if needed.
 
 ```bash
-sudo -i
-
-export LAB_NUM=38
-export LAB_SLUG=resolv
-export SANDBOX=/tmp/lab38c
-export GROUP=labgrp_38_resolv
-export USER=labuser_38_resolv
-export USER_HOME=${SANDBOX}/home_${USER}
-export CON_NAME=lab38test
-
-mkdir -p "${SANDBOX}" "${USER_HOME}" /root/rhcsa_journal/lab-38c/task1 /root/rhcsa_journal/lab-38c/task2
-getent group  "${GROUP}" >/dev/null || groupadd "${GROUP}"
-getent passwd "${USER}"  >/dev/null || useradd -d "${USER_HOME}" -M -s /bin/bash -g "${GROUP}" "${USER}"
-chown -R "${USER}:${GROUP}" "${SANDBOX}"
-
-# Mandatory backup before verify drills.
-cp /etc/resolv.conf /tmp/lab38c/resolv.bak
-
-id "${USER}"
-ls -ld "${SANDBOX}" "${USER_HOME}" /lib
+export LAB_ROOT=/tmp/lab-38
+mkdir -p "$LAB_ROOT"
+sudo modprobe dummy 2>/dev/null || true
+nmcli con show lab-dns >/dev/null 2>&1 || sudo nmcli con add type dummy ifname dummy0 \
+  con-name lab-dns ipv4.method manual ipv4.addresses 10.88.88.2/24 \
+  ipv4.dns "10.88.88.53 10.88.88.54" ipv4.dns-search "lab.local" 2>/dev/null
+sudo nmcli con up lab-dns >/dev/null 2>&1
+echo "ready"
+echo "exit was: $?"
 ```
 
----
+**Expected output:**
 
-## Task 1 — Audit DNS state in journal and current host
-
-### Purpose
-
-Confirm prior labs produced required DNS artifacts and current resolver state is inspectable/auditable.
-
-### Main command block
-
-```bash
-TASKLOG=/tmp/lab38c/task1.txt
-
-echo "═══ Part A: required journal files present ═══"                    2>&1 | tee "$TASKLOG"
-REQUIRED=(
-  /root/rhcsa_journal/lab-38a/task1/evidence.txt
-  /root/rhcsa_journal/lab-38a/task2/evidence.txt
-  /root/rhcsa_journal/lab-38b/task1/evidence.txt
-  /root/rhcsa_journal/lab-38b/task2/evidence.txt
-)
-MISSING=0
-for f in "${REQUIRED[@]}"; do
-  if test -s "$f"; then
-    echo "✅ $f"
-  else
-    echo "❌ missing/empty: $f"
-    MISSING=$((MISSING+1))
-  fi
-done | tee -a "$TASKLOG"
-echo "missing_count=${MISSING}" | tee -a "$TASKLOG"
-
-echo "═══ Part B: live DNS state audit ═══"                              | tee -a "$TASKLOG"
-ls -l /etc/resolv.conf                                                   | tee -a "$TASKLOG"
-grep -E '^(nameserver|search)' /etc/resolv.conf                          | tee -a "$TASKLOG"
-nmcli -f NAME,DEVICE,IP4.DNS,IP4.DOMAIN,IPV4.METHOD con show lab38test 2>&1 | tee -a "$TASKLOG" || true
-
-echo "═══ Part C: Tier B as-user resolver capture ═══"                   | tee -a "$TASKLOG"
-sudo -u "${USER}" bash -c "grep -E '^(nameserver|search)' /etc/resolv.conf > '${USER_HOME}/dns-audit-asuser.txt'"
-stat -c '%U:%G %a %n' "${USER_HOME}/dns-audit-asuser.txt"                | tee -a "$TASKLOG"
-wc -l "${USER_HOME}/dns-audit-asuser.txt"                                | tee -a "$TASKLOG"
-
-echo "exit was: $?"                                                      | tee -a "$TASKLOG"
 ```
-
-### Concept Card
-
-| Concept | What it does |
-|---|---|
-| Journal artifact audit | Verifies prior tasks were completed and persisted |
-| Resolver live grep | Captures effective DNS/search runtime lines |
-| NM connection field audit | Confirms profile-level DNS intent |
-| **🪤 Trap Risk T44** | Skipping verification/cleanup leaves hidden state drift |
-
-### Journal write
-
-```bash
-LAB=lab-38c
-TASK=task1
-JDIR="/root/rhcsa_journal/${LAB}/${TASK}"
-mkdir -p "$JDIR"
-cp /tmp/lab38c/task1.txt "$JDIR/evidence.txt"
-cp "${USER_HOME}/dns-audit-asuser.txt" "$JDIR/dns-audit-asuser.txt"
+ready
+exit was: 0
 ```
 
 ---
 
-## Task 2 — Destroy-restore drill: delete test connection, restore resolver backup
+## TASK 1 of 2 — Prove the nameserver and consistency
 
-### Purpose
+**In plain English:** We assert the server is in the file and matches the profile.
 
-Practice the T41/T44 teardown reflex: intentionally remove test profile state and return `/etc/resolv.conf` to backup baseline.
+---
 
-### Main command block
+### Step 1 of 2 — Assert the nameserver is present
+
+**In plain English:** We confirm the expected DNS server is in `/etc/resolv.conf`.
 
 ```bash
-TASKLOG=/tmp/lab38c/task2.txt
-
-echo "═══ Part A: baseline snapshot before destroy ═══"                  2>&1 | tee "$TASKLOG"
-nmcli con show | grep -w lab38test                                       | tee -a "$TASKLOG" || echo "(lab38test not present before delete)" | tee -a "$TASKLOG"
-grep -E '^(nameserver|search)' /etc/resolv.conf                          | tee -a "$TASKLOG"
-
-echo "═══ Part B: destroy test profile ═══"                              | tee -a "$TASKLOG"
-nmcli con delete lab38test                                                2>&1 | tee -a "$TASKLOG" || true
-nmcli con show | grep -w lab38test                                        | tee -a "$TASKLOG" && echo "❌ still present" | tee -a "$TASKLOG" || echo "✅ lab38test removed" | tee -a "$TASKLOG"
-
-echo "═══ Part C: restore /etc/resolv.conf from backup ═══"              | tee -a "$TASKLOG"
-cp /tmp/lab38c/resolv.bak /etc/resolv.conf                                2>&1 | tee -a "$TASKLOG"
-cat /etc/resolv.conf | tee /tmp/lab38c/resolv.restored                    2>&1 | tee -a "$TASKLOG"
-
-echo "═══ Part D: post-restore proof ═══"                                | tee -a "$TASKLOG"
-cmp -s /tmp/lab38c/resolv.bak /etc/resolv.conf \
-  && echo "✅ restore matches backup byte-for-byte" \
-  || echo "❌ restore mismatch"                                            | tee -a "$TASKLOG"
-
-echo "exit was: $?"                                                       | tee -a "$TASKLOG"
+if grep -q '^nameserver 10.88.88.53' /etc/resolv.conf; then
+  echo "PASS: nameserver present"
+else
+  echo "FAIL: nameserver missing (activate lab-dns?)"
+fi
 ```
 
-### Concept Card
+**Expected output:**
 
-| Concept | What it does |
-|---|---|
-| `nmcli con delete lab38test` | Removes test-only profile residue |
-| Backup restore (`cp resolv.bak`) | Returns resolver file to known baseline |
-| `cmp -s` | Deterministic equality check of restored file |
-| **🪤 Trap Risk T41** | If you never run destroy-restore, you cannot trust recovery readiness |
-| **🪤 Trap Risk T38-A** | Reconnect-based overwrites are avoided by cleaning test profile state |
+```
+PASS: nameserver present
+```
 
-### Journal write
+**Line-by-line breakdown:**
+
+- `grep -q '^nameserver 10.88.88.53'` → Anchored match for the active server line (`^` skips comments).
+
+**New words in this step:**
+
+- **anchored nameserver check** — `^nameserver` ensures a real directive, not a comment.
+
+---
+
+### Step 2 of 2 — Confirm stored matches generated
+
+**In plain English:** We compare the profile's DNS to what's in the file.
 
 ```bash
-LAB=lab-38c
-TASK=task2
-JDIR="/root/rhcsa_journal/${LAB}/${TASK}"
-mkdir -p "$JDIR"
-cp /tmp/lab38c/task2.txt "$JDIR/evidence.txt"
-cp /tmp/lab38c/resolv.bak "$JDIR/resolv.bak"
-cp /tmp/lab38c/resolv.restored "$JDIR/resolv.restored"
+STORED=$(nmcli -g ipv4.dns con show lab-dns 2>/dev/null | tr ',' '\n' | sort)
+FILE=$(grep '^nameserver' /etc/resolv.conf | awk '{print $2}' | sort)
+echo "stored: $STORED"
+echo "file:   $FILE"
+[ "$STORED" = "$FILE" ] && echo "PASS: stored matches generated" || echo "INFO: differ (extra system servers?)"
+```
 
-cat > "$JDIR/done.txt" <<EOF
-LAB:    ${LAB}
-TASK:   ${TASK}
-DATE:   $(date -Is)
-USER:   $(whoami)@$(hostname)
-LAB_USER: ${USER}
-LAB_GROUP: ${GROUP}
-STATUS: COMPLETE
-EOF
+**Expected output:**
+
+```
+stored: 10.88.88.53
+10.88.88.54
+file:   10.88.88.53
+10.88.88.54
+PASS: stored matches generated
+```
+
+**Line-by-line breakdown:**
+
+- `nmcli -g ipv4.dns ... | tr ',' '\n' | sort` → The profile's DNS servers, one per line, sorted.
+- `grep '^nameserver' ... | awk '{print $2}' | sort` → The file's servers, sorted; comparing proves NM applied the profile.
+
+**New words in this step:**
+
+- **stored-vs-generated** — the connection's DNS must match resolv.conf.
+
+---
+
+### Concept card (Task 1)
+
+| Concept | What it does | Exam trap |
+|---|---|---|
+| `^nameserver` | active line | not a comment |
+| stored vs file | applied? | activation needed |
+| sort + compare | order-agnostic | normalize first |
+
+---
+
+### Troubleshoot (Task 1)
+
+| Symptom | Likely cause | Fix |
+|---|---|---|
+| nameserver FAIL | Not activated | `nmcli con up lab-dns` |
+| Lists differ | Other connections add DNS | Expected on multi-conn hosts |
+
+---
+
+## TASK 2 of 2 — Prove search and count
+
+**In plain English:** We verify the search domain and the nameserver count.
+
+---
+
+### Step 1 of 2 — Assert the search domain
+
+**In plain English:** We confirm the search domain is configured.
+
+```bash
+if grep -qE '^search .*lab.local' /etc/resolv.conf; then
+  echo "PASS: search domain set"
+else
+  echo "FAIL: search domain missing"
+fi
+```
+
+**Expected output:**
+
+```
+PASS: search domain set
+```
+
+**Line-by-line breakdown:**
+
+- `grep -qE '^search .*lab.local'` → Confirms the `search` directive includes our domain (`^` anchors the directive).
+
+**New words in this step:**
+
+- **search directive check** — proving bare-name completion is configured.
+
+---
+
+### Step 2 of 2 — Check the nameserver count
+
+**In plain English:** We count nameservers and warn if it exceeds the resolver's limit.
+
+```bash
+N=$(grep -c '^nameserver' /etc/resolv.conf)
+echo "nameservers: $N"
+if [ "$N" -ge 1 ] && [ "$N" -le 3 ]; then
+  echo "PASS: $N nameserver(s) (within resolver limit)"
+else
+  echo "WARN: $N nameservers (resolver typically uses first 3)"
+fi
+```
+
+**Expected output:**
+
+```
+nameservers: 2
+PASS: 2 nameserver(s) (within resolver limit)
+```
+
+**Line-by-line breakdown:**
+
+- `grep -c '^nameserver'` → Counts active nameserver lines.
+- The range check reflects that glibc's resolver only consults the first three (`MAXNS`).
+
+**New words in this step:**
+
+- **MAXNS limit** — the resolver honors only the first ~3 nameservers.
+
+---
+
+### Concept card (Task 2)
+
+| Concept | What it does | Exam trap |
+|---|---|---|
+| `^search` | name completion | anchored |
+| `grep -c` | count servers | first 3 used |
+| MAXNS | resolver cap | extras ignored |
+
+---
+
+### Troubleshoot (Task 2)
+
+| Symptom | Likely cause | Fix |
+|---|---|---|
+| search FAIL | `dns-search` unset | Set `ipv4.dns-search` |
+| Too many servers | Extra ignored | Trim to ≤3 |
+
+---
+
+## ✅ Lab Checklist
+
+- [ ] Task 1 · Step 1 — Assert the nameserver is present
+- [ ] Task 1 · Step 2 — Confirm stored matches generated
+- [ ] Task 2 · Step 1 — Assert the search domain
+- [ ] Task 2 · Step 2 — Check the nameserver count
+- [ ] Every 🎯 Focus Coverage row (Anchor + NEW) mapped to a step
+- [ ] 🧹 Teardown run — dummy profile removed + sandbox cleared
+
+---
+
+## 🧹 Teardown
+
+**In plain English:** Remove the dummy DNS profile and clear the sandbox.
+
+> Removing the profile lets NM restore resolv.conf from your real connection.
+
+```bash
+sudo nmcli con down lab-dns 2>/dev/null || true
+sudo nmcli con delete lab-dns 2>/dev/null || true
+cd /tmp
+bash lab_teardown.sh "$LAB_ROOT"     # = /tmp/lab-38
+```
+
+**Expected output:**
+
+```
+Connection 'lab-dns' (...) successfully deleted.
+✅ Removed /tmp/lab-38 — lab workspace is clean.
 ```
 
 ---
 
-## Lab Closeout — Bulletproof Teardown (Section 6)
+## ⚠️ Common Pitfalls
 
-```bash
-set +e
-
-test -f /tmp/lab38c/resolv.bak && cp /tmp/lab38c/resolv.bak /etc/resolv.conf
-nmcli con delete lab38test 2>/dev/null || true
-
-if getent passwd "${USER}" >/dev/null 2>&1; then userdel -r "${USER}" 2>/dev/null; fi
-if getent group "${GROUP}" >/dev/null 2>&1; then groupdel "${GROUP}" 2>/dev/null; fi
-rm -rf "${SANDBOX}"
-
-echo "── Lab 38c cleanup audit ──"
-nmcli con show | grep -w lab38test >/dev/null && echo "❌ connection remains" || echo "✅ connection gone"
-test -f /etc/resolv.conf && echo "✅ resolv.conf present" || echo "❌ resolv.conf missing"
-getent passwd "${USER}" >/dev/null && echo "❌ user remains" || echo "✅ user gone"
-getent group  "${GROUP}" >/dev/null && echo "❌ group remains" || echo "✅ group gone"
-test -d "${SANDBOX}" && echo "❌ sandbox remains" || echo "✅ sandbox gone"
-
-set -e
-```
+| Mistake | Symptom | Fix |
+|---|---|---|
+| Unanchored grep | Matches comments | Use `^nameserver` |
+| Checking only the file | Misses profile drift | Compare stored too |
+| Ignoring MAXNS | 4th+ server "ignored" | Keep ≤3 |
 
 ---
 
-## Lab 38c Checklist (2 tasks + closeout)
+## 📌 Exam Strategy
 
-- [ ] Task 1 audited journal artifacts and current DNS state (`resolv.conf` + NM fields)
-- [ ] Task 2 deleted `lab38test` and restored `/etc/resolv.conf` from backup
-- [ ] T38-A/T38-B/T41/T44 evidence and cleanup signals were captured
-- [ ] Section 6 closeout ended with cleanup audit checks
+Prove the nameserver is present (anchored), the stored list matches the generated file, the search domain is set, and the count is within MAXNS. Stored-vs-generated is the decisive check — it proves the profile was actually activated.
+
+- `^nameserver`/`^search` anchors avoid false matches.
+- Compare `nmcli -g ipv4.dns` to resolv.conf's servers.
+- Resolver uses only the first ~3 nameservers.
 
 ---
 
-## Author
+## 🔗 Related Labs
+
+- [Lab 38a — Configuring DNS Servers (RHCSA)](../lab-38a-resolv-conf-dns-rhcsa/) — the config these checks verify
+- [Lab 38b — Configuring DNS Servers (Ansible)](../lab-38b-resolv-conf-dns-ansible/) — the declarative version
+- [Lab 37c — Configuring Local Host Resolution (Verify)](../lab-37c-etc-hosts-resolution-verify/) — `/etc/hosts`, checked before DNS
+
+---
+
+## 👤 Author
 
 **Kelvin R. Tobias**  
 [kelvinintech.com](https://kelvinintech.com) · [GitHub](https://github.com/kelvintechnical) · [LinkedIn](https://www.linkedin.com/in/kelvin-r-tobias-211949219)

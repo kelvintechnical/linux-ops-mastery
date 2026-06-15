@@ -1,0 +1,28 @@
+---
+# Lab 05b Task 1 — chdir replaces cd
+#
+# Run:
+#   ansible-playbook /root/rhcsa_journal/lab-05b/playbooks/task1.yml
+#
+# Expected: the debug task prints "task ran in: /tmp/lab-05/work", proving
+# chdir set the working directory for that one task. There is no cd module
+# because CWD is per-process state that does not persist between tasks.
+
+- name: "Lab 05b Task 1 — chdir replaces cd"
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars:
+    work_dir: /tmp/lab-05/work
+
+  tasks:
+    - name: "Run pwd with chdir set to the sandbox"
+      ansible.builtin.command: pwd
+      args:
+        chdir: "{{ work_dir }}"
+      register: with_chdir
+      changed_when: false
+
+    - name: "Show the working directory the task ran in"
+      ansible.builtin.debug:
+        msg: "task ran in: {{ with_chdir.stdout }}"

@@ -1,262 +1,337 @@
-# Lab 18a: Locate Command Documentation (RHCSA) — `rpm -qf`, `rpm -qd`, `find /usr/share/doc`
+# Lab 18a: Locate Command Documentation (RHCSA) — `rpm -qf`, `rpm -qd`
 
-- **Series:** linux-ops-mastery — Package Intelligence & Documentation
-- **Trilogy:** **`18a`** (RHCSA hand-typed) → [`18b`](../lab-18b-locate-command-docs-ansible/) (Ansible mirror) → [`18c`](../lab-18c-locate-command-docs-verify/) (Verify capstone)
-- **Time Estimate:** 25–35 minutes
-- **Tasks:** 2 (Task 1 = owner package + docs via `rpm -qf`/`rpm -qd` · Task 2 = search docs tree with `find` and filter)
-- **Practice Directory (rotation #18):** `/lib64` (reference-only path for environment orientation)
-- **Sandbox (Tier B):** `/tmp/lab18a` with `USER=labuser_18_doclocate`, `GROUP=labgrp_18_doclocate`, `USER_HOME=/tmp/lab18a/home_labuser_18_doclocate`
-- **Traps rehearsed this lab:** **T18-A** (`rpm -ql` vs `rpm -qd` confusion) · **T18-B** (broken name pattern misses files in `/usr/share/doc`) · **T41** (destroy-restore drill deferred to 18c) · **T44** (cleanup audit must end with four `✅`)
-
-> **This lab's topic:** locate command documentation reliably using package ownership + package docs metadata + filesystem search.
+**Series:** linux-ops-mastery — Text Processing & Filters · **Lab 18a of the Novice → RHCA path**  
+**Certifications covered:** RHCSA EX200 (finding which package owns a file and where its docs live), RHCE EX294 (package provenance), SRE/DevOps (auditing installed software)  
+**Prerequisite:** [Lab 17c](../lab-17c-find-save-config-files-verify/) completed  
+**Time Estimate:** 20–30 minutes  
+**Difficulty:** Beginner
 
 ---
 
-## LAB HEADER BLOCK
+## 🎯 Today's Focus Coverage
 
-```bash
-echo "🖥️  ENV:   ${ENV:-DECLARE_ME}"
-echo "📦  RPM:   $(rpm --version 2>/dev/null)"
-echo "📁  PRACTICE DIR: /lib64"
-echo "👤  USER:  $(whoami)@$(hostname)"
-echo "🕒  TIME:  $(date -Is)"
-echo "⚠️  TRAP REMINDERS THIS LAB: T18-A T18-B T41 T44"
-ls -ld /lib64 /usr/share/doc
-echo "grep binary path check:"
-ls -l /usr/bin/grep
-```
+> Stay on-subject via the ANCHOR rows; expand vocabulary via the NEW rows. Every row is exercised by a STEP below.
 
-> **STOP — paste header output before setup.**
+**⚓ Anchor — already learned (on-topic reuse)**
 
----
+| # | Command / switch | Covered by |
+|---|---|---|
+| A1 | `find /usr/share/doc` | _Task 2 · Step 2_ |
+| A2 | `>` (save output) | _Task 1 · Step 2_ |
 
-## Objective
+**🆕 NEW this lab — introduced for the first time** (minimum 3)
 
-Build a no-guess workflow for docs lookup:
-
-1. Start from a command path (`/usr/bin/grep`).
-2. Resolve owning package with `rpm -qf`.
-3. Ask RPM for documentation files only using `rpm -qd`.
-4. Independently search `/usr/share/doc` with a controlled pattern.
-5. Avoid T18-A and T18-B every time.
+| # | Command / switch | First taught in | Covered by |
+|---|---|---|---|
+| N1 | `rpm -qf` (which package owns a file) | Task 1 · Step 1 | _Task 1 · Step 1_ |
+| N2 | `rpm -ql` (list package files) | Task 1 · Step 2 | _Task 1 · Step 2_ |
+| N3 | `rpm -qd` (package documentation) | Task 2 · Step 1 | _Task 2 · Step 1_ |
+| N4 | `rpm -qi` (package info) | Task 2 · Step 1 | _Task 2 · Step 1_ |
 
 ---
 
-## Concept: Three Paths to Command Documentation
+## 🎯 Objective
 
-```text
-Command path        Package owner          Documentation list
-/usr/bin/grep  ->   rpm -qf path     ->    rpm -qd package
-
-Fallback tree search:
-find /usr/share/doc -type f -name '*grep*' 2>/dev/null
-```
-
-- `rpm -qf` answers: "which package owns this file?"
-- `rpm -qd` answers: "which files in that package are marked as docs?"
-- `find /usr/share/doc` answers: "what doc files match my naming signal?"
-
-**T18-A risk:** using `rpm -ql` when asked for docs only.  
-**T18-B risk:** using overly specific broken patterns that miss real filenames.
+When you find a binary but do not know its package or where to read about it, RPM answers. You will discover which package owns a command with `rpm -qf`, list that package's files with `rpm -ql`, read its bundled documentation paths with `rpm -qd`, and confirm those docs exist under `/usr/share/doc`. This is the offline "where are the docs?" workflow for an exam box with no internet.
 
 ---
 
-## Lab-Wide Setup — Tier B Sandbox Stack (Section 1.5)
+## 🧠 Concept
 
-```bash
-sudo -i
+Every file installed from an RPM is tracked in the RPM database. `rpm -qf PATH` reverse-maps a file to its owning package. `rpm -ql PKG` lists all files a package installed; `rpm -qd PKG` lists just the documentation files (man pages, READMEs, licenses under `/usr/share/doc/PKG`); `rpm -qi PKG` prints metadata (version, summary, license). Combined, they let you go from "what is this command?" to "read its docs" without leaving the shell.
 
-export LAB_NUM=18
-export LAB_SLUG=doclocate
-export SANDBOX=/tmp/lab18a
-export GROUP=labgrp_${LAB_NUM}_${LAB_SLUG}
-export USER=labuser_${LAB_NUM}_${LAB_SLUG}
-export USER_HOME=${SANDBOX}/home_${USER}
-
-mkdir -p "${SANDBOX}" "${USER_HOME}"
-mkdir -p /root/rhcsa_journal/lab-18a/task1
-mkdir -p /root/rhcsa_journal/lab-18a/task2
-
-getent group  "${GROUP}" >/dev/null || groupadd "${GROUP}"
-getent passwd "${USER}"  >/dev/null || useradd -d "${USER_HOME}" -M -s /bin/bash -g "${GROUP}" "${USER}"
-chown -R "${USER}:${GROUP}" "${SANDBOX}"
-
-id "${USER}"
-ls -ld "${SANDBOX}" "${USER_HOME}" /usr/share/doc /lib64
-getent group "${GROUP}"
-getent passwd "${USER}"
-echo "Sandbox built at $(date -Is)"
+```
+rpm -qf $(which ls)   → coreutils-9.x
+rpm -ql coreutils     → /usr/bin/ls, /usr/bin/cp, ...
+rpm -qd coreutils     → /usr/share/man/man1/ls.1.gz, ...
+rpm -qi coreutils     → Name, Version, License, Summary
 ```
 
-> **STOP — paste `id`, `ls -ld`, and both `getent` lines before Task 1.**
+> **Why this matters:** On a locked-down exam box, `rpm -qd` and `/usr/share/doc` are your only documentation. Knowing how to trace a command to its package and its docs is a core RHCSA self-rescue skill.
 
 ---
 
-## Task 1 — Map `/usr/bin/grep` to docs with `rpm -qf` then `rpm -qd`
+## 📚 Command Reference
 
-### Warm-Up
+| Command | Purpose | Critical flags |
+|---|---|---|
+| `rpm -qf PATH` | Which package owns a file | feed it `$(which cmd)` |
+| `rpm -ql PKG` | List all files in a package | `-l` = list |
+| `rpm -qd PKG` | List a package's doc files | `-d` = documentation |
+| `rpm -qi PKG` | Package metadata | name, version, license, summary |
+| `find /usr/share/doc` | Browse on-disk docs | per-package doc directories |
+
+---
+
+## 🧰 LAB-WIDE SETUP
+
+**In plain English:** Make a sandbox to save our findings into; the data we query lives in the system RPM database.
+
+> Run this block **once** before Task 1. It defines a single sandbox root
+> (`LAB_ROOT`) that every file in this lab lives under, so the Teardown
+> section can wipe it in one safe command.
 
 ```bash
-rpm -qf /usr/bin/grep
-rpm -qf /usr/bin/grep | xargs rpm -qi | head -n 8
-echo "Warm-up done at $(date -Is)"
+export LAB_ROOT=/tmp/lab-18
+mkdir -p "$LAB_ROOT"
+cd "$LAB_ROOT"
+which ls cp
+echo "exit was: $?"
 ```
 
-### Purpose
+**Expected output:**
 
-Execute the exact exam pattern:
-
-1. Run `rpm -qf /usr/bin/grep`.
-2. Feed that package into `rpm -qd`.
-3. Save evidence via `tee` in task log and `output.txt`.
-
-### Main command block
-
-```bash
-TASKLOG=/tmp/lab18a/task1.txt
-OUT=/tmp/lab18a/output.txt
-
-PKG=$(rpm -qf /usr/bin/grep)
-echo "package=${PKG}"                                      | tee "${TASKLOG}"
-
-# Required Task 1 flow
-rpm -qf /usr/bin/grep                                      | tee -a "${TASKLOG}"
-rpm -qd "${PKG}"                                           | tee "${OUT}" | tee -a "${TASKLOG}"
-
-# Trap contrast: docs-only vs all files
-echo "T18-A contrast (docs-only count vs all-files count)" | tee -a "${TASKLOG}"
-echo "rpm -qd count: $(rpm -qd "${PKG}" | wc -l)"          | tee -a "${TASKLOG}"
-echo "rpm -ql count: $(rpm -ql "${PKG}" | wc -l)"          | tee -a "${TASKLOG}"
-
-test -s "${OUT}" && echo "✅ output.txt populated" || echo "❌ output.txt empty" | tee -a "${TASKLOG}"
-echo "exit was: $?"                                        | tee -a "${TASKLOG}"
 ```
-
-### Concept Card
-
-| Concept | What it does |
-|---|---|
-| `rpm -qf PATH` | Finds owning package for a file path |
-| `rpm -qd PKG` | Lists only documentation files for that package |
-| `rpm -ql PKG` | Lists all files (not docs-only) |
-| **🪤 T18-A** | `-ql` is not acceptable when prompt asks docs |
-
-### PERSISTENCE CHECK
-
-| What was configured | Verification command |
-|---|---|
-| Package identified | `rpm -qf /usr/bin/grep` |
-| Docs captured | `test -s /tmp/lab18a/output.txt` |
-| Evidence log created | `test -s /tmp/lab18a/task1.txt` |
-
-### Journal write
-
-```bash
-LAB=lab-18a
-TASK=task1
-JDIR="/root/rhcsa_journal/${LAB}/${TASK}"
-mkdir -p "${JDIR}"
-cp /tmp/lab18a/task1.txt  "${JDIR}/evidence.txt"
-cp /tmp/lab18a/output.txt "${JDIR}/output.txt"
+/usr/bin/ls
+/usr/bin/cp
+exit was: 0
 ```
 
 ---
 
-## Task 2 — Search `/usr/share/doc` for grep-related files
+## TASK 1 of 2 — Trace a command to its package
 
-### Warm-Up
+**In plain English:** We find which package owns `ls`, then list that package's files.
+
+---
+
+### Step 1 of 2 — Find the owning package with `rpm -qf`
+
+**In plain English:** We resolve the `ls` binary's full path and ask RPM which package installed it.
 
 ```bash
-find /usr/share/doc -maxdepth 2 -type d | head -n 10
-echo "Warm-up done at $(date -Is)"
+cd "$LAB_ROOT"
+rpm -qf "$(which ls)"
+rpm -qf "$(which ls)" > owner.txt
+cat owner.txt
+echo "exit was: $?"
 ```
 
-### Purpose
+**Expected output:**
 
-Use filesystem search to confirm doc discovery independently from RPM metadata.
-
-### Main command block
-
-```bash
-TASKLOG=/tmp/lab18a/task2.txt
-HITS=/tmp/lab18a/grep-doc-hits.txt
-
-# Required Task 2 flow
-find /usr/share/doc -type f -name '*grep*' 2>/dev/null | grep -E 'grep|README|NEWS|AUTHORS' \
-    | tee "${HITS}" | tee "${TASKLOG}"
-
-echo "hit-count=$(wc -l < "${HITS}")"                     | tee -a "${TASKLOG}"
-
-# T18-B trap demo: broken pattern likely misses expected files
-BROKEN=$(find /usr/share/doc -type f -name '*grep-doc-NOTREAL*' 2>/dev/null | wc -l)
-echo "broken-pattern-count=${BROKEN}"                     | tee -a "${TASKLOG}"
-echo "✅ T18-B lesson: prefer resilient pattern '*grep*'" | tee -a "${TASKLOG}"
-
-echo "exit was: $?"                                       | tee -a "${TASKLOG}"
+```
+coreutils-9.0-...el9.x86_64
+coreutils-9.0-...el9.x86_64
+exit was: 0
 ```
 
-### Concept Card
+**Line-by-line breakdown:**
 
-| Concept | What it does |
-|---|---|
-| `find ... -name '*grep*'` | Pattern-based discovery in docs tree |
-| `2>/dev/null` | Suppresses non-critical permission noise |
-| post-filter `grep -E` | Narrows noisy results to useful hints |
-| **🪤 T18-B** | Broken literal names miss valid docs |
+- `rpm -qf "$(which ls)"` → `which ls` gives the path; `rpm -qf` reverse-maps that file to its owning package.
+- `... > owner.txt` → Save the answer for later reference.
 
-### PERSISTENCE CHECK
+**New words in this step:**
 
-| What was configured | Verification command |
-|---|---|
-| Hit list written | `test -s /tmp/lab18a/grep-doc-hits.txt` |
-| Task evidence written | `test -s /tmp/lab18a/task2.txt` |
+- **`rpm -qf`** — query which package owns (provides) a given file.
 
-### Journal write
+---
+
+### Step 2 of 2 — List the package's files with `rpm -ql`
+
+**In plain English:** We list every file the owning package installed and save the binaries.
 
 ```bash
-LAB=lab-18a
-TASK=task2
-JDIR="/root/rhcsa_journal/${LAB}/${TASK}"
-mkdir -p "${JDIR}"
-cp /tmp/lab18a/task2.txt         "${JDIR}/evidence.txt"
-cp /tmp/lab18a/grep-doc-hits.txt "${JDIR}/grep-doc-hits.txt"
+cd "$LAB_ROOT"
+rpm -ql coreutils | grep '/bin/' | head -n 5
+rpm -ql coreutils > coreutils-files.txt
+wc -l coreutils-files.txt
+echo "exit was: $?"
+```
+
+**Expected output:**
+
+```
+/usr/bin/[
+/usr/bin/b2sum
+/usr/bin/base32
+/usr/bin/base64
+/usr/bin/basename
+... coreutils-files.txt
+exit was: 0
+```
+
+**Line-by-line breakdown:**
+
+- `rpm -ql coreutils | grep '/bin/' | head -n 5` → List the package's files, filter to binaries, show a few.
+- `rpm -ql coreutils > coreutils-files.txt` → Save the full file list; `wc -l` shows how many files the package owns.
+
+**New words in this step:**
+
+- **`rpm -ql`** — list all files contained in a package.
+
+---
+
+### Concept card (Task 1)
+
+| Concept | What it does | Exam trap |
+|---|---|---|
+| `rpm -qf` | file → package | needs a real path (`$(which)`) |
+| `rpm -ql` | package → files | huge for big packages — filter it |
+| `which` | resolve a binary path | misses shell builtins |
+
+---
+
+### Troubleshoot (Task 1)
+
+| Symptom | Likely cause | Fix |
+|---|---|---|
+| `file ... not owned by any package` | Not from an RPM | It was built/copied manually |
+| `which: no ls` | Unusual PATH | Use the full `/usr/bin/ls` |
+
+---
+
+## TASK 2 of 2 — Find and read the documentation
+
+**In plain English:** We list a package's docs with `rpm -qd`, read its metadata, and confirm the docs exist on disk.
+
+---
+
+### Step 1 of 2 — List docs with `rpm -qd` and info with `rpm -qi`
+
+**In plain English:** We show the documentation files a package ships and its metadata summary.
+
+```bash
+cd "$LAB_ROOT"
+rpm -qd coreutils | head -n 5
+rpm -qi coreutils | grep -E '^(Name|Version|License|Summary)'
+echo "exit was: $?"
+```
+
+**Expected output:**
+
+```
+/usr/share/man/man1/ls.1.gz
+/usr/share/man/man1/cp.1.gz
+...
+Name        : coreutils
+Version     : 9.0
+License     : GPLv3+
+Summary     : A set of basic GNU tools ...
+exit was: 0
+```
+
+**Line-by-line breakdown:**
+
+- `rpm -qd coreutils | head -n 5` → `-d` lists only documentation files (man pages, READMEs); show a few.
+- `rpm -qi coreutils | grep -E '^(Name|Version|License|Summary)'` → Print key metadata fields.
+
+**New words in this step:**
+
+- **`rpm -qd`** — list a package's documentation files.
+- **`rpm -qi`** — print a package's metadata (info).
+
+---
+
+### Step 2 of 2 — Confirm docs on disk with `find /usr/share/doc`
+
+**In plain English:** We browse the package's documentation directory under `/usr/share/doc`.
+
+```bash
+cd "$LAB_ROOT"
+find /usr/share/doc -maxdepth 1 -type d -name 'coreutils*'
+ls /usr/share/doc/coreutils* 2>/dev/null | head -n 5
+echo "exit was: $?"
+```
+
+**Expected output:**
+
+```
+/usr/share/doc/coreutils
+README
+THANKS
+...
+exit was: 0
+```
+
+**Line-by-line breakdown:**
+
+- `find /usr/share/doc -maxdepth 1 -type d -name 'coreutils*'` → Locate the package's doc directory.
+- `ls /usr/share/doc/coreutils* 2>/dev/null | head -n 5` → List a few of the docs inside; `2>/dev/null` hides noise if the dir is absent.
+
+**New words in this step:**
+
+- **`/usr/share/doc`** — the standard tree where packages drop READMEs, changelogs, and licenses.
+
+---
+
+### Concept card (Task 2)
+
+| Concept | What it does | Exam trap |
+|---|---|---|
+| `rpm -qd` | doc files only | some minimal packages ship none |
+| `rpm -qi` | metadata | license/version live here |
+| `/usr/share/doc` | on-disk docs | not every package populates it |
+
+---
+
+### Troubleshoot (Task 2)
+
+| Symptom | Likely cause | Fix |
+|---|---|---|
+| `rpm -qd` empty | Package ships no docs | Try `man cmd` or `rpm -ql | grep doc` |
+| No `/usr/share/doc/PKG` | `nodocs` install option | Reinstall without `--excludedocs` |
+
+---
+
+## ✅ Lab Checklist
+
+- [ ] Task 1 · Step 1 — Find the owning package with `rpm -qf`
+- [ ] Task 1 · Step 2 — List the package's files with `rpm -ql`
+- [ ] Task 2 · Step 1 — List docs with `rpm -qd` and info with `rpm -qi`
+- [ ] Task 2 · Step 2 — Confirm docs on disk with `find /usr/share/doc`
+- [ ] Every 🎯 Focus Coverage row (Anchor + NEW) mapped to a step
+- [ ] 🧹 Teardown run — sandbox + any system state removed
+
+---
+
+## 🧹 Teardown
+
+**In plain English:** Delete everything this lab created so the box is clean for the next run.
+
+> Run this after you've verified the lab. `lab_teardown.sh` safely removes the single sandbox root — it refuses to touch `/`, `$HOME`, or any protected path. This lab only queried the RPM database — it changed **no** system state.
+
+```bash
+cd /tmp
+bash lab_teardown.sh "$LAB_ROOT"     # = /tmp/lab-18
+```
+
+**Expected output:**
+
+```
+✅ Removed /tmp/lab-18 — lab workspace is clean.
 ```
 
 ---
 
-## Lab Closeout — Bulletproof Teardown (Section 6)
+## ⚠️ Common Pitfalls
 
-```bash
-set +e
-
-awk -v s="${SANDBOX}" '$2 ~ s {print $2}' /proc/mounts | tac | xargs -r -n1 umount -l 2>/dev/null
-
-if getent passwd "${USER}" >/dev/null 2>&1; then userdel -r "${USER}" 2>/dev/null; fi
-if getent group "${GROUP}" >/dev/null 2>&1; then groupdel "${GROUP}" 2>/dev/null; fi
-rm -rf "${SANDBOX}"
-
-echo "── Lab 18a cleanup audit ──"
-getent passwd "${USER}" >/dev/null && echo "❌ user remains"   || echo "✅ user gone"
-getent group  "${GROUP}" >/dev/null && echo "❌ group remains" || echo "✅ group gone"
-test -d "${SANDBOX}"               && echo "❌ sandbox remains"|| echo "✅ sandbox gone"
-test -d "${USER_HOME}"             && echo "❌ home remains"   || echo "✅ home gone"
-
-set -e
-echo "Cleanup complete at $(date -Is)"
-```
+| Mistake | Symptom | Fix |
+|---|---|---|
+| `rpm -qf ls` (no path) | "not owned" / wrong | Use `$(which ls)` full path |
+| Expecting docs for every pkg | Empty `rpm -qd` | Fall back to `man`/`--help` |
+| Confusing `-qi` and `-qd` | Wrong output | `-i` info, `-d` docs |
 
 ---
 
-## Lab 18a Checklist (2 tasks + closeout)
+## 📌 Exam Strategy
 
-- [ ] Task 1 ran exact `rpm -qf /usr/bin/grep` then `rpm -qd` flow and wrote `output.txt`
-- [ ] Task 2 ran exact `find /usr/share/doc -type f -name '*grep*' 2>/dev/null` flow with filter
-- [ ] T18-A and T18-B trap contrasts were recorded in evidence logs
-- [ ] Section 6 closeout ended with four `✅` audit lines
+When you cannot recall a command, trace it: `rpm -qf $(which cmd)` for the package, `rpm -qd` for its docs, then read `/usr/share/doc/PKG` or its man page. This offline chain works on any exam box with no network.
+
+- `rpm -qf $(which cmd)` is the canonical "what package is this?" combo.
+- `rpm -qd` points straight at the docs to read.
+- `/usr/share/doc` is your offline library.
 
 ---
 
-## Author
+## 🔗 Related Labs
+
+- [Lab 18b — Locate Command Documentation (Ansible)](../lab-18b-locate-command-docs-ansible/) — `package_facts` and `rpm -q*` via Ansible
+- [Lab 18c — Locate Command Documentation (Verify)](../lab-18c-locate-command-docs-verify/) — prove ownership and doc presence
+- [Lab 28a — Exploring Manual Pages (RHCSA)](../lab-28a-man-pages-rhcsa/) — reading the man pages you just located
+
+---
+
+## 👤 Author
 
 **Kelvin R. Tobias**  
 [kelvinintech.com](https://kelvinintech.com) · [GitHub](https://github.com/kelvintechnical) · [LinkedIn](https://www.linkedin.com/in/kelvin-r-tobias-211949219)

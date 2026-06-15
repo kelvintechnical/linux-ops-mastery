@@ -1,0 +1,34 @@
+---
+# Lab 06b Task 2 — persistent SELinux label
+#
+# Run (twice, to prove idempotence):
+#   ansible-playbook /root/rhcsa_journal/lab-06b/playbooks/task2.yml
+#   ansible-playbook /root/rhcsa_journal/lab-06b/playbooks/task2.yml
+#
+# Expected: changed=2 on the first run, changed=0 on the second. sefcontext
+# records the rule idempotently; restorecon is gated with changed_when so it
+# only reports change when it actually relabels something.
+
+- name: "Lab 06b Task 2 — persistent SELinux label"
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  become: true
+  vars:
+    webroot: /tmp/lab-06/webroot
+
+  tasks:
+    - name: "Record the fcontext rule for the webroot"
+      community.general.sefcontext:
+        target: "{{ webroot }}(/.*)?"
+        setype: httpd_sys_content_t
+        state: present
+
+    - name: "Apply the rule by relabeling"
+      ansible.builtin.command: "restorecon -Rv {{ webroot }}"
+      register: relabel
+      changed_when: "'Relabeled' in relabel.stdout"
+
+    - name: "Show what was relabeled"
+      ansible.builtin.debug:
+        msg: "{{ relabel.stdout_lines }}"

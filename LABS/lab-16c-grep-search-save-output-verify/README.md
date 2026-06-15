@@ -1,430 +1,321 @@
-# Lab 16c: Search for a String and Save Output (Verify) — Audit + Destroy/Restore
+# Lab 16c: Search for a String and Save Output (Verify) — `grep -c`, `diff`, `wc -l`
 
-- **Series:** linux-ops-mastery — Search and Capture Verification
-- **Trilogy:** [`16a`](../lab-16a-grep-search-save-output-rhcsa/) (RHCSA) → [`16b`](../lab-16b-grep-search-save-output-ansible/) (Ansible) → **`16c`** (Verify)
-- **Tasks:** 2 (Task 1 = audit 16a evidence; Task 2 = destroy-restore from journal and verify as non-root user)
-- **Practice Directory:** `/sbin`
-- **Sandbox (Tier B):** `/tmp/lab16c`, `USER=labuser_16_grepsave`, `GROUP=labgrp_16_grepsave`
-- **Traps rehearsed:** `T16-A` · `T16-B` · `T41` · `T44`
-
-> **This lab's practice directory is: `/sbin`** — verification commands still target `/sbin` data while all temporary manipulation occurs in `/tmp/lab16c`.
+**Series:** linux-ops-mastery — Text Processing & Filters · **Lab 16c of the Novice → RHCA path**  
+**Certifications covered:** RHCSA EX200 (proving saved search results are correct), SRE (alert-rule validation), DevOps (log-gate verification)  
+**Prerequisite:** [Lab 16a](../lab-16a-grep-search-save-output-rhcsa/) and [Lab 16b](../lab-16b-grep-search-save-output-ansible/) completed  
+**Time Estimate:** 15–25 minutes  
+**Difficulty:** Beginner
 
 ---
 
-## LAB HEADER BLOCK
+## 🎯 Today's Focus Coverage
 
-```bash
-echo "🖥️  ENV:   ${ENV:-DECLARE_ME}"
-echo "💿  DISK:  $(lsblk 2>/dev/null | awk '$NF=="disk"{print "/dev/"$1}' | paste -sd, -)"
-echo "🌐  NIC:   $(ip -o addr show 2>/dev/null | awk '$2!="lo"{print $2}' | sort -u | paste -sd, -)"
-echo "🔐  SE:    $(getenforce 2>/dev/null || echo n/a)"
-echo "📦  OS:    $(cat /etc/redhat-release 2>/dev/null || grep PRETTY_NAME /etc/os-release)"
-echo "🕒  TIME:  $(date -Is)"
-echo "👤  USER:  $(whoami)@$(hostname)"
-echo "⚠️  TRAP REMINDERS THIS LAB: T16-A T16-B T41 T44"
-echo "📁  PRACTICE DIR: /sbin"
-```
+> Stay on-subject via the ANCHOR rows; expand vocabulary via the NEW rows. Every row is exercised by a STEP below.
 
-> **STOP — paste header output before setup.**
+**⚓ Anchor — already learned (on-topic reuse)**
 
----
-
-## Lab-Wide Setup — Tier B Sandbox Stack
-
-```bash
-sudo -i
-
-export LAB_NUM=16
-export LAB_SLUG=grepsave
-export SANDBOX=/tmp/lab16c
-export GROUP=labgrp_16_grepsave
-export USER=labuser_16_grepsave
-export USER_HOME=${SANDBOX}/home_${USER}
-
-mkdir -p "${SANDBOX}" "${USER_HOME}"
-mkdir -p /root/rhcsa_journal/lab-16c/task1
-mkdir -p /root/rhcsa_journal/lab-16c/task2
-
-getent group  "${GROUP}" >/dev/null || groupadd "${GROUP}"
-getent passwd "${USER}"  >/dev/null || useradd -d "${USER_HOME}" -M -s /bin/bash -g "${GROUP}" "${USER}"
-chown -R "${USER}:${GROUP}" "${SANDBOX}"
-
-cat > "${SANDBOX}/THIS_DIRECTORY.txt" <<'EOF'
-/sbin is the verification source path for this lab.
-We inspect grep artifacts created in 16a/16b and re-run searches against /sbin after restore.
-EOF
-
-id "${USER}"
-ls -ld /sbin "${SANDBOX}" "${USER_HOME}"
-echo "Setup complete at $(date -Is)"
-echo "exit was: $?"
-```
-
-> **STOP — paste setup proof before Task 1.**
-
----
-
-## Task 1 — Audit Lab 16a evidence (`grep -c`, ownership, regex correctness)
-
-**Practice directory this task:** `/sbin` — regex validation compares stored evidence with a fresh `/sbin` query.
-
-### Warm-Up
-
-```bash
-ls -ld /sbin
-ls -1 /sbin 2>/dev/null | grep -E 'sh$|ctl$' | head -5
-test -s /root/rhcsa_journal/lab-16a/task2/lab16a-regex.txt && echo "16a root evidence present"
-echo "Warm-up done by $(whoami) at $(date -Is)"
-echo "exit was: $?"
-```
-
-### Purpose
-
-Audit that Lab 16a produced valid evidence: expected match lines exist, root-owned capture file is present, and regex output quality is consistent with `/sbin` source.
-
-### WEAVE TRACE
-
-| Warm-up / setup command | Role inside Task 1 |
-|---|---|
-| `ls -ld /sbin` | Confirms practice target before validation |
-| `/sbin` regex sample | Baseline to compare against journal evidence |
-| `test -s` journal path | Prevents auditing a missing artifact |
-| `id "${USER}"` | Tier B identity used in ownership checks |
-
-### Main Command Block
-
-```bash
-TASKLOG=/tmp/lab16c/task1.txt
-E16A=/root/rhcsa_journal/lab-16a/task2/lab16a-regex.txt
-
-test -s "${E16A}" || { echo "missing ${E16A}" | tee "${TASKLOG}"; false; }
-
-sudo ls -l "${E16A}" | tee "${TASKLOG}"
-sudo grep -cE 'sh$|ctl$' "${E16A}" | tee -a "${TASKLOG}"
-sudo grep -n "captured by" "${E16A}" | tee -a "${TASKLOG}"
-
-# compare with fresh source sample from /sbin
-ls -1 /sbin 2>/dev/null | grep -E 'sh$|ctl$' | head -10 > /tmp/lab16c/fresh-sbin.txt
-sudo grep -E 'sh$|ctl$' "${E16A}" | head -10 > /tmp/lab16c/evidence-sample.txt
-diff -u /tmp/lab16c/fresh-sbin.txt /tmp/lab16c/evidence-sample.txt | tee -a "${TASKLOG}" || true
-
-# Tier B ownership drill in verify lab
-sudo -u "${USER}" bash -c 'echo "verify-owner-line" > '"${USER_HOME}"'/verify-owner.txt'
-stat -c '%U:%G %a %n' "${USER_HOME}/verify-owner.txt" | tee -a "${TASKLOG}"
-
-echo "exit was: $?"
-```
-
-### Human-Readable Breakdown
-
-- `grep -cE` asserts the evidence still contains regex-selected lines.
-- `grep -n "captured by"` validates footer audit line from 16a task2.
-- `diff -u` compares sample of live `/sbin` matches to journal-copied evidence.
-- Tier B write in verify lab prevents skill decay in user/group ownership mechanics.
-
-### Reading It Left to Right
-
-```text
-sudo grep -cE 'sh$|ctl$' /root/rhcsa_journal/lab-16a/task2/lab16a-regex.txt
-│    │       │             │
-│    │       │             └─ audited evidence file
-│    │       └─ count only
-│    └─ extended regex
-└─ run read as root for root-owned file
-```
-
-### The Story
-
-Verification is not rerunning the old command blindly; it is proving that saved artifacts are real, complete, and attributable. This task turns capture files into auditable records instead of one-off terminal output.
-
-### Expected Output
-
-```text
--rw-r--r--. 1 root root ... /root/rhcsa_journal/lab-16a/task2/lab16a-regex.txt
-<count>
-<line>:captured by root at ...
-labuser_16_grepsave:labgrp_16_grepsave 644 /tmp/lab16c/home_labuser_16_grepsave/verify-owner.txt
-```
-
-### Switches
-
-| Token | Meaning |
-|---|---|
-| `grep -cE` | Count matches with extended regex |
-| `grep -n` | Show matching line number |
-| `diff -u` | Unified diff comparison |
-| `sudo -u USER` | Write as verify user |
-| `stat -c` | Ownership and mode report |
-
-### Concept Card
-
-| ✅ | Concept | What it does |
+| # | Command / switch | Covered by |
 |---|---|---|
-| ✅ | Evidence counting | Proves saved lines still present |
-| ✅ | Ownership audit | Confirms root vs non-root write origin |
-| ✅ | Source-vs-evidence diff | Detects drift or bad capture |
-| ✅ | `/sbin` anchored validation | Keeps verify tied to practice path |
-| 🪤 Trap Risk | What goes wrong | How to avoid |
-| ⚠️ `T41` | Skipping reboot/persistence reasoning after verification | Always run persistence table checks and saved-evidence tests |
+| A1 | `grep -c` | _Task 1 · Step 1_ |
+| A2 | `wc -l` | _Task 1 · Step 1_ |
 
-### 🔁 PERSISTENCE CHECK
+**🆕 NEW this lab — introduced for the first time** (minimum 3)
 
-| What was configured | Verification command | Why it matters |
-|---|---|---|
-| 16a evidence exists | `test -s /root/rhcsa_journal/lab-16a/task2/lab16a-regex.txt` | Journal survives `/tmp` loss |
-| Evidence contains expected regex lines | `sudo grep -cE 'sh$|ctl$' /root/rhcsa_journal/lab-16a/task2/lab16a-regex.txt` | Confirms saved signal |
-| Tier B verify artifact ownership | `stat -c '%U:%G' "${USER_HOME}/verify-owner.txt"` | Confirms user/group discipline |
-
-### Journal Write
-
-```bash
-LAB=lab-16c
-TASK=task1
-JDIR="/root/rhcsa_journal/${LAB}/${TASK}"
-mkdir -p "$JDIR"
-
-cp /tmp/lab16c/task1.txt "$JDIR/evidence.txt"
-cp /tmp/lab16c/fresh-sbin.txt "$JDIR/fresh-sbin.txt"
-cp /tmp/lab16c/evidence-sample.txt "$JDIR/evidence-sample.txt"
-
-cat > "$JDIR/done.txt" <<EOF
-LAB:    ${LAB}
-TASK:   ${TASK}
-DATE:   $(date -Is)
-USER:   $(whoami)@$(hostname)
-STATUS: COMPLETE
-EOF
-
-cat > "$JDIR/notes.txt" <<EOF
-TOPIC:    audit 16a evidence count/ownership/regex quality
-COMMANDS: grep -cE, grep -n, diff -u, stat -c
-TRAPS:    T41 reinforced via persistence proof workflow
-NEXT:     task2 destroy-restore from journal then re-verify
-EOF
-
-echo "Journal written: $(ls -la "$JDIR")"
-echo "exit was: $?"
-```
-
-### Cleanup
-
-```bash
-rm -f /tmp/lab16c/task1.txt /tmp/lab16c/fresh-sbin.txt /tmp/lab16c/evidence-sample.txt
-rm -f "${USER_HOME}/verify-owner.txt"
-echo "exit was: $?"
-```
-
-### Troubleshoot
-
-| Symptom | Fix |
-|---|---|
-| Evidence file missing | Re-run 16a Task 2 journal copy or recover from backup |
-| Regex count is zero | Inspect evidence content and pattern anchors |
-| Ownership unexpected | Recreate verify file using `sudo -u "${USER}"` |
-
-> **STOP — paste audit proof before Task 2.**
+| # | Command / switch | First taught in | Covered by |
+|---|---|---|---|
+| N1 | `diff` expected vs saved | Task 1 · Step 2 | _Task 1 · Step 2_ |
+| N2 | `grep -q` assertion | Task 2 · Step 1 | _Task 2 · Step 1_ |
+| N3 | `grep -v` (invert) | Task 2 · Step 2 | _Task 2 · Step 2_ |
+| N4 | `[ N -eq N ]` count test | Task 1 · Step 1 | _Task 1 · Step 1_ |
 
 ---
 
-## Task 2 — Destroy/Restore drill: wipe `/tmp`, restore from journal, verify as `${USER}`
+## 🎯 Objective
 
-**Practice directory this task:** `/sbin` — restored workflow re-runs grep against `/sbin` to validate recoverability.
-
-### Warm-Up
-
-```bash
-ls -ld /sbin
-test -s /root/rhcsa_journal/lab-16a/task2/lab16a-regex.txt && echo "journal source ready"
-echo "Warm-up done by $(whoami) at $(date -Is)"
-echo "exit was: $?"
-```
-
-### Purpose
-
-Simulate accidental `/tmp` loss, restore key artifacts from journal, and re-run search as verify user to prove recovery and repeatability.
-
-### WEAVE TRACE
-
-| Warm-up / setup command | Role inside Task 2 |
-|---|---|
-| `ls -ld /sbin` | Confirms source path for post-restore search |
-| `test -s journal source` | Ensures restore input exists before wipe |
-| Tier B `${USER}` identity | Runs post-restore verify command as non-root |
-
-### Main Command Block
-
-```bash
-TASKLOG=/tmp/lab16c/task2.txt
-RESTORE_DIR=/tmp/lab16c/restore
-SRC=/root/rhcsa_journal/lab-16a/task2/lab16a-regex.txt
-
-# Destroy phase (simulate tmp loss)
-rm -rf /tmp/lab16c/*
-mkdir -p "${RESTORE_DIR}" "${USER_HOME}"
-echo "destroy complete at $(date -Is)" | tee "${TASKLOG}"
-
-# Restore phase
-cp "${SRC}" "${RESTORE_DIR}/lab16a-regex-restored.txt"
-ls -l "${RESTORE_DIR}/lab16a-regex-restored.txt" | tee -a "${TASKLOG}"
-
-# Re-run search as verify user
-chown -R "${USER}:${GROUP}" /tmp/lab16c
-sudo -u "${USER}" bash -c "ls -1 /sbin 2>/dev/null | grep -E 'sh$|ctl$' | tee ${RESTORE_DIR}/verify-user-run.txt >/dev/null"
-
-grep -cE 'sh$|ctl$' "${RESTORE_DIR}/verify-user-run.txt" | tee -a "${TASKLOG}"
-grep -cE 'sh$|ctl$' "${RESTORE_DIR}/lab16a-regex-restored.txt" | tee -a "${TASKLOG}"
-stat -c '%U:%G %a %n' "${RESTORE_DIR}/verify-user-run.txt" | tee -a "${TASKLOG}"
-echo "exit was: $?"
-```
-
-### Human-Readable Breakdown
-
-- `rm -rf /tmp/lab16c/*` is intentional local wipe for restore rehearsal.
-- Restore copies evidence from persistent `/root/rhcsa_journal`.
-- Post-restore grep runs as `${USER}` to verify non-root operability.
-- Match counts compare restored reference vs newly generated run.
-
-### Reading It Left to Right
-
-```text
-sudo -u "${USER}" bash -c "ls -1 /sbin | grep -E 'sh$|ctl$' | tee .../verify-user-run.txt"
-│       │         │       │            │
-│       │         │       │            └─ save user-run evidence
-│       │         │       └─ regex filter
-│       │         └─ list source from /sbin
-│       └─ run whole pipeline as verify user
-└─ privilege drop for realistic non-root validation
-```
-
-### The Story
-
-Real operations fail when temporary data vanishes or nodes reboot. The recovery skill is to rebuild state from persistent journal evidence and prove behavior still works under intended runtime identity. This task rehearses that exact loop.
-
-### Expected Output
-
-```text
-destroy complete at <timestamp>
--rw-r--r--. 1 root root ... /tmp/lab16c/restore/lab16a-regex-restored.txt
-<count>
-<count>
-labuser_16_grepsave:labgrp_16_grepsave 644 /tmp/lab16c/restore/verify-user-run.txt
-```
-
-### Switches
-
-| Token | Meaning |
-|---|---|
-| `rm -rf` | Recursive force delete (controlled sandbox only) |
-| `grep -cE` | Count regex matches |
-| `sudo -u USER` | Execute recovery verification as non-root |
-| `tee` | Persist command output to restore evidence |
-| `stat -c` | Verify ownership and mode |
-
-### Concept Card
-
-| ✅ | Concept | What it does |
-|---|---|---|
-| ✅ | Destroy/restore drill | Tests recovery from volatile path loss |
-| ✅ | Journal-first restore | Rebuilds artifacts from persistent evidence |
-| ✅ | User-context revalidation | Confirms workflow works beyond root shell |
-| ✅ | Count comparison | Verifies restored and regenerated outputs align |
-| 🪤 Trap Risk | What goes wrong | How to avoid |
-| ⚠️ `T44` | Cleanup or restore leaves orphaned users/files impacting next lab | Run full closeout audit and fix every `❌` before completion |
-
-### 🔁 PERSISTENCE CHECK
-
-| What was configured | Verification command | Why it matters |
-|---|---|---|
-| Restored evidence file | `test -s /tmp/lab16c/restore/lab16a-regex-restored.txt` | Confirms journal recovery succeeded |
-| User-run verify output | `test -s /tmp/lab16c/restore/verify-user-run.txt` | Confirms non-root execution path |
-| Journal baseline still present | `test -s /root/rhcsa_journal/lab-16a/task2/lab16a-regex.txt` | Confirms persistent source unaffected by tmp wipe |
-
-### Journal Write
-
-```bash
-LAB=lab-16c
-TASK=task2
-JDIR="/root/rhcsa_journal/${LAB}/${TASK}"
-mkdir -p "$JDIR"
-
-cp /tmp/lab16c/task2.txt "$JDIR/evidence.txt"
-cp /tmp/lab16c/restore/lab16a-regex-restored.txt "$JDIR/lab16a-regex-restored.txt"
-cp /tmp/lab16c/restore/verify-user-run.txt "$JDIR/verify-user-run.txt"
-
-cat > "$JDIR/done.txt" <<EOF
-LAB:    ${LAB}
-TASK:   ${TASK}
-DATE:   $(date -Is)
-USER:   $(whoami)@$(hostname)
-STATUS: COMPLETE
-EOF
-
-cat > "$JDIR/notes.txt" <<EOF
-TOPIC:    destroy /tmp then restore from journal and re-verify as lab user
-COMMANDS: rm -rf, cp, sudo -u ${USER}, grep -cE, stat -c
-TRAPS:    T41 + T44 rehearsed via persistence and closeout discipline
-NEXT:     proceed to next trilogy after closeout audit passes
-EOF
-
-echo "Journal written: $(ls -la "$JDIR")"
-echo "exit was: $?"
-```
-
-### Cleanup
-
-```bash
-rm -f /tmp/lab16c/task2.txt
-echo "exit was: $?"
-```
-
-### Troubleshoot
-
-| Symptom | Fix |
-|---|---|
-| Restore source missing | Rebuild from previous lab evidence before rerun |
-| User-run file not created | Confirm `chown -R "${USER}:${GROUP}" /tmp/lab16c` before `sudo -u` |
-| Counts diverge sharply | Review regex pattern consistency in both commands |
-
-> **STOP — paste restore and verify-user evidence before Lab Closeout.**
+Take the auditor's seat: prove a saved search result is exactly right. You will assert the match count equals the expected number, diff the saved file against a known-good reference, confirm a required setting is present with `grep -q`, and prove a forbidden pattern is absent with `grep -v`. Counts and a clean diff are the objective verdict.
 
 ---
 
-## Lab Closeout — Section 6 Bulletproof Teardown
+## 🧠 Concept
 
-```bash
-set +e
+Verifying a search is about counts and contents. `grep -c` and `wc -l` reduce "did we capture the right lines?" to a number you compare with `[ -eq ]`. `diff` proves the saved file matches a reference byte-for-byte. For policy checks, `grep -q PATTERN` asserts a required line *is* present (exit 0), while `grep -v PATTERN | grep -q .` (or a `! grep -q`) proves a forbidden line is *absent*. Together they certify both completeness and correctness.
 
-podman ps -aq --filter "name=^${CTR}$" 2>/dev/null | xargs -r podman rm -f >/dev/null 2>&1
-awk -v s="${SANDBOX}" '$2 ~ s {print $2}' /proc/mounts | tac | xargs -r -n1 umount -l 2>/dev/null
-if vgs "${VG}" >/dev/null 2>&1; then
-    lvremove -fy "${VG}" 2>/dev/null
-    vgremove -fy "${VG}" 2>/dev/null
-    pvremove -ffy /dev/loop* 2>/dev/null
-fi
-losetup -j "${SANDBOX}/disk.img" 2>/dev/null | cut -d: -f1 | xargs -r losetup -d 2>/dev/null
-
-if getent passwd "${USER}" >/dev/null 2>&1; then userdel -r "${USER}" 2>/dev/null; fi
-if getent group "${GROUP}" >/dev/null 2>&1; then groupdel "${GROUP}" 2>/dev/null; fi
-rm -rf "${SANDBOX}"
-
-echo "── cleanup audit ──"
-getent passwd "${USER}" && echo "❌ user remains" || echo "✅ user gone"
-getent group "${GROUP}" && echo "❌ group remains" || echo "✅ group gone"
-vgs "${VG}" 2>/dev/null && echo "❌ VG remains" || echo "✅ vg gone"
-losetup -l | grep -q "${SANDBOX}" && echo "❌ loop remains" || echo "✅ loop gone"
-podman ps -a --filter "name=^${CTR}$" --format '{{.Names}}' | grep -q . && echo "❌ ctr remains" || echo "✅ ctr gone"
-test -d "${SANDBOX}" && echo "❌ sandbox remains" || echo "✅ sandbox gone"
-
-set -e
-echo "Cleanup complete by $(whoami) at $(date -Is)"
-echo "exit was: $?"
+```
+grep -c ERROR app.log → 2     == expected 2     (count matches)
+diff expected.txt saved.txt → (empty)           (contents match)
+grep -q "PermitRootLogin no" cfg → exit 0        (required present)
+! grep -q "PermitRootLogin yes" cfg → forbidden absent
 ```
 
-> **STOP — paste cleanup audit lines.**
+> **Why this matters:** A captured report that is missing a line, or a config that still allows what it should forbid, fails silently. Count + diff + presence/absence checks catch all three.
 
 ---
 
-## Author
+## 📚 Command Reference
+
+| Command | Purpose | Critical flags |
+|---|---|---|
+| `grep -c` | Count matching lines | compare with expected |
+| `wc -l` | Count lines in a file | `< file` for the bare number |
+| `diff` | Compare saved vs expected | empty = identical |
+| `grep -q` | Quiet pass/fail | exit 0 found, 1 not |
+| `grep -v` | Invert match | find lines that do NOT match |
+
+---
+
+## 🧰 LAB-WIDE SETUP
+
+**In plain English:** Rebuild the log, the saved results, and a hardened config so there is real output to audit.
+
+> Run this block **once** before Task 1. It builds the clean, private workspace that both tasks depend on.
+
+```bash
+export LAB_ROOT=/tmp/lab-16
+mkdir -p "$LAB_ROOT/conf"
+cd "$LAB_ROOT"
+printf 'INFO start\nERROR disk full\ninfo retry\nERROR timeout\n' > app.log
+grep -in error app.log > errors.txt
+printf 'PermitRootLogin no\nPort 22\n' > conf/sshd_config
+cat errors.txt
+echo "exit was: $?"
+```
+
+**Expected output:**
+
+```
+2:ERROR disk full
+4:ERROR timeout
+exit was: 0
+```
+
+---
+
+## TASK 1 of 2 — Prove the count and contents
+
+**In plain English:** We assert the number of captured matches and diff the saved file against an expected copy.
+
+---
+
+### Step 1 of 2 — Assert the match count
+
+**In plain English:** We count the saved matches and compare to the expected number.
+
+```bash
+cd "$LAB_ROOT"
+COUNT=$(wc -l < errors.txt)
+EXPECTED=2
+echo "saved lines: $COUNT (expected $EXPECTED)"
+[ "$COUNT" -eq "$EXPECTED" ] && echo "COUNT OK" || echo "COUNT WRONG (FAIL)"
+```
+
+**Expected output:**
+
+```
+saved lines: 2 (expected 2)
+COUNT OK
+```
+
+**Line-by-line breakdown:**
+
+- `COUNT=$(wc -l < errors.txt)` → Count the saved match lines as a bare number.
+- `[ "$COUNT" -eq "$EXPECTED" ]` → Integer-compare to the expected count for a pass/fail.
+
+**New words in this step:**
+
+- **count assertion** — proving a search captured exactly the expected number of lines.
+
+---
+
+### Step 2 of 2 — Diff against an expected reference
+
+**In plain English:** We build the known-good expected output and prove the saved file matches it exactly.
+
+```bash
+cd "$LAB_ROOT"
+printf '2:ERROR disk full\n4:ERROR timeout\n' > expected.txt
+diff -u expected.txt errors.txt && echo "CONTENT MATCH (OK)" || echo "CONTENT DIFFERS (FAIL)"
+echo "exit was: $?"
+```
+
+**Expected output:**
+
+```
+CONTENT MATCH (OK)
+exit was: 0
+```
+
+**Line-by-line breakdown:**
+
+- `printf ... > expected.txt` → Write the reference output the search should have produced.
+- `diff -u expected.txt errors.txt` → Compare; no output (exit 0) fires the OK branch, proving exact match.
+
+**New words in this step:**
+
+- **reference comparison** — diffing actual output against a known-good expected file.
+
+---
+
+### Concept card (Task 1)
+
+| Concept | What it does | Exam trap |
+|---|---|---|
+| `wc -l`/`grep -c` | count verdict | `wc -l` needs `< file` for bare number |
+| `diff` | content verdict | exit 1 = differ, not an error |
+| `[ -eq ]` | numeric compare | use `-eq`, not `=` |
+
+---
+
+### Troubleshoot (Task 1)
+
+| Symptom | Likely cause | Fix |
+|---|---|---|
+| `COUNT WRONG` | Search flags differed | Re-run the exact `grep` from 16a |
+| `CONTENT DIFFERS` | Line numbers/order changed | Match the exact `grep -n` output |
+
+---
+
+## TASK 2 of 2 — Prove presence and absence
+
+**In plain English:** We assert a required setting is present and a forbidden one is absent.
+
+---
+
+### Step 1 of 2 — Assert a required line with `grep -q`
+
+**In plain English:** We prove the hardened setting exists in the config.
+
+```bash
+cd "$LAB_ROOT"
+grep -q '^PermitRootLogin no$' conf/sshd_config && echo "REQUIRED PRESENT (OK)" || echo "MISSING (FAIL)"
+echo "exit was: $?"
+```
+
+**Expected output:**
+
+```
+REQUIRED PRESENT (OK)
+exit was: 0
+```
+
+**Line-by-line breakdown:**
+
+- `grep -q '^PermitRootLogin no$' ...` → `-q` is a silent pass/fail; exit 0 means the exact required line is present.
+- `&& echo OK || echo FAIL` → Convert the exit code into a verdict.
+
+**New words in this step:**
+
+- **`grep -q`** — quiet mode: no output, just an exit code for assertions.
+
+---
+
+### Step 2 of 2 — Prove a forbidden line is absent with `grep -v`
+
+**In plain English:** We confirm the config contains no insecure `PermitRootLogin yes`.
+
+```bash
+cd "$LAB_ROOT"
+! grep -q '^PermitRootLogin yes' conf/sshd_config && echo "FORBIDDEN ABSENT (OK)" || echo "INSECURE PRESENT (FAIL)"
+grep -v '^#' conf/sshd_config | grep -c .
+echo "exit was: $?"
+```
+
+**Expected output:**
+
+```
+FORBIDDEN ABSENT (OK)
+2
+exit was: 0
+```
+
+**Line-by-line breakdown:**
+
+- `! grep -q '^PermitRootLogin yes' ...` → The `!` inverts the exit code, so "not found" becomes success — proving the insecure line is absent.
+- `grep -v '^#' ... | grep -c .` → `-v` drops comment lines; counting the rest shows how many active settings remain.
+
+**New words in this step:**
+
+- **`grep -v`** — print (or here, filter to) lines that do NOT match the pattern.
+
+---
+
+### Concept card (Task 2)
+
+| Concept | What it does | Exam trap |
+|---|---|---|
+| `grep -q` | presence verdict | anchor the pattern for exactness |
+| `! grep -q` | absence verdict | the `!` flips found/not-found |
+| `grep -v '^#'` | drop comments | counts only active config |
+
+---
+
+### Troubleshoot (Task 2)
+
+| Symptom | Likely cause | Fix |
+|---|---|---|
+| `MISSING (FAIL)` | Pattern too strict | Loosen/anchor the regex correctly |
+| Absence check false-passes | Forgot the `!` | Invert with `!` for absence |
+
+---
+
+## ✅ Lab Checklist
+
+- [ ] Task 1 · Step 1 — Assert the match count
+- [ ] Task 1 · Step 2 — Diff against an expected reference
+- [ ] Task 2 · Step 1 — Assert a required line with `grep -q`
+- [ ] Task 2 · Step 2 — Prove a forbidden line is absent with `grep -v`
+- [ ] Every 🎯 Focus Coverage row (Anchor + NEW) mapped to a step
+- [ ] 🧹 Teardown run — sandbox + any system state removed
+
+---
+
+## 🧹 Teardown
+
+**In plain English:** Delete everything this lab created so the box is clean for the next run.
+
+> Run this after you've verified the lab. `lab_teardown.sh` safely removes the single sandbox root — it refuses to touch `/`, `$HOME`, or any protected path. This verify lab changed **no** system state.
+
+```bash
+cd /tmp
+bash lab_teardown.sh "$LAB_ROOT"     # = /tmp/lab-16
+```
+
+**Expected output:**
+
+```
+✅ Removed /tmp/lab-16 — lab workspace is clean.
+```
+
+---
+
+## ⚠️ Common Pitfalls
+
+| Mistake | Symptom | Fix |
+|---|---|---|
+| Checking presence only | A forbidden line slips by | Also run an absence check |
+| Unanchored patterns | False positives | Use `^`/`$` anchors |
+| Treating `diff` rc 1 as error | Aborts a working script | rc 1 means "differ" |
+
+---
+
+## 📌 Exam Strategy
+
+Verify searches by count and content, and configs by presence and absence. `wc -l`/`grep -c` give counts, `diff` proves contents, `grep -q`/`! grep -q` certify required/forbidden lines. Anchor your patterns so the verdict is exact.
+
+- Count first, then diff — cheap to expensive.
+- Use `! grep -q` to prove a forbidden setting is gone.
+- Anchored regexes prevent false matches.
+
+---
+
+## 🔗 Related Labs
+
+- [Lab 16a — Search and Save Output (RHCSA)](../lab-16a-grep-search-save-output-rhcsa/) — the searches this audits
+- [Lab 16b — Search and Save Output (Ansible)](../lab-16b-grep-search-save-output-ansible/) — the playbook output you verify
+- [Lab 22c — Filtering Text with grep and Regex (Verify)](../lab-22c-grep-regex-verify/) — deeper regex verification
+
+---
+
+## 👤 Author
 
 **Kelvin R. Tobias**  
 [kelvinintech.com](https://kelvinintech.com) · [GitHub](https://github.com/kelvintechnical) · [LinkedIn](https://www.linkedin.com/in/kelvin-r-tobias-211949219)

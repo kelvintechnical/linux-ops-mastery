@@ -1,196 +1,313 @@
-# Lab 28c: Verifying Manual Page Workflow (Capstone) — Audit + Destroy-Restore
+# Lab 28c: Exploring Manual Pages (Verify) — `man -w`, `man -f`, sections
 
-- **Series:** linux-ops-mastery — Documentation & Networking
-- **Trilogy:** [`28a`](../lab-28a-man-pages-rhcsa/) → [`28b`](../lab-28b-man-pages-ansible/) → **`28c`**
-- **Time Estimate:** 25–35 minutes
-- **Tasks:** 2 (Task 1 = audit man tooling/state + section evidence; Task 2 = destroy-restore by uninstall/reinstall using journal playbooks)
-- **Practice Directory (rotation slot):** `/dev` (read-only checks)
-- **Sandbox (Tier B):** `/tmp/lab28c` with `USER=labuser_28_man`, `GROUP=labgrp_28_man`
-- **Traps rehearsed:** **T28-A** (section confusion) · **T28-B** (missing man packages) · **T41** (destroy-restore discipline) · **T44** (closeout audit discipline)
+**Series:** linux-ops-mastery — Documentation · **Lab 28c of the Novice → RHCA path**  
+**Certifications covered:** RHCSA EX200 (proving documentation resolves), SRE (tooling-presence checks), DevOps (node doc validation)  
+**Prerequisite:** [Lab 28a](../lab-28a-man-pages-rhcsa/) and [Lab 28b](../lab-28b-man-pages-ansible/) completed  
+**Time Estimate:** 15–25 minutes  
+**Difficulty:** Beginner
 
 ---
 
-## LAB HEADER BLOCK
+## 🎯 Today's Focus Coverage
+
+> Stay on-subject via the ANCHOR rows; expand vocabulary via the NEW rows. Every row is exercised by a STEP below.
+
+**⚓ Anchor — already learned (on-topic reuse)**
+
+| # | Command / switch | Covered by |
+|---|---|---|
+| A1 | `man -w` | _Task 1 · Step 1_ |
+| A2 | `man -f` | _Task 1 · Step 2_ |
+
+**🆕 NEW this lab — introduced for the first time** (minimum 3)
+
+| # | Command / switch | First taught in | Covered by |
+|---|---|---|---|
+| N1 | `man -w` rc as existence test | Task 1 · Step 1 | _Task 1 · Step 1_ |
+| N2 | section-number assertion | Task 1 · Step 2 | _Task 1 · Step 2_ |
+| N3 | multi-section detection | Task 2 · Step 1 | _Task 2 · Step 1_ |
+| N4 | `man -P cat | grep` content proof | Task 2 · Step 2 | _Task 2 · Step 2_ |
+
+---
+
+## 🎯 Objective
+
+Prove documentation is actually available and correct. You will use `man -w`'s exit code as an existence test, assert a page lives in the expected section, detect when a name has *multiple* section pages (like `passwd`), and confirm a page's body contains an expected option by piping `man -P cat` to `grep`. These checks certify that the help you'll rely on is really there.
+
+---
+
+## 🧠 Concept
+
+Documentation verification is existence plus correctness. `man -w name` exits 0 and prints a path when the page exists, non-zero when it doesn't — a clean boolean. The path encodes the section (`man1/`, `man5/`), so you can assert the right *kind* of page. Some names resolve in multiple sections; `man -f name` lists them all, and counting the lines tells you a config name like `passwd` has both a command (1) and a format (5) page. Finally, body content matters: `man -P cat name | grep -q OPTION` proves a specific flag is documented — useful when validating tool versions.
+
+```
+man -w ls; echo $?           → 0 + path = exists
+man -w ls | grep -q man1     → it's a section-1 page
+man -f passwd | wc -l → 2    → command + file-format pages
+man -P cat ls | grep -q -- -l → the -l option is documented
+```
+
+> **Why this matters:** Before you depend on `man 5 <file>` during an exam or `man <tool>` in a runbook, confirming the page exists, is in the right section, and documents the option you need prevents nasty surprises.
+
+---
+
+## 📚 Command Reference
+
+| Command | Purpose | Critical flags |
+|---|---|---|
+| `man -w` | Existence + path | rc 0 = present |
+| `man -f` | List sections | count = how many |
+| `wc -l` | Count section pages | multi-section detect |
+| `man -P cat` | Non-interactive body | pipe to `grep` |
+| `grep -q` | Content presence | exit-code only |
+
+---
+
+## 🧰 LAB-WIDE SETUP
+
+**In plain English:** Make a sandbox for any saved checks; pages come from the system.
+
+> Run this block **once** before Task 1. `LAB_ROOT` just holds notes.
 
 ```bash
-ls -la /root/rhcsa_journal/lab-28a/ /root/rhcsa_journal/lab-28b/
-ls -ld /dev
-man --path 2>/dev/null || true
+export LAB_ROOT=/tmp/lab-28
+mkdir -p "$LAB_ROOT"
+cd "$LAB_ROOT"
+echo "ready"
 echo "exit was: $?"
 ```
 
+**Expected output:**
+
+```
+ready
+exit was: 0
+```
+
 ---
 
-## Lab-Wide Setup (Tier B)
+## TASK 1 of 2 — Prove existence and section
+
+**In plain English:** We confirm a page exists and lives in the expected section.
+
+---
+
+### Step 1 of 2 — Existence via `man -w` rc
+
+**In plain English:** We test that the `ls` page resolves using the exit code.
 
 ```bash
-sudo -i
+man -w ls >/dev/null 2>&1 && echo "LS PAGE OK" || echo "LS PAGE MISSING (FAIL)"
+man -w definitely-not-a-command >/dev/null 2>&1 && echo "unexpected" || echo "MISSING DETECTED (OK)"
+```
 
-export LAB_NUM=28
-export LAB_SLUG=man
-export SANDBOX=/tmp/lab28c
-export GROUP=labgrp_${LAB_NUM}_${LAB_SLUG}
-export USER=labuser_${LAB_NUM}_${LAB_SLUG}
-export USER_HOME=${SANDBOX}/home_${USER}
+**Expected output:**
 
-mkdir -p "${SANDBOX}" "${USER_HOME}"
-mkdir -p /root/rhcsa_journal/lab-28c/task1 /root/rhcsa_journal/lab-28c/task2
+```
+LS PAGE OK
+MISSING DETECTED (OK)
+```
 
-getent group  "${GROUP}" >/dev/null || groupadd "${GROUP}"
-getent passwd "${USER}"  >/dev/null || useradd -d "${USER_HOME}" -M -s /bin/bash -g "${GROUP}" "${USER}"
-chown -R "${USER}:${GROUP}" "${SANDBOX}"
+**Line-by-line breakdown:**
+
+- `man -w ls >/dev/null 2>&1 && ...` → Exit 0 means the page exists; output discarded.
+- `man -w definitely-not-a-command ...` → Non-zero exit proves the absence check works.
+
+**New words in this step:**
+
+- **existence test** — using `man -w`'s exit code as a boolean.
+
+---
+
+### Step 2 of 2 — Assert the section
+
+**In plain English:** We confirm the `ls` page is in section 1.
+
+```bash
+P=$(man -w ls)
+echo "$P"
+echo "$P" | grep -q '/man1/' && echo "SECTION 1 (OK)" || echo "WRONG SECTION (FAIL)"
+```
+
+**Expected output:**
+
+```
+/usr/share/man/man1/ls.1.gz
+SECTION 1 (OK)
+```
+
+**Line-by-line breakdown:**
+
+- `P=$(man -w ls)` → Capture the page path.
+- `echo "$P" | grep -q '/man1/'` → The `man1` directory in the path confirms section 1.
+
+**New words in this step:**
+
+- **section assertion** — verifying the page's section from its path.
+
+---
+
+### Concept card (Task 1)
+
+| Concept | What it does | Exam trap |
+|---|---|---|
+| `man -w` rc | existence | 0 found |
+| `manN/` in path | section | encodes the number |
+| absence check | rc non-zero | confirms "not found" |
+
+---
+
+### Troubleshoot (Task 1)
+
+| Symptom | Likely cause | Fix |
+|---|---|---|
+| Page missing | Package absent | Install it |
+| Wrong section | Default lowest | Query with `man -w N` |
+
+---
+
+## TASK 2 of 2 — Multi-section and content
+
+**In plain English:** We detect a name with multiple pages and prove an option is documented.
+
+---
+
+### Step 1 of 2 — Detect multiple sections
+
+**In plain English:** We confirm `passwd` resolves in more than one section.
+
+```bash
+man -f passwd
+N=$(man -f passwd | wc -l)
+echo "passwd pages: $N"
+[ "$N" -ge 2 ] && echo "MULTI-SECTION (OK)" || echo "ONLY ONE (info)"
+```
+
+**Expected output:**
+
+```
+passwd (1)           - change user password
+passwd (5)           - the password file
+passwd pages: 2
+MULTI-SECTION (OK)
+```
+
+**Line-by-line breakdown:**
+
+- `man -f passwd` → Lists every section `passwd` appears in.
+- `man -f passwd | wc -l` → Counting the lines (≥2) proves it's documented as both a command and a file format.
+
+**New words in this step:**
+
+- **multi-section name** — a name with man pages in more than one section.
+
+---
+
+### Step 2 of 2 — Prove an option is documented
+
+**In plain English:** We confirm the `ls` page documents the `-l` option.
+
+```bash
+man -P cat ls | grep -q -- '-l' && echo "OPTION -l DOCUMENTED (OK)" || echo "NOT FOUND (FAIL)"
 echo "exit was: $?"
 ```
 
----
+**Expected output:**
 
-## Task 1 — Audit man pages, sections, and journal artifacts
-
-### Main command block
-
-```bash
-TASKLOG=/tmp/lab28c/task1.txt
-
-echo "═══ Part A: completeness audit ═══"                       2>&1 | tee "${TASKLOG}"
-EXPECTED=(
-  /root/rhcsa_journal/lab-28a/task1/evidence.txt
-  /root/rhcsa_journal/lab-28a/task2/evidence.txt
-  /root/rhcsa_journal/lab-28b/task1/task1.yml
-  /root/rhcsa_journal/lab-28b/task2/task2.yml
-)
-M=0
-for f in "${EXPECTED[@]}"; do
-  test -s "$f" && echo "✅ $f" || { echo "❌ $f"; M=$((M+1)); }
-done                                                           | tee -a "${TASKLOG}"
-echo "missing=${M}"                                            | tee -a "${TASKLOG}"
-
-echo "═══ Part B: package and file evidence ═══"               | tee -a "${TASKLOG}"
-rpm -q man-db man-pages man-pages-extra                        | tee -a "${TASKLOG}" || true
-rpm -ql man-pages | head -n 30                                 | tee -a "${TASKLOG}" || true
-rpm -ql man-pages | rg '/man[1-9]/' -n | head -n 20            | tee -a "${TASKLOG}" || true
-
-echo "═══ Part C: section checks (T28-A) ═══"                  | tee -a "${TASKLOG}"
-man -P cat 1 passwd | head -n 10                               | tee -a "${TASKLOG}"
-man -P cat 5 passwd | head -n 10                               | tee -a "${TASKLOG}"
-man -P cat 8 useradd | head -n 10                              | tee -a "${TASKLOG}" || true
-
-echo "═══ Part D: path checks (T28-B prevention) ═══"          | tee -a "${TASKLOG}"
-man --path                                                     | tee -a "${TASKLOG}" || true
-ls -ld /usr/share/man /usr/share/man/man1 /usr/share/man/man5  | tee -a "${TASKLOG}"
-ls -ld /dev                                                    | tee -a "${TASKLOG}"
-
-echo "exit was: $?"
+```
+OPTION -l DOCUMENTED (OK)
+exit was: 0
 ```
 
-### Journal write
+**Line-by-line breakdown:**
 
-```bash
-LAB=lab-28c
-TASK=task1
-JDIR="/root/rhcsa_journal/${LAB}/${TASK}"
-mkdir -p "${JDIR}"
-cp /tmp/lab28c/task1.txt "${JDIR}/evidence.txt"
-echo "exit was: $?"
-```
+- `man -P cat ls` → Render the full page non-interactively (pager = `cat`).
+- `grep -q -- '-l'` → `--` stops option parsing so `-l` is treated as a search string; rc 0 means it's documented.
+
+**New words in this step:**
+
+- **content proof** — confirming a specific option/flag appears in a page's body.
 
 ---
 
-## Task 2 — Destroy-restore drill (T41): uninstall + reinstall from journal playbook
+### Concept card (Task 2)
 
-### Main command block
+| Concept | What it does | Exam trap |
+|---|---|---|
+| `man -f | wc -l` | section count | ≥2 = multi |
+| `man -P cat` | full body | pipe-friendly |
+| `grep -q --` | literal flag search | `--` ends options |
+
+---
+
+### Troubleshoot (Task 2)
+
+| Symptom | Likely cause | Fix |
+|---|---|---|
+| `grep` eats `-l` | No `--` | Add `--` before pattern |
+| One section only | Name truly single | That's fine |
+
+---
+
+## ✅ Lab Checklist
+
+- [ ] Task 1 · Step 1 — Existence via `man -w` rc
+- [ ] Task 1 · Step 2 — Assert the section
+- [ ] Task 2 · Step 1 — Detect multiple sections
+- [ ] Task 2 · Step 2 — Prove an option is documented
+- [ ] Every 🎯 Focus Coverage row (Anchor + NEW) mapped to a step
+- [ ] 🧹 Teardown run — sandbox + any system state removed
+
+---
+
+## 🧹 Teardown
+
+**In plain English:** Delete everything this lab created so the box is clean for the next run.
+
+> Run this after you've verified the lab. `lab_teardown.sh` safely removes the single sandbox root — it refuses to touch `/`, `$HOME`, or any protected path. This verify lab changed **no** system state.
 
 ```bash
-TASKLOG=/tmp/lab28c/task2.txt
-PB=/root/rhcsa_journal/lab-28c/task2/restore-man.yml
-
-echo "═══ Part A: snapshot ═══"                                2>&1 | tee "${TASKLOG}"
-rpm -q man-db man-pages man-pages-extra                        | tee -a "${TASKLOG}" || true
-man --path                                                     | tee -a "${TASKLOG}" || true
-
-echo "═══ Part B: destroy (remove packages) ═══"               | tee -a "${TASKLOG}"
-dnf remove -y man-pages-extra man-pages man-db                 | tee -a "${TASKLOG}" || true
-command -v man >/dev/null && echo "man command still present"  | tee -a "${TASKLOG}" || true
-
-echo "═══ Part C: restore playbook from journal ═══"           | tee -a "${TASKLOG}"
-cat > "${PB}" << 'PLAYBOOK'
----
-- name: "Lab 28c Task 2 — Restore manual page tooling"
-  hosts: localhost
-  connection: local
-  gather_facts: false
-
-  tasks:
-    - name: "Restore man packages"
-      ansible.builtin.dnf:
-        name:
-          - man-db
-          - man-pages
-          - man-pages-extra
-        state: present
-
-    - name: "Verify core man paths exist"
-      ansible.builtin.stat:
-        path: "{{ item }}"
-      loop:
-        - /usr/share/man
-        - /usr/share/man/man1
-        - /usr/share/man/man5
-      register: st
-
-    - name: "Assert restored paths"
-      ansible.builtin.assert:
-        that:
-          - item.stat.exists
-          - item.stat.isdir
-      loop: "{{ st.results }}"
-PLAYBOOK
-
-ansible-playbook "${PB}"                                        | tee -a "${TASKLOG}"
-
-echo "═══ Part D: post-restore verify ═══"                      | tee -a "${TASKLOG}"
-rpm -q man-db man-pages man-pages-extra                         | tee -a "${TASKLOG}"
-man --path                                                      | tee -a "${TASKLOG}"
-man -P cat 5 passwd | head -n 8                                | tee -a "${TASKLOG}"
-echo "✅ T41 destroy-restore complete for man environment"      | tee -a "${TASKLOG}"
-
-echo "exit was: $?"
+cd /tmp
+bash lab_teardown.sh "$LAB_ROOT"     # = /tmp/lab-28
 ```
 
-### Journal write
+**Expected output:**
 
-```bash
-LAB=lab-28c
-TASK=task2
-JDIR="/root/rhcsa_journal/${LAB}/${TASK}"
-mkdir -p "${JDIR}"
-cp /tmp/lab28c/task2.txt "${JDIR}/evidence.txt"
-cp "${PB}" "${JDIR}/restore-man.yml"
-echo "exit was: $?"
+```
+✅ Removed /tmp/lab-28 — lab workspace is clean.
 ```
 
 ---
 
-## Lab Closeout (Section 6)
+## ⚠️ Common Pitfalls
 
-```bash
-set +e
-if getent passwd "${USER}" >/dev/null 2>&1; then userdel -r "${USER}" 2>/dev/null; fi
-if getent group "${GROUP}" >/dev/null 2>&1; then groupdel "${GROUP}" 2>/dev/null; fi
-rm -rf "${SANDBOX}" /tmp/lab28c
-
-echo "── Lab 28c cleanup audit ──"
-getent passwd "${USER}" >/dev/null && echo "❌ user remains"   || echo "✅ user gone"
-getent group  "${GROUP}" >/dev/null && echo "❌ group remains"  || echo "✅ group gone"
-test -d "${SANDBOX}"              && echo "❌ sandbox remains" || echo "✅ sandbox gone"
-test -d /tmp/lab28c               && echo "❌ /tmp/lab28c remains" || echo "✅ /tmp/lab28c gone"
-set -e
-```
-
-> **T44 check:** closeout passes only when all four audit lines are `✅`.
+| Mistake | Symptom | Fix |
+|---|---|---|
+| Assuming a page exists | Runbook breaks | Test with `man -w` |
+| Reading wrong section | Misleading info | Check the `manN/` path |
+| `grep` treats flag as option | Error | Use `grep -q --` |
 
 ---
 
-## Author
+## 📌 Exam Strategy
+
+Certify docs with `man -w` (existence + section), `man -f | wc -l` (multi-section names), and `man -P cat | grep` (option present). Knowing a config name has a section-5 page is often the key to an exam config task.
+
+- `man -w` rc is your existence boolean.
+- The `manN/` path tells you the section.
+- `man -P cat` makes pages grep-able.
+
+---
+
+## 🔗 Related Labs
+
+- [Lab 28a — Exploring Manual Pages (RHCSA)](../lab-28a-man-pages-rhcsa/) — the `man` this audits
+- [Lab 28b — Exploring Manual Pages (Ansible)](../lab-28b-man-pages-ansible/) — the doc-capture plays you verify
+- [Lab 29c — Searching Manuals by Keyword (Verify)](../lab-29c-apropos-whatis-verify/) — verifying keyword search
+
+---
+
+## 👤 Author
 
 **Kelvin R. Tobias**  
 [kelvinintech.com](https://kelvinintech.com) · [GitHub](https://github.com/kelvintechnical) · [LinkedIn](https://www.linkedin.com/in/kelvin-r-tobias-211949219)

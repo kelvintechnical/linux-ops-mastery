@@ -1,335 +1,336 @@
-# Lab 09a: Hard and Soft Links (RHCSA) — `ln`, `ln -s`, `readlink`, `find -inum`
+# Lab 09a: Hard and Soft Links (RHCSA) — `ln`, `ln -s`
 
-- **Series:** linux-ops-mastery — Essential Tools & File Operations
-- **Trilogy:** `09a` (RHCSA hand-typed) → [`09b`](../lab-09b-hard-and-soft-links-ansible/) (Ansible — `state=link`/`state=hard`) → [`09c`](../lab-09c-hard-and-soft-links-verify/)
-- **Career arcs covered:** RHCSA EX200 (link reflexes; identify dangling symlinks; same-inode hardlinks)
-- **Prerequisite:** [`Lab 08c`](../lab-08c-copying-files-directories-verify/) completed
-- **Time Estimate:** 30–40 minutes
-- **Tasks:** 2 (Task 1 = hard link create + verify same inode + `stat -c %h` · Task 2 = symlink create + `readlink -f` + dangling test — **T17**, **T18**, **T19**)
-- **Practice Directory (rotation #10):** `/var/log`
-- **Sandbox (Tier B):** `/tmp/lab09a` with `USER=labuser_09_link`, `GROUP=labgrp_09_link`
-- **Traps rehearsed:** **T17** (hard link survives delete of original — both names point to the same inode) · **T18** (symlink CAN dangle — `test -L` is true even when target is gone) · **T19** (`ln -s relative/path` resolves relative to symlink's location, not your CWD)
-
-> **Practice directory: `/var/log`** — log rotation creates symlinks like `journal/` and hardlinks for current/rotated.
+**Series:** linux-ops-mastery — Essential Tools & File Operations · **Lab 09a of the Novice → RHCA path**  
+**Certifications covered:** RHCSA EX200 (creating hard and symbolic links), RHCE EX294 (the `file` link states underneath), SRE/DevOps (current→release symlink deploys)  
+**Prerequisite:** [Lab 08c](../lab-08c-copying-files-verify/) completed  
+**Time Estimate:** 25–35 minutes  
+**Difficulty:** Beginner → Intermediate
 
 ---
 
-## LAB HEADER BLOCK
+## 🎯 Today's Focus Coverage
+
+> Stay on-subject via the ANCHOR rows; expand vocabulary via the NEW rows. Every row is exercised by a STEP below.
+
+**⚓ Anchor — already learned (on-topic reuse)**
+
+| # | Command / switch | Covered by |
+|---|---|---|
+| A1 | `ln` | _Task 1 · Step 1_ |
+| A2 | `stat -c` | _Task 1 · Step 2_ |
+
+**🆕 NEW this lab — introduced for the first time** (minimum 3)
+
+| # | Command / switch | First taught in | Covered by |
+|---|---|---|---|
+| N1 | `ln -s` (symbolic link) | Task 2 · Step 1 | _Task 2 · Step 1_ |
+| N2 | `stat -c %h` / `%i` | Task 1 · Step 2 | _Task 1 · Step 2_ |
+| N3 | `find -inum` | Task 1 · Step 2 | _Task 1 · Step 2_ |
+| N4 | `readlink -f` / `test -L` vs `-e` | Task 2 · Step 2 | _Task 2 · Step 2_ |
+
+---
+
+## 🎯 Objective
+
+Understand the two kinds of links by building both and reading the evidence. A **hard link** is a second name for the same inode (same data, same link count); a **symbolic link** is a tiny file that points at a path. You will create a hard link and prove it shares an inode with `stat -c %i` and `find -inum`, then create a symlink, resolve it with `readlink -f`, and feel the dangling-link trap with `test -L` versus `test -e`.
+
+---
+
+## 🧠 Concept
+
+A file's real identity is its **inode** (a number on the filesystem holding the data and metadata). A directory entry is just a *name* pointing at an inode. `ln src name` makes a **hard link**: a second name for the *same* inode, so both names are equal and the data survives until the link count (`stat -c %h`) hits zero. `ln -s target name` makes a **symbolic link**: a separate inode whose content is the path string — delete the target and the symlink "dangles" (points at nothing). Hard links cannot cross filesystems or link directories; symlinks can do both but break if the target moves.
+
+```
+ln a b        → a and b share inode N, link count = 2
+stat -c %i a b → N  N   (same inode)
+ln -s a c     → c is its own inode, content = "a"
+rm a          → b still works (hard), c now dangles (soft)
+```
+
+> **Why this matters:** Deployments use a `current → releases/v5` symlink to switch versions atomically. Backups rely on hard links to deduplicate. Confusing the two — or missing a dangling link — causes silent data and service failures.
+
+---
+
+## 📚 Command Reference
+
+| Command | Purpose | Critical flags |
+|---|---|---|
+| `ln src name` | Create a hard link (same inode) | cannot cross filesystems or link dirs |
+| `ln -s tgt name` | Create a symbolic link (points at a path) | `-f` replace, `-n` treat link-dir as file |
+| `stat -c %i` / `%h` | Show inode number / hard-link count | proves shared identity |
+| `find -inum N` | Find all names for an inode | lists every hard link |
+| `readlink -f` | Resolve a symlink to its target | `test -L` is-symlink, `-e` exists |
+
+---
+
+## 🧰 LAB-WIDE SETUP
+
+**In plain English:** Build a sandbox with one real file we can link to in both ways.
+
+> Run this block **once** before Task 1. It defines a single sandbox root
+> (`LAB_ROOT`) that every file in this lab lives under, so the Teardown
+> section can wipe it in one safe command.
 
 ```bash
-echo "🖥️  ENV:   ${ENV:-DECLARE_ME}"
-echo "🔐  SE:    $(getenforce 2>/dev/null || echo n/a)"
-echo "🕒  TIME:  $(date -Is)"
-echo "👤  USER:  $(whoami)@$(hostname)"
-echo "⚠️  TRAP REMINDERS THIS LAB: T17 T18 T19"
-echo "📁  PRACTICE DIR: /var/log"
-ls -ld /var/log
-ls -l /var/log/journal 2>/dev/null | head -n 3
+export LAB_ROOT=/tmp/lab-09
+mkdir -p "$LAB_ROOT"
+cd "$LAB_ROOT"
+echo "shared data" > original.txt
+stat -c '%i %h %n' original.txt
+echo "exit was: $?"
+```
+
+**Expected output:**
+
+```
+1310721 1 original.txt
+exit was: 0
 ```
 
 ---
 
-## Lab-Wide Setup
+## TASK 1 of 2 — Hard links share an inode
 
-```bash
-sudo -i
-
-export LAB_NUM=09
-export LAB_SLUG=link
-export SANDBOX=/tmp/lab09a
-export GROUP=labgrp_${LAB_NUM}_${LAB_SLUG}
-export USER=labuser_${LAB_NUM}_${LAB_SLUG}
-export USER_HOME=${SANDBOX}/home_${USER}
-
-mkdir -p "${SANDBOX}" "${USER_HOME}"
-mkdir -p /root/rhcsa_journal/lab-09a/task1 /root/rhcsa_journal/lab-09a/task2
-
-cat > "${SANDBOX}/THIS_DIRECTORY.txt" <<'EOF'
-Practice directory: /var/log
-/var/log uses both hardlinks (rotated logs share inodes briefly) and
-symlinks (e.g. /var/log/journal -> /run/log/journal on some setups).
-Mastering ln + ln -s on /var/log mirrors how RHEL distributes logs.
-EOF
-
-# Source file we'll link to
-echo "primary content line 1" > "${SANDBOX}/primary.txt"
-echo "primary content line 2" >> "${SANDBOX}/primary.txt"
-
-getent group  "${GROUP}" >/dev/null || groupadd "${GROUP}"
-getent passwd "${USER}"  >/dev/null || useradd -d "${USER_HOME}" -M -s /bin/bash -g "${GROUP}" "${USER}"
-chown -R "${USER}:${GROUP}" "${SANDBOX}"
-echo "Sandbox built by $(whoami) at $(date -Is)"
-echo "exit was: $?"
-```
+**In plain English:** We create a hard link and prove both names point at the same inode with a rising link count.
 
 ---
 
-## Task 1 — Hard links: `ln`, `stat -c %h`, `find -inum` (T17)
+### Step 1 of 2 — Create a hard link with `ln`
 
-### 🔁 Warm-Up
+**In plain English:** We make a second name for the original file and list both to see identical size.
 
 ```bash
-ls -li "${SANDBOX}/primary.txt"                          2>&1 | tee /tmp/lab09a/warmup.txt
-stat -c '%i %h %n' "${SANDBOX}/primary.txt"
-echo "Warm-up done by $(whoami) at $(date -Is)"
+cd "$LAB_ROOT"
+ln original.txt hardlink.txt
+ls -li original.txt hardlink.txt
 echo "exit was: $?"
 ```
 
-### Main command block
+**Expected output:**
 
-```bash
-TASKLOG=/tmp/lab09a/task1.txt
-
-echo "═══ Part A: create hard link ═══"                  2>&1 | tee $TASKLOG
-ln "${SANDBOX}/primary.txt" "${SANDBOX}/hard1.txt"
-ls -li "${SANDBOX}/primary.txt" "${SANDBOX}/hard1.txt"  | tee -a $TASKLOG
-P_INO=$(stat -c '%i' "${SANDBOX}/primary.txt")
-H_INO=$(stat -c '%i' "${SANDBOX}/hard1.txt")
-echo "primary inode: ${P_INO}  hard1 inode: ${H_INO}"   | tee -a $TASKLOG
-test "${P_INO}" = "${H_INO}" \
-    && echo "✅ same inode (true hard link)" \
-    || echo "❌ different inodes" \
-    | tee -a $TASKLOG
-
-echo "═══ Part B: stat -c %h shows link count ═══"        | tee -a $TASKLOG
-stat -c 'links: %h  name: %n' "${SANDBOX}/primary.txt" "${SANDBOX}/hard1.txt" | tee -a $TASKLOG
-
-echo "═══ Part C: find -inum ═══"                         | tee -a $TASKLOG
-find "${SANDBOX}" -inum "${P_INO}"                       | tee -a $TASKLOG
-
-echo "═══ Part D: T17 — delete primary, hard1 still works ═══" | tee -a $TASKLOG
-rm "${SANDBOX}/primary.txt"
-test ! -f "${SANDBOX}/primary.txt" && echo "primary.txt removed" | tee -a $TASKLOG
-ls -li "${SANDBOX}/hard1.txt"                            | tee -a $TASKLOG
-cat "${SANDBOX}/hard1.txt"                               | tee -a $TASKLOG
-echo "✅ T17 — hard1.txt still readable after primary deleted" | tee -a $TASKLOG
-
-# Recreate primary for Task 2
-ln "${SANDBOX}/hard1.txt" "${SANDBOX}/primary.txt"
-
-echo "═══ Part E: AS ${USER} (Tier B) ═══"                | tee -a $TASKLOG
-sudo -u "${USER}" -H bash -c '
-    echo "asuser content" > "'"${USER_HOME}"'/u-primary.txt"
-    ln "'"${USER_HOME}"'/u-primary.txt" "'"${USER_HOME}"'/u-hard.txt"
-    stat -c "%i %h %n" "'"${USER_HOME}"'"/u-primary.txt "'"${USER_HOME}"'"/u-hard.txt
-' > "${USER_HOME}/asuser.txt"
-cat "${USER_HOME}/asuser.txt"                            | tee -a $TASKLOG
-stat -c '%U:%G %a %n' "${USER_HOME}/asuser.txt"           | tee -a $TASKLOG
-
-echo "exit was: $?"
+```
+1310721 -rw-r--r--. 2 root root 12 ... original.txt
+1310721 -rw-r--r--. 2 root root 12 ... hardlink.txt
+exit was: 0
 ```
 
-### 🧠 Concept Card
+**Line-by-line breakdown:**
 
-| Concept | What it does |
-|---|---|
-| Hard link | New name pointing at the SAME inode |
-| `stat -c %h` | Inode link count — 1 = unique, 2+ = hard-linked |
-| `find -inum N` | Find every name pointing at inode N |
-| Same-FS only | Hard links cannot cross filesystems |
-| **🪤 Trap Risk T17** | Thinking `rm` deletes the file — it only unlinks one name. **Fix:** check `stat -c %h` before assuming `rm` frees disk. |
+- `ln original.txt hardlink.txt` → Create a hard link; `hardlink.txt` is a new *name* for the same inode, not a copy.
+- `ls -li ...` → `-i` shows the inode number (identical) and the link count column now reads `2`.
 
-### Journal write
+**New words in this step:**
 
-```bash
-LAB=lab-09a
-TASK=task1
-JDIR="/root/rhcsa_journal/${LAB}/${TASK}"
-mkdir -p "$JDIR"
-cp /tmp/lab09a/task1.txt "$JDIR/evidence.txt"
-cp "${USER_HOME}/asuser.txt" "$JDIR/asuser.txt"
-
-cat > "$JDIR/done.txt" <<EOF
-LAB:    ${LAB}
-TASK:   ${TASK}
-DATE:   $(date -Is)
-USER:   $(whoami)@$(hostname)
-LAB_USER: ${USER}
-LAB_GROUP: ${GROUP}
-STATUS: COMPLETE
-EOF
-
-cat > "$JDIR/notes.txt" <<EOF
-TOPIC:    Hard links — same inode; survives unlink of original
-TRAPS:    T17 rehearsed
-NEXT:     task2 — symlinks (T18, T19)
-EOF
-
-ls -la "$JDIR"
-echo "exit was: $?"
-```
-
-### 🧹 Cleanup
-
-```bash
-rm -f /tmp/lab09a/warmup.txt /tmp/lab09a/task1.txt
-ls /tmp/lab09a
-echo "exit was: $?"
-```
-
-> **STOP — paste Part A `same inode`, Part D `T17 ✅`, and Part E ownership before Task 2.**
+- **inode** — the on-disk structure that *is* the file; names are just pointers to it.
+- **hard link** — an additional directory name for an existing inode.
 
 ---
 
-## Task 2 — Symlinks: `ln -s`, `readlink -f`, dangling (T18, T19)
+### Step 2 of 2 — Prove shared identity with `stat -c %h` and `find -inum`
 
-### 🔁 Warm-Up
+**In plain English:** We read the link count and inode, then find every name that points at that inode.
 
 ```bash
-ls -l "${SANDBOX}"/*.txt
-echo "Warm-up done by $(whoami) at $(date -Is)"
+cd "$LAB_ROOT"
+stat -c 'inode=%i links=%h name=%n' original.txt
+INUM=$(stat -c %i original.txt)
+find "$LAB_ROOT" -inum "$INUM"
 echo "exit was: $?"
 ```
 
-### Main command block
+**Expected output:**
+
+```
+inode=1310721 links=2 name=original.txt
+/tmp/lab-09/original.txt
+/tmp/lab-09/hardlink.txt
+exit was: 0
+```
+
+**Line-by-line breakdown:**
+
+- `stat -c 'inode=%i links=%h ...'` → `%i` is the inode, `%h` the hard-link count (now `2`).
+- `INUM=$(stat -c %i original.txt)` → Capture the inode number.
+- `find "$LAB_ROOT" -inum "$INUM"` → List every name pointing at that inode — both hard links appear.
+
+**New words in this step:**
+
+- **link count (`%h`)** — how many names point at an inode; data is freed only at zero.
+- **`find -inum`** — locate all directory entries sharing an inode.
+
+---
+
+### Concept card (Task 1)
+
+| Concept | What it does | Exam trap |
+|---|---|---|
+| `ln` (hard) | new name, same inode | cannot span filesystems or link dirs |
+| `stat -c %h` | link count | deleting one name only decrements it |
+| `find -inum` | find all hard links | needs the inode number, not the name |
+
+---
+
+### Troubleshoot (Task 1)
+
+| Symptom | Likely cause | Fix |
+|---|---|---|
+| `Invalid cross-device link` | Source/dest on different filesystems | Use a symlink instead |
+| `hard link not allowed for directory` | Tried to hard-link a dir | Symlink directories |
+
+---
+
+## TASK 2 of 2 — Symlinks point at a path
+
+**In plain English:** We create a symbolic link, resolve it, then break it to feel the dangling-link trap.
+
+---
+
+### Step 1 of 2 — Create a symlink with `ln -s`
+
+**In plain English:** We make a symbolic link to the original and confirm it has its own inode whose content is the target path.
 
 ```bash
-TASKLOG=/tmp/lab09a/task2.txt
+cd "$LAB_ROOT"
+ln -s original.txt softlink.txt
+ls -li original.txt softlink.txt
+cat softlink.txt
+echo "exit was: $?"
+```
 
-echo "═══ Part A: create absolute symlink ═══"           2>&1 | tee $TASKLOG
-ln -s "${SANDBOX}/primary.txt" "${SANDBOX}/sym-abs.txt"
-ls -l "${SANDBOX}/sym-abs.txt"                          | tee -a $TASKLOG
-readlink "${SANDBOX}/sym-abs.txt"                        | tee -a $TASKLOG
-readlink -f "${SANDBOX}/sym-abs.txt"                     | tee -a $TASKLOG
+**Expected output:**
 
-echo "═══ Part B: T19 — relative symlink resolves vs symlink's location ═══" | tee -a $TASKLOG
-mkdir -p "${SANDBOX}/sub"
-# Wrong intuition: ln -s ../primary.txt creates link relative to CWD
-cd "${SANDBOX}/sub"
-ln -s ../primary.txt rel-good.txt
-ls -l "${SANDBOX}/sub/rel-good.txt"                      | tee -a $TASKLOG
-readlink -f "${SANDBOX}/sub/rel-good.txt"                | tee -a $TASKLOG
-test -e "${SANDBOX}/sub/rel-good.txt" \
-    && echo "✅ relative symlink resolves to existing target" \
-    || echo "❌ rel-good resolves to nothing" \
-    | tee -a $TASKLOG
+```
+1310721 -rw-r--r--. 2 root root 12 ... original.txt
+1310733 lrwxrwxrwx. 1 root root 12 ... softlink.txt -> original.txt
+shared data
+exit was: 0
+```
 
-# Demonstrate T19 wrong: symlink in subdir pointing to "primary.txt" (no ../)
-ln -s primary.txt "${SANDBOX}/sub/rel-bad.txt"
-test -e "${SANDBOX}/sub/rel-bad.txt" \
-    && echo "❌ rel-bad shouldn't resolve (T19 not demonstrated)" \
-    || echo "✅ T19 — rel-bad does NOT resolve (target lookup is relative to symlink's dir, not CWD)" \
-    | tee -a $TASKLOG
+**Line-by-line breakdown:**
 
+- `ln -s original.txt softlink.txt` → Create a symlink; `-s` makes it symbolic (a pointer file), not a hard link.
+- `ls -li ...` → The symlink has a *different* inode and the `l` type and `->` arrow; reading through it still shows the data.
+
+**New words in this step:**
+
+- **symbolic link (symlink)** — a small file whose content is a path to another file.
+
+---
+
+### Step 2 of 2 — Resolve and break it: `readlink -f`, `test -L` vs `-e`
+
+**In plain English:** We resolve the symlink's target, then delete the original and prove the link still *exists* as a link but no longer *resolves*.
+
+```bash
+cd "$LAB_ROOT"
+readlink -f softlink.txt
+rm -f original.txt hardlink.txt
+test -L softlink.txt && echo "STILL A SYMLINK (-L true)" || echo "no link"
+test -e softlink.txt && echo "target exists (-e true)" || echo "DANGLING (-e false)"
+echo "exit was: $?"
+```
+
+**Expected output:**
+
+```
+/tmp/lab-09/original.txt
+STILL A SYMLINK (-L true)
+DANGLING (-e false)
+exit was: 0
+```
+
+**Line-by-line breakdown:**
+
+- `readlink -f softlink.txt` → Resolve the symlink to its canonical target path.
+- `rm -f original.txt hardlink.txt` → Remove the real data (both hard-linked names) so the symlink target vanishes.
+- `test -L softlink.txt` → `-L` is true: the symlink file itself still exists.
+- `test -e softlink.txt` → `-e` follows the link and is *false* now, because the target is gone — a dangling link.
+
+**New words in this step:**
+
+- **dangling link** — a symlink whose target no longer exists (`-L` true, `-e` false).
+- **`test -L` vs `-e`** — is-a-symlink versus does-the-target-exist.
+
+---
+
+### Concept card (Task 2)
+
+| Concept | What it does | Exam trap |
+|---|---|---|
+| `ln -s` | path pointer | breaks if the target moves/deletes |
+| `readlink -f` | resolve target | empty/error on a non-link |
+| `-L` vs `-e` | link vs target existence | a dangling link is `-L` true, `-e` false |
+
+---
+
+### Troubleshoot (Task 2)
+
+| Symptom | Likely cause | Fix |
+|---|---|---|
+| Symlink shows red / broken | Target deleted or moved | Recreate target or repoint the link |
+| `ln -s` fails "File exists" | Link name already present | Use `ln -sf` to replace |
+
+---
+
+## ✅ Lab Checklist
+
+- [ ] Task 1 · Step 1 — Create a hard link with `ln`
+- [ ] Task 1 · Step 2 — Prove shared identity with `stat -c %h` and `find -inum`
+- [ ] Task 2 · Step 1 — Create a symlink with `ln -s`
+- [ ] Task 2 · Step 2 — Resolve and break it: `readlink -f`, `test -L` vs `-e`
+- [ ] Every 🎯 Focus Coverage row (Anchor + NEW) mapped to a step
+- [ ] 🧹 Teardown run — sandbox + any system state removed
+
+---
+
+## 🧹 Teardown
+
+**In plain English:** Delete everything this lab created so the box is clean for the next run.
+
+> Run this after you've verified the lab. `lab_teardown.sh` safely removes the single sandbox root — it refuses to touch `/`, `$HOME`, or any protected path. This lab changed **no** system state.
+
+```bash
 cd /tmp
-
-echo "═══ Part C: T18 — dangling symlink (test -L vs test -e) ═══" | tee -a $TASKLOG
-echo "victim" > "${SANDBOX}/victim.txt"
-ln -s "${SANDBOX}/victim.txt" "${SANDBOX}/sym-victim.txt"
-test -L "${SANDBOX}/sym-victim.txt" && echo "test -L: yes (it's a symlink)"   | tee -a $TASKLOG
-test -e "${SANDBOX}/sym-victim.txt" && echo "test -e: yes (target exists)"    | tee -a $TASKLOG
-
-rm "${SANDBOX}/victim.txt"
-
-test -L "${SANDBOX}/sym-victim.txt" && echo "after rm: test -L still yes (symlink itself exists)" | tee -a $TASKLOG
-test -e "${SANDBOX}/sym-victim.txt" || echo "after rm: test -e: NO (T18 demonstrated — dangling)" | tee -a $TASKLOG
-
-ls -l "${SANDBOX}/sym-victim.txt"                        | tee -a $TASKLOG
-
-echo "═══ Part D: find dangling symlinks ═══"             | tee -a $TASKLOG
-find "${SANDBOX}" -xtype l                               | tee -a $TASKLOG
-
-echo "═══ Part E: AS ${USER} (Tier B) ═══"                | tee -a $TASKLOG
-sudo -u "${USER}" -H bash -c '
-    cd "'"${USER_HOME}"'"
-    echo "user-target" > target.txt
-    ln -s target.txt sym.txt
-    ls -l sym.txt
-    readlink -f sym.txt
-    rm target.txt
-    test -L sym.txt && echo "still a symlink"
-    test -e sym.txt || echo "but dangling — T18"
-' > "${USER_HOME}/sym.txt"
-cat "${USER_HOME}/sym.txt"                               | tee -a $TASKLOG
-stat -c '%U:%G %a %n' "${USER_HOME}/sym.txt"              | tee -a $TASKLOG
-
-echo "exit was: $?"
+bash lab_teardown.sh "$LAB_ROOT"     # = /tmp/lab-09
 ```
 
-### Switches
+**Expected output:**
 
-| Token | Meaning |
-|---|---|
-| `ln -s TARGET LINK` | Create symbolic link |
-| `readlink LINK` | Print stored target string |
-| `readlink -f LINK` | Resolve through chains; print canonical path |
-| `find -xtype l` | Find symlinks whose targets don't exist (dangling) |
-| `test -L F` | True if F is a symlink (regardless of target) |
-| `test -e F` | True if F exists (target follow-through) |
-
-### 🧠 Concept Card
-
-| Concept | What it does |
-|---|---|
-| Symlink target | A stored path string, not an inode reference |
-| Cross-FS OK | Symlinks can point at other filesystems (unlike hard links) |
-| **🪤 Trap Risk T18** | Treating `test -L` as "exists" — it isn't. **Fix:** combine `test -L && test -e`. |
-| **🪤 Trap Risk T19** | Relative `ln -s` paths are interpreted from the symlink's directory, not your CWD. **Fix:** prefer absolute targets, or `cd` into the destination dir before creating. |
-
-### Journal write
-
-```bash
-LAB=lab-09a
-TASK=task2
-JDIR="/root/rhcsa_journal/${LAB}/${TASK}"
-mkdir -p "$JDIR"
-cp /tmp/lab09a/task2.txt "$JDIR/evidence.txt"
-cp "${USER_HOME}/sym.txt" "$JDIR/sym-asuser.txt"
-
-cat > "$JDIR/done.txt" <<EOF
-LAB:    ${LAB}
-TASK:   ${TASK}
-DATE:   $(date -Is)
-USER:   $(whoami)@$(hostname)
-LAB_USER: ${USER}
-LAB_GROUP: ${GROUP}
-STATUS: COMPLETE
-EOF
-
-cat > "$JDIR/notes.txt" <<EOF
-TOPIC:    Symlinks — readlink, dangling (T18), relative resolution (T19)
-TRAPS:    T18 rehearsed; T19 rehearsed
-NEXT:     lab-09b — ansible.builtin.file state=link / state=hard
-EOF
-
-ls -la "$JDIR"
-echo "exit was: $?"
 ```
-
-### 🧹 Cleanup
-
-```bash
-rm -f /tmp/lab09a/task2.txt
-rm -f "${USER_HOME}/sym.txt" "${USER_HOME}/asuser.txt"
-ls /tmp/lab09a
-echo "exit was: $?"
-```
-
-> **STOP — paste T18 + T19 `✅` lines and Part E ownership before Closeout.**
-
----
-
-## Lab Closeout
-
-```bash
-set +e
-if getent passwd "${USER}" >/dev/null 2>&1; then userdel -r "${USER}" 2>/dev/null; fi
-if getent group "${GROUP}" >/dev/null 2>&1; then groupdel "${GROUP}" 2>/dev/null; fi
-rm -rf "${SANDBOX}"
-
-echo "── Lab 09a cleanup audit ──"
-getent passwd "${USER}"  >/dev/null && echo "❌ user remains"    || echo "✅ user gone"
-getent group  "${GROUP}" >/dev/null && echo "❌ group remains"   || echo "✅ group gone"
-test -d "${SANDBOX}"                && echo "❌ sandbox remains" || echo "✅ sandbox gone"
-test -d "${USER_HOME}"              && echo "❌ home remains"    || echo "✅ home gone"
-set -e
-echo "Cleanup complete by $(whoami) at $(date -Is)"
-echo "exit was: $?"
+✅ Removed /tmp/lab-09 — lab workspace is clean.
 ```
 
 ---
 
-## Author
+## ⚠️ Common Pitfalls
 
-**Kelvin R. Tobias**
+| Mistake | Symptom | Fix |
+|---|---|---|
+| Hard-linking across filesystems | `Invalid cross-device link` | Use a symlink |
+| Expecting a symlink to survive a moved target | Dangling link | Use a hard link or fix the path |
+| Reading link count as "copies" | Misunderstands hard links | They are names, not copies |
+
+---
+
+## 📌 Exam Strategy
+
+Link tasks ask you to "create a link from A to B" — clarify hard vs symbolic. Use `ln` for hard links within one filesystem, `ln -s` for symbolic links (and always for directories or cross-filesystem). Prove your work with `ls -li` (inode + count) and `readlink -f`.
+
+- `ls -li` shows inode and link count in one shot — your go-to proof.
+- Use `ln -sf` to safely repoint an existing symlink.
+- Watch for dangling links: `-L` true but `-e` false.
+
+---
+
+## 🔗 Related Labs
+
+- [Lab 09b — Hard and Soft Links (Ansible)](../lab-09b-hard-and-soft-links-ansible/) — `ansible.builtin.file` `state: link`/`hard`
+- [Lab 09c — Hard and Soft Links (Verify)](../lab-09c-hard-and-soft-links-verify/) — prove inode sharing and resolution
+- [Lab 05a — Directory Navigation (RHCSA)](../lab-05a-directory-navigation-rhcsa/) — the symlink path trap with `pwd -P`
+
+---
+
+## 👤 Author
+
+**Kelvin R. Tobias**  
 [kelvinintech.com](https://kelvinintech.com) · [GitHub](https://github.com/kelvintechnical) · [LinkedIn](https://www.linkedin.com/in/kelvin-r-tobias-211949219)

@@ -1,0 +1,41 @@
+---
+# Lab 00b Task 2 — manage inventory and config (idempotent)
+#
+# Run (dry-run, then twice for real):
+#   ansible-playbook --check --diff /root/rhcsa_journal/lab-00b/playbooks/task2.yml
+#   ansible-playbook /root/rhcsa_journal/lab-00b/playbooks/task2.yml
+#   ansible-playbook /root/rhcsa_journal/lab-00b/playbooks/task2.yml
+#
+# Expected: changed=2 on the first real run, changed=0 on the second.
+# ansible.builtin.copy declares exact file contents and only writes on drift.
+
+- name: "Lab 00b Task 2 — manage inventory and config (idempotent)"
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars:
+    lab_root: /tmp/lab-00
+
+  tasks:
+    - name: "Declare the inventory file"
+      ansible.builtin.copy:
+        dest: "{{ lab_root }}/inventory"
+        content: "localhost ansible_connection=local\n"
+        mode: '0644'
+      register: inv_result
+
+    - name: "Declare the ansible.cfg file"
+      ansible.builtin.copy:
+        dest: "{{ lab_root }}/ansible.cfg"
+        content: |
+          [defaults]
+          inventory = {{ lab_root }}/inventory
+          host_key_checking = False
+        mode: '0644'
+      register: cfg_result
+
+    - name: "Show whether anything changed"
+      ansible.builtin.debug:
+        msg:
+          - "inventory changed: {{ inv_result.changed }}"
+          - "config changed:    {{ cfg_result.changed }}"

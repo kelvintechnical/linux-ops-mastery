@@ -1,20 +1,32 @@
 ---
-- name: "Lab 10b Task 2 — atomic copy replace with backup"
+# Lab 10b Task 2 — safe replace with backup
+#
+# Run (twice, to prove idempotence):
+#   ansible-playbook /root/rhcsa_journal/lab-10b/playbooks/task2.yml
+#   ansible-playbook /root/rhcsa_journal/lab-10b/playbooks/task2.yml
+#
+# Expected: changed=1 on the first run (writes + backs up the old file),
+# changed=0 on the second. copy + backup: true is the idempotent, rollback-
+# friendly alternative to mv -b.
+
+- name: "Lab 10b Task 2 — safe replace with backup"
   hosts: localhost
   connection: local
   gather_facts: false
+  vars:
+    target: /tmp/lab-10/live.conf
 
   tasks:
-    - name: "Replace service.conf atomically and keep backup"
+    - name: "Replace the file, keeping a backup"
       ansible.builtin.copy:
-        content: "config-v1 (managed)\n"
-        dest: /tmp/mv-ansible-lab/dst/service.conf
-        owner: root
-        group: root
+        dest: "{{ target }}"
+        content: "new config v2\n"
         mode: '0644'
         backup: true
-      register: copy_result
+      register: replace_result
 
-    - name: "Per-task result"
+    - name: "Show change status and backup path"
       ansible.builtin.debug:
-        msg: "changed={{ copy_result.changed }} backup={{ copy_result.backup_file | default('n/a') }}"
+        msg:
+          - "changed: {{ replace_result.changed }}"
+          - "backup_file: {{ replace_result.backup_file | default('none') }}"

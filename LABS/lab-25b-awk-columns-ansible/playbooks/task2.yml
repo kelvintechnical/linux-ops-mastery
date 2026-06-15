@@ -1,0 +1,38 @@
+---
+# Lab 25b Task 2 — parse natively with Jinja
+#
+# Run:
+#   ansible-playbook /root/rhcsa_journal/lab-25b/playbooks/task2.yml
+#
+# The pure-Jinja equivalent of awk '{s+=$3} END{print s}': slurp the file,
+# split each line into fields, take the last field, convert to int, and sum.
+# All read-only, so changed=0.
+
+- name: "Lab 25b Task 2 — parse natively with Jinja"
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars:
+    data: /tmp/lab-25/sales.txt
+
+  tasks:
+    - name: "Read the file"
+      ansible.builtin.slurp:
+        src: "{{ data }}"
+      register: raw
+
+    - name: "Total the third column with Jinja"
+      ansible.builtin.set_fact:
+        total: "{{ (raw.content | b64decode).splitlines()
+                   | map('split') | map('last') | map('int') | sum }}"
+
+    - name: "Show the total"
+      ansible.builtin.debug:
+        msg: "total = {{ total }}"
+
+    - name: "Assert the total is 470"
+      ansible.builtin.assert:
+        that:
+          - "total | int == 470"
+        success_msg: "total matches"
+        fail_msg: "expected 470, got {{ total }}"

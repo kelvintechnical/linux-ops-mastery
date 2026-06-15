@@ -1,0 +1,27 @@
+---
+# Lab 23b Task 1 — manage config content
+#
+# Preview, then apply (and prove idempotence):
+#   ansible-playbook task1.yml --check --diff   # dry run, shows unified diff
+#   ansible-playbook task1.yml                   # changed=1 (applies)
+#   ansible-playbook task1.yml                   # changed=0 (idempotent)
+#
+# --check makes no changes; --diff prints the unified diff of what would change.
+# Together they give a no-risk preview before the real apply.
+
+- name: "Lab 23b Task 1 — manage config content"
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars:
+    conf: /tmp/lab-23/current.conf
+
+  tasks:
+    - name: "Ensure the config has the desired content"
+      ansible.builtin.copy:
+        dest: "{{ conf }}"
+        content: |
+          LogLevel DEBUG
+          Port 22
+        mode: '0644'
+      register: copy_result

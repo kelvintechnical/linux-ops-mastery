@@ -1,277 +1,359 @@
-# Lab 25a: Extracting Columns with `awk` (RHCSA) — `-F:`, `$1`, `NR==1`, `NF`, `$3>1000`, `BEGIN/END`, `printf`
+# Lab 25a: Extracting Columns with awk (RHCSA) — `awk '{print $N}'`, `-F`, patterns
 
-- **Series:** linux-ops-mastery — Text Processing and Parsing
-- **Trilogy:** **`25a`** (RHCSA hand-typed) → [`25b`](../lab-25b-awk-columns-ansible/) (Ansible) → [`25c`](../lab-25c-awk-columns-verify/) (Verify)
-- **Prerequisite:** `awk` basics and shell quoting fundamentals
-- **Time Estimate:** 30–40 minutes
-- **Tasks:** 2 (Task 1 = parse `/etc/passwd` columns with filters · Task 2 = `BEGIN/END` counting + `printf` report + Tier B `sudo -u` weave)
-- **Practice Directory (rotation slot):** `/tmp`
-- **Sandbox (Tier B):** `/tmp/lab25a` with `USER=labuser_25_awk`, `GROUP=labgrp_25_awk`
-- **Traps rehearsed:** **T25-A** (default field separator is whitespace, including tabs) · **T25-B** (single vs double quotes controls variable expansion) · **T41** (skip destroy-restore drill) · **T44** (cleanup left orphan user/group)
-
-> **This lab's practice directory is `/tmp`**. Tier B resources for this trilogy stay in the `/tmp/lab25*` namespace so teardown is safe and repeatable.
+**Series:** linux-ops-mastery — Text Processing & Filters · **Lab 25a of the Novice → RHCA path**  
+**Certifications covered:** RHCSA EX200 (field extraction from text), RHCE EX294 (parsing command output in plays), SRE/DevOps (log/CSV mining)  
+**Prerequisite:** [Lab 24c](../lab-24c-sed-stream-editor-verify/) completed  
+**Time Estimate:** 25–35 minutes  
+**Difficulty:** Beginner → Intermediate
 
 ---
 
-## LAB HEADER BLOCK
+## 🎯 Today's Focus Coverage
 
-```bash
-echo "🖥️  ENV:   ${ENV:-DECLARE_ME}"
-echo "🔐  SE:    $(getenforce 2>/dev/null || echo n/a)"
-echo "🕒  TIME:  $(date -Is)"
-echo "👤  USER:  $(whoami)@$(hostname)"
-echo "⚠️  TRAP REMINDERS THIS LAB: T25-A T25-B T41 T44"
-echo "📁  PRACTICE DIR: /tmp"
-ls -ld /tmp
-df -h /tmp | tail -n 1
-echo "exit was: $?"
-```
+> Stay on-subject via the ANCHOR rows; expand vocabulary via the NEW rows. Every row is exercised by a STEP below.
 
----
+**⚓ Anchor — already learned (on-topic reuse)**
 
-## Objective
+| # | Command / switch | Covered by |
+|---|---|---|
+| A1 | regex patterns | _Task 2 · Step 1_ |
+| A2 | piping output | _Task 1 · Step 1_ |
 
-Build exam-speed reflexes for column extraction in `awk`:
+**🆕 NEW this lab — introduced for the first time** (minimum 3)
 
-1. Parse colon-delimited records safely with `-F:`.
-2. Print specific columns (`$1`) and filter rows (`$3>1000`).
-3. Use record/field metadata (`NR`, `NF`) for sanity checks.
-4. Build summaries using `BEGIN` and `END`.
-5. Format machine-friendly output with `printf`.
+| # | Command / switch | First taught in | Covered by |
+|---|---|---|---|
+| N1 | `awk '{print $N}'` fields | Task 1 · Step 1 | _Task 1 · Step 1_ |
+| N2 | `awk -F` field separator | Task 1 · Step 2 | _Task 1 · Step 2_ |
+| N3 | `awk '/re/{...}'` pattern-action | Task 2 · Step 1 | _Task 2 · Step 1_ |
+| N4 | `awk` `NR`/`NF`/`END` + sum | Task 2 · Step 2 | _Task 2 · Step 2_ |
 
 ---
 
-## Concept: Why `-F:` Matters
+## 🎯 Objective
 
-By default, `awk` splits each line on runs of whitespace (spaces and tabs). That is great for `ps` output, but wrong for `/etc/passwd`, which is colon-delimited.
-
-```text
-Default FS (wrong for passwd):   FS = "[ \t]+"
-Passwd FS (correct):             FS = ":"
-
-/etc/passwd line:
-root:x:0:0:root:/root:/bin/bash
-  $1  $2 $3 $4  $5    $6    $7
-```
-
-If you forget `-F:`, filters like `$3>1000` evaluate the wrong field and silently produce bad answers (**T25-A**).
+Pull fields out of structured text. You will print specific columns with `$1`, `$3`, `$NF`, change the delimiter with `-F` (for `/etc/passwd`, CSVs), select rows with patterns, and use built-in variables (`NR`, `NF`) plus `END` to count and sum. By the end you can turn whitespace- or comma-separated data into exactly the columns and aggregates you need.
 
 ---
 
-## Lab-Wide Setup (Tier B)
+## 🧠 Concept
 
-```bash
-sudo -i
+`awk` splits each line into **fields** (`$1`, `$2`, …; `$0` is the whole line; `$NF` is the last field) and runs a **pattern { action }** for every line. With no pattern, the action runs on all lines; with a pattern like `/error/` or `$3 > 100`, only matching lines. The **field separator** defaults to runs of whitespace; `-F:` switches it to colon for `/etc/passwd`, `-F,` for CSV. Built-in variables: `NR` (current line number), `NF` (number of fields), and the special `END { }` block runs once after all input — perfect for totals. `awk` is a tiny language: it does selection, projection, and aggregation in one pass.
 
-export LAB_NUM=25
-export LAB_SLUG=awk
-export SANDBOX=/tmp/lab25a
-export GROUP=labgrp_${LAB_NUM}_${LAB_SLUG}
-export USER=labuser_${LAB_NUM}_${LAB_SLUG}
-export USER_HOME=${SANDBOX}/home_${USER}
-
-mkdir -p "${SANDBOX}" "${USER_HOME}"
-mkdir -p /root/rhcsa_journal/lab-25a/task1 /root/rhcsa_journal/lab-25a/task2
-
-getent group  "${GROUP}" >/dev/null || groupadd "${GROUP}"
-getent passwd "${USER}"  >/dev/null || useradd -d "${USER_HOME}" -M -s /bin/bash -g "${GROUP}" "${USER}"
-chown -R "${USER}:${GROUP}" "${SANDBOX}"
-
-id "${USER}"
-ls -ld "${SANDBOX}" "${USER_HOME}"
-echo "Setup complete at $(date -Is)"
-echo "exit was: $?"
 ```
+awk '{print $1}' f         → first column
+awk '{print $NF}' f        → last column
+awk -F: '{print $1}' /etc/passwd → usernames
+awk '$3 > 100 {print $1}' f → rows where field 3 > 100
+awk 'END{print NR}' f      → line count
+awk '{sum+=$2} END{print sum}' f → total of column 2
+```
+
+> **Why this matters:** Command output is columns. `awk` extracts the one field you need (a PID, a username, a size) and aggregates it — the glue of shell scripting and the parser behind countless playbook `command:` results.
 
 ---
 
-## Task 1 — Extract login names and numeric UID filters
+## 📚 Command Reference
 
-### Warm-Up
+| Command | Purpose | Critical flags |
+|---|---|---|
+| `awk '{print $N}'` | Print field N | `$0` whole, `$NF` last |
+| `awk -F C` | Set field separator | `:`, `,`, etc. |
+| `awk '/re/{...}'` | Pattern-action | selection |
+| `awk '$N op V'` | Field comparison | numeric/string |
+| `NR` / `NF` | Line / field counts | built-ins |
+| `END { }` | After all input | totals/summaries |
 
-```bash
-awk 'NR==1 {print "first-line:", $0}' /etc/passwd
-awk -F: 'NR==1 {print "FS=:", "user=" $1, "uid=" $3, "shell=" $7}' /etc/passwd
-echo "exit was: $?"
-```
+---
 
-### Main command block
+## 🧰 LAB-WIDE SETUP
 
-```bash
-TASKLOG=/tmp/lab25a/task1.txt
+**In plain English:** Build a sandbox with whitespace and colon/CSV data to parse.
 
-echo "═══ Part A: required command 1 ═══"                           2>&1 | tee $TASKLOG
-awk -F: '{print $1}' /etc/passwd | head                            2>&1 | tee -a $TASKLOG
-
-echo "═══ Part B: required command 2 ═══"                          | tee -a $TASKLOG
-awk '$3>1000 {print $1}' /etc/passwd                                2>&1 | tee -a $TASKLOG
-
-echo "═══ Part B2: corrected colon-aware filter (T25-A fix) ═══"   | tee -a $TASKLOG
-awk -F: '$3>1000 {print $1}' /etc/passwd                            2>&1 | tee -a $TASKLOG
-
-echo "═══ Part C: record metadata (`NR`/`NF`) ═══"                 | tee -a $TASKLOG
-awk -F: 'NR==1 {printf "NR=%d NF=%d first_user=%s\n", NR, NF, $1}' /etc/passwd \
-                                                                 | tee -a $TASKLOG
-awk -F: 'NF!=7 {print "odd-field-count:", NR ":" $0}' /etc/passwd | tee -a $TASKLOG
-
-echo "exit was: $?"
-```
-
-### Switches
-
-| Token | Meaning |
-|---|---|
-| `-F:` | Set field separator to colon |
-| `{print $1}` | Print username field |
-| `$3>1000` | Keep rows where UID is greater than 1000 |
-| `NR==1` | Act only on first record |
-| `NF` | Number of fields in current record |
-
-### Concept Card
-
-| Concept | What it does |
-|---|---|
-| Default separator | Whitespace (spaces and tabs), not colon |
-| `awk -F: ... /etc/passwd` | Correct parser for passwd rows |
-| `NR` | 1-based line counter |
-| `NF` | Number of parsed fields in the current line |
-| **🪤 Trap Risk T25-A** | Forgetting `-F:` mis-parses passwd data |
-
-### Journal write
+> Run this block **once** before Task 1. It defines a single sandbox root
+> (`LAB_ROOT`) that every file in this lab lives under, so the Teardown
+> section can wipe it in one safe command.
 
 ```bash
-LAB=lab-25a
-TASK=task1
-JDIR="/root/rhcsa_journal/${LAB}/${TASK}"
-mkdir -p "$JDIR"
-cp /tmp/lab25a/task1.txt "$JDIR/evidence.txt"
-
-cat > "$JDIR/done.txt" <<EOF
-LAB:    ${LAB}
-TASK:   ${TASK}
-DATE:   $(date -Is)
-USER:   $(whoami)@$(hostname)
-LAB_USER: ${USER}
-LAB_GROUP: ${GROUP}
-STATUS: COMPLETE
+export LAB_ROOT=/tmp/lab-25
+mkdir -p "$LAB_ROOT"
+cd "$LAB_ROOT"
+cat > sales.txt <<'EOF'
+alice east 120
+bob west 90
+carol east 200
+dave west 60
 EOF
-```
-
----
-
-## Task 2 — `BEGIN/END` counting + `printf` formatting + Tier B weave
-
-### Warm-Up
-
-```bash
-printf "%-18s %-8s %s\n" "USER" "UID" "SHELL"
-awk -F: 'NR==1 {printf "%-18s %-8s %s\n", $1, $3, $7}' /etc/passwd
-echo "exit was: $?"
-```
-
-### Main command block
-
-```bash
-TASKLOG=/tmp/lab25a/task2.txt
-REPORT=/tmp/lab25a/passwd-summary.txt
-
-echo "═══ Part A: BEGIN/END summary with printf ═══"                 2>&1 | tee $TASKLOG
-awk -F: '
-BEGIN {
-  total=0; gt1000=0;
-  printf "%-18s %-8s %s\n", "USER", "UID", "SHELL";
-}
-{
-  total++;
-  if ($3 > 1000) {
-    gt1000++;
-    printf "%-18s %-8s %s\n", $1, $3, $7;
-  }
-}
-END {
-  printf "TOTAL=%d UID_GT_1000=%d\n", total, gt1000;
-}
-' /etc/passwd | tee -a $TASKLOG > "${REPORT}"
-
-echo "═══ Part B: single vs double quotes (T25-B) ═══"               | tee -a $TASKLOG
-awk -F: 'NR==1 {print "single-quoted shell var literal: ${USER}"}' /etc/passwd | tee -a $TASKLOG
-awk -F: "NR==1 {print \"double-quoted shell var expanded: ${USER}\"}" /etc/passwd | tee -a $TASKLOG
-
-echo "═══ Part C: sudo -u Tier B weave ═══"                          | tee -a $TASKLOG
-sudo -u "${USER}" -H bash -c \
-  'awk -F: "BEGIN{printf \"owned-by-%s\\n\", ENVIRON[\"USER\"]} NR==1{printf \"first:%s uid:%s\\n\", \$1, \$3}" /etc/passwd > "'"${USER_HOME}"'/task2-asuser.txt"'
-
-stat -c '%U:%G %a %n' "${USER_HOME}/task2-asuser.txt"                | tee -a $TASKLOG
-cat "${USER_HOME}/task2-asuser.txt"                                  | tee -a $TASKLOG
-echo "exit was: $?"
-```
-
-### Concept Card
-
-| Concept | What it does |
-|---|---|
-| `BEGIN` | Initialize counters/headers before first record |
-| `END` | Print totals after final record |
-| `printf` | Fixed-width formatting for readable columns |
-| `ENVIRON["USER"]` | Access environment variable safely inside awk |
-| **🪤 Trap Risk T25-B** | Single-quoted shell string blocks `${VAR}` expansion |
-
-### Journal write
-
-```bash
-LAB=lab-25a
-TASK=task2
-JDIR="/root/rhcsa_journal/${LAB}/${TASK}"
-mkdir -p "$JDIR"
-cp /tmp/lab25a/task2.txt "$JDIR/evidence.txt"
-cp /tmp/lab25a/passwd-summary.txt "$JDIR/passwd-summary.txt"
-cp "${USER_HOME}/task2-asuser.txt" "$JDIR/task2-asuser.txt"
-
-cat > "$JDIR/done.txt" <<EOF
-LAB:    ${LAB}
-TASK:   ${TASK}
-DATE:   $(date -Is)
-USER:   $(whoami)@$(hostname)
-LAB_USER: ${USER}
-LAB_GROUP: ${GROUP}
-STATUS: COMPLETE
+cat > users.csv <<'EOF'
+name,role,uid
+alice,admin,1001
+bob,dev,1002
 EOF
-```
-
----
-
-## Lab Closeout — Section 6 Bulletproof Teardown
-
-```bash
-set +e
-if getent passwd "${USER}" >/dev/null 2>&1; then userdel -r "${USER}" 2>/dev/null; fi
-if getent group "${GROUP}" >/dev/null 2>&1; then groupdel "${GROUP}" 2>/dev/null; fi
-rm -rf "${SANDBOX}"
-
-echo "── Lab 25a cleanup audit ──"
-getent passwd "${USER}"  >/dev/null && echo "❌ user remains"    || echo "✅ user gone"
-getent group  "${GROUP}" >/dev/null && echo "❌ group remains"   || echo "✅ group gone"
-test -d "${SANDBOX}"                && echo "❌ sandbox remains" || echo "✅ sandbox gone"
-test -d "${USER_HOME}"              && echo "❌ home remains"    || echo "✅ home gone"
-set -e
-echo "Cleanup complete by $(whoami) at $(date -Is)"
+ls
 echo "exit was: $?"
 ```
 
-> T44 enforcement: do not declare complete until all four audit lines are `✅`.
+**Expected output:**
+
+```
+sales.txt
+users.csv
+exit was: 0
+```
 
 ---
 
-## Lab 25a Checklist
+## TASK 1 of 2 — Print fields and set separators
 
-- [ ] Task 1 complete: both required commands executed and captured
-- [ ] Task 2 complete: `BEGIN/END` totals + `printf` table + Tier B ownership proof
-- [ ] Traps rehearsed: T25-A and T25-B explicitly demonstrated
-- [ ] Section 6 closeout passed with four `✅` audit lines
+**In plain English:** We extract columns from whitespace data, then from a CSV.
 
 ---
 
-## Author
+### Step 1 of 2 — Print specific fields
+
+**In plain English:** We print the name and amount columns, and the last field.
+
+```bash
+cd "$LAB_ROOT"
+awk '{print $1, $3}' sales.txt
+echo "---"
+awk '{print $NF}' sales.txt
+echo "exit was: $?"
+```
+
+**Expected output:**
+
+```
+alice 120
+bob 90
+carol 200
+dave 60
+---
+120
+90
+200
+60
+exit was: 0
+```
+
+**Line-by-line breakdown:**
+
+- `awk '{print $1, $3}'` → Print fields 1 and 3; the comma inserts the output field separator (a space).
+- `awk '{print $NF}'` → `$NF` is the last field regardless of how many there are.
+
+**New words in this step:**
+
+- **field** — `$1`, `$2`, …; `$0` is the whole line, `$NF` the last field.
+
+---
+
+### Step 2 of 2 — Change the separator with `-F`
+
+**In plain English:** We parse a CSV by setting the field separator to a comma, skipping the header.
+
+```bash
+cd "$LAB_ROOT"
+awk -F, 'NR>1 {print $1, $3}' users.csv
+echo "---"
+awk -F: '{print $1}' /etc/passwd | head -3
+echo "exit was: $?"
+```
+
+**Expected output:**
+
+```
+alice 1001
+bob 1002
+---
+root
+bin
+daemon
+exit was: 0
+```
+
+**Line-by-line breakdown:**
+
+- `awk -F, 'NR>1 {print $1, $3}'` → `-F,` splits on commas; `NR>1` skips the header line.
+- `awk -F: '{print $1}' /etc/passwd` → `-F:` parses colon-separated `/etc/passwd`; `$1` is the username.
+
+**New words in this step:**
+
+- **`-F`** — set the field separator (comma, colon, etc.).
+- **`NR`** — current record (line) number.
+
+---
+
+### Concept card (Task 1)
+
+| Concept | What it does | Exam trap |
+|---|---|---|
+| `$N` | field N | `$0` is whole line |
+| `$NF` | last field | varies per line |
+| `-F` | separator | default is whitespace |
+
+---
+
+### Troubleshoot (Task 1)
+
+| Symptom | Likely cause | Fix |
+|---|---|---|
+| Wrong columns | Default separator | Set `-F` |
+| Header included | No row filter | Add `NR>1` |
+
+---
+
+## TASK 2 of 2 — Select rows and aggregate
+
+**In plain English:** We filter rows by pattern and field, then count and sum.
+
+---
+
+### Step 1 of 2 — Select rows by pattern and field
+
+**In plain English:** We print east-region rows, then rows where the amount exceeds 100.
+
+```bash
+cd "$LAB_ROOT"
+awk '/east/ {print $1, $3}' sales.txt
+echo "---"
+awk '$3 > 100 {print $1, $3}' sales.txt
+echo "exit was: $?"
+```
+
+**Expected output:**
+
+```
+alice 120
+carol 200
+---
+alice 120
+carol 200
+exit was: 0
+```
+
+**Line-by-line breakdown:**
+
+- `awk '/east/ {print $1, $3}'` → Regex pattern selects lines containing "east".
+- `awk '$3 > 100 {print ...}'` → Numeric field comparison selects rows where column 3 > 100.
+
+**New words in this step:**
+
+- **pattern-action** — `pattern { action }`; the action runs only on matching lines.
+
+---
+
+### Step 2 of 2 — Count and sum with `END`
+
+**In plain English:** We count the rows and total the amount column.
+
+```bash
+cd "$LAB_ROOT"
+awk 'END {print "rows:", NR}' sales.txt
+awk '{sum += $3} END {print "total:", sum}' sales.txt
+awk '{sum += $3} END {print "avg:", sum/NR}' sales.txt
+echo "exit was: $?"
+```
+
+**Expected output:**
+
+```
+rows: 4
+total: 470
+avg: 117.5
+exit was: 0
+```
+
+**Line-by-line breakdown:**
+
+- `awk 'END {print "rows:", NR}'` → After all lines, `NR` holds the total count.
+- `awk '{sum += $3} END {print "total:", sum}'` → Accumulate column 3 per line, print the total at the `END`.
+- `... sum/NR` → Compute the average using the accumulated sum and line count.
+
+**New words in this step:**
+
+- **`END { }`** — block that runs once after all input, used for totals.
+- **`NF`** — number of fields on the current line (built-in).
+
+---
+
+### Concept card (Task 2)
+
+| Concept | What it does | Exam trap |
+|---|---|---|
+| `/re/{}` | regex select | matches `$0` |
+| `$N op V` | field test | numeric vs string |
+| `END` sum | aggregate | initialize implicitly 0 |
+
+---
+
+### Troubleshoot (Task 2)
+
+| Symptom | Likely cause | Fix |
+|---|---|---|
+| Sum is 0 | Wrong field/separator | Check `-F` and `$N` |
+| String compare surprise | Quoted numbers | awk auto-detects; force with `+0` |
+
+---
+
+## ✅ Lab Checklist
+
+- [ ] Task 1 · Step 1 — Print specific fields
+- [ ] Task 1 · Step 2 — Change the separator with `-F`
+- [ ] Task 2 · Step 1 — Select rows by pattern and field
+- [ ] Task 2 · Step 2 — Count and sum with `END`
+- [ ] Every 🎯 Focus Coverage row (Anchor + NEW) mapped to a step
+- [ ] 🧹 Teardown run — sandbox + any system state removed
+
+---
+
+## 🧹 Teardown
+
+**In plain English:** Delete everything this lab created so the box is clean for the next run.
+
+> Run this after you've verified the lab. `lab_teardown.sh` safely removes the single sandbox root — it refuses to touch `/`, `$HOME`, or any protected path. This lab changed **no** system state.
+
+```bash
+cd /tmp
+bash lab_teardown.sh "$LAB_ROOT"     # = /tmp/lab-25
+```
+
+**Expected output:**
+
+```
+✅ Removed /tmp/lab-25 — lab workspace is clean.
+```
+
+---
+
+## ⚠️ Common Pitfalls
+
+| Mistake | Symptom | Fix |
+|---|---|---|
+| Wrong separator | Fields misaligned | Set `-F` |
+| Forgetting `END` | No totals printed | Aggregate in `END` |
+| Counting header | Off-by-one | Filter with `NR>1` |
+
+---
+
+## 📌 Exam Strategy
+
+`awk` selects rows (patterns), projects columns (`$N`), and aggregates (`END`) in one pass. Master `-F` for `/etc/passwd` and CSVs, `$NF` for the last field, and `sum += $N; END{print sum}` for totals.
+
+- `$NF` grabs the last field no matter the width.
+- `-F:` / `-F,` for colon and comma data.
+- `END { }` is where counts and sums belong.
+
+---
+
+## 🔗 Related Labs
+
+- [Lab 25b — Extracting Columns with awk (Ansible)](../lab-25b-awk-columns-ansible/) — parsing command output in plays
+- [Lab 25c — Extracting Columns with awk (Verify)](../lab-25c-awk-columns-verify/) — prove extractions and totals
+- [Lab 22a — Filtering with grep and Regex (RHCSA)](../lab-22a-grep-regex-rhcsa/) — pattern matching that pairs with awk
+
+---
+
+## 👤 Author
 
 **Kelvin R. Tobias**  
 [kelvinintech.com](https://kelvinintech.com) · [GitHub](https://github.com/kelvintechnical) · [LinkedIn](https://www.linkedin.com/in/kelvin-r-tobias-211949219)

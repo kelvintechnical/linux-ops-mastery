@@ -1,287 +1,365 @@
-# Lab 38b: Configuring DNS Servers (Ansible) — declarative NM + static boundary pattern
+# Lab 38b: Configuring DNS Servers (Ansible) — declarative resolver config
 
-- **Series:** linux-ops-mastery — Networking and Name Resolution
-- **Trilogy:** [`38a`](../lab-38a-resolv-conf-dns-rhcsa/) (RHCSA hand-typed) → **`38b`** (Ansible) → [`38c`](../lab-38c-resolv-conf-dns-verify/) (Verify capstone)
-- **Time Estimate:** 30-45 minutes
-- **Tasks:** 2 (Task 1 = `community.general.nmcli` with `dns4` for `lab38test` · Task 2 = `ansible.builtin.copy` to `/etc/resolv.conf` for NM-disabled static edge case)
-- **Practice Directory (rotation #38):** `/lib`
-- **Playbooks:** `/root/rhcsa_journal/lab-38b/playbooks/`
-- **Sandbox (Tier B):** `/tmp/lab38b` with `USER=labuser_38_resolv`, `GROUP=labgrp_38_resolv`, `USER_HOME=/tmp/lab38b/home_labuser_38_resolv`
-- **Test Connection:** `lab38test` only
-- **Traps rehearsed:** **T38-A** · **T38-B** · **T41** · **T44**
-
-> **Boundary note:** use NM profile parameters when NM manages DNS. Use direct file copy only when resolver management is intentionally static/NM-disabled.
+**Series:** linux-ops-mastery — Networking · **Lab 38b of the Novice → RHCA path**  
+**Certifications covered:** RHCE EX294 (network module, DNS), RHCSA EX200 (the resolv.conf underneath), SRE (consistent resolver config fleet-wide)  
+**Prerequisite:** [Lab 38a](../lab-38a-resolv-conf-dns-rhcsa/) completed and a working control node  
+**Time Estimate:** 25–35 minutes  
+**Difficulty:** Intermediate
 
 ---
 
-## LAB HEADER BLOCK
+## 🎯 Today's Focus Coverage
 
-```bash
-echo "🖥️  ENV:   ${ENV:-DECLARE_ME}"
-ansible --version | head -n 2
-ansible localhost -m ping --connection=local
-echo "🕒  TIME:  $(date -Is)"
-echo "👤  USER:  $(whoami)@$(hostname)"
-echo "⚠️  TRAP REMINDERS THIS LAB: T38-A T38-B T41 T44"
-echo "📁  PRACTICE DIR: /lib"
-ls -ld /lib /etc
-nmcli con show | head -n 12
+> Stay on-subject via the ANCHOR rows; expand vocabulary via the NEW rows. Every row is exercised by a STEP below.
+
+**⚓ Anchor — already learned (on-topic reuse)**
+
+| # | Command / switch | Covered by |
+|---|---|---|
+| A1 | `community.general.nmcli` (from Lab 36) | _Task 1 · Step 1_ |
+| A2 | idempotence (`changed=0`) | _Task 1 · Step 2_ |
+
+**🆕 NEW this lab — introduced for the first time** (minimum 3)
+
+| # | Command / switch | First taught in | Covered by |
+|---|---|---|---|
+| N1 | `dns4` list via module | Task 1 · Step 1 | _Task 1 · Step 1_ |
+| N2 | `dns_search` via module | Task 1 · Step 1 | _Task 1 · Step 1_ |
+| N3 | verify generated resolv.conf | Task 2 · Step 1 | _Task 2 · Step 1_ |
+| N4 | `assert` on nameserver | Task 2 · Step 2 | _Task 2 · Step 2_ |
+
+---
+
+## 🎯 Objective
+
+Configure DNS declaratively and prove it lands in `/etc/resolv.conf`. You'll set `dns4` and `dns_search` on a dummy connection via `community.general.nmcli`, then verify that NetworkManager regenerated `/etc/resolv.conf` with the expected `nameserver`/`search` lines and assert on them. This is fleet-consistent resolver config with built-in verification.
+
+> **Safety note:** All work targets the throwaway **dummy** profile `lab-dns` (on `dummy0`). Teardown removes it; your real resolver returns automatically.
+
+---
+
+## 🧠 Concept
+
+Since NetworkManager generates `/etc/resolv.conf`, the Ansible-correct way to set DNS is the same as the CLI-correct way: configure the *connection*, not the file. `community.general.nmcli` exposes `dns4` (a list of servers) and `dns_search` (a list of search domains). Declaring them with `state: present` and activating makes NM rewrite `/etc/resolv.conf`. You then verify by reading the generated file (`command: cat /etc/resolv.conf`, `changed_when: false`) and asserting the expected `nameserver` appears. The mental model: **module sets the connection → NM regenerates resolv.conf → assert the file**. Idempotence applies — re-running yields `changed=0`. Never template `/etc/resolv.conf` directly on an NM-managed host; it will be overwritten.
+
+```
+community.general.nmcli:
+  dns4: [10.88.88.53, 10.88.88.54]
+  dns_search: [lab.local]
+  state: present
+→ NM regenerates /etc/resolv.conf
+command: cat /etc/resolv.conf (changed_when: false) → verify
+assert "'10.88.88.53' in resolv_contents"
 ```
 
-> **STOP — paste header output before setup.**
+> **Why this matters:** Templating `/etc/resolv.conf` directly is a common mistake that breaks on the next network event. Setting DNS on the connection via the module is durable, idempotent, and verifiable — the production-grade approach.
 
 ---
 
-## Objective
+## 📚 Command Reference
 
-1. Automate DNS server/search configuration in NetworkManager declaratively.
-2. Validate generated `/etc/resolv.conf` output after profile activation.
-3. Document static-mode boundary handling with safe backup and `copy` rollback path.
+| Command | Purpose | Critical detail |
+|---|---|---|
+| `community.general.nmcli` | Manage connection DNS | `dns4`, `dns_search` |
+| `dns4` | DNS servers | YAML list |
+| `dns_search` | Search domains | YAML list |
+| `command: cat /etc/resolv.conf` | Verify output | `changed_when: false` |
+| `ansible.builtin.assert` | Pass/fail | `that:` conditions |
 
 ---
 
-## Lab-Wide Setup — Tier B Sandbox Stack (Section 1.5)
+## 🧰 LAB-WIDE SETUP
+
+**In plain English:** Build the sandbox, playbook folder, dummy module, and base profile.
+
+> Run this block **once** before Task 1.
 
 ```bash
-sudo -i
+export LAB_ROOT=/tmp/lab-38
+mkdir -p "$LAB_ROOT"
+mkdir -p /root/rhcsa_journal/lab-38b/playbooks
+sudo modprobe dummy 2>/dev/null || true
+sudo nmcli con add type dummy ifname dummy0 con-name lab-dns ipv4.method manual \
+  ipv4.addresses 10.88.88.2/24 2>/dev/null
+echo "ready"
+echo "exit was: $?"
+```
 
-export LAB_NUM=38
-export LAB_SLUG=resolv
-export SANDBOX=/tmp/lab38b
-export GROUP=labgrp_38_resolv
-export USER=labuser_38_resolv
-export USER_HOME=${SANDBOX}/home_${USER}
-export CON_NAME=lab38test
+**Expected output:**
 
-mkdir -p "${SANDBOX}" "${USER_HOME}" /root/rhcsa_journal/lab-38b/playbooks /root/rhcsa_journal/lab-38b/task1 /root/rhcsa_journal/lab-38b/task2
-getent group  "${GROUP}" >/dev/null || groupadd "${GROUP}"
-getent passwd "${USER}"  >/dev/null || useradd -d "${USER_HOME}" -M -s /bin/bash -g "${GROUP}" "${USER}"
-chown -R "${USER}:${GROUP}" "${SANDBOX}"
-
-nmcli con show "${CON_NAME}" >/dev/null 2>&1 || nmcli con add type ethernet ifname lo con-name "${CON_NAME}"
-cp /etc/resolv.conf /tmp/lab38b/resolv.bak
-
-ansible-galaxy collection install community.general
-id "${USER}"
-ls -ld "${SANDBOX}" "${USER_HOME}" /lib
+```
+ready
+exit was: 0
 ```
 
 ---
 
-## Task 1 — Declarative DNS with `community.general.nmcli` (`dns4`)
+## TASK 1 of 2 — Declare DNS on the connection
 
-### Purpose
+**In plain English:** We set DNS servers and a search domain declaratively.
 
-Set DNS in NM connection profile via Ansible, then activate and verify resolver output.
+---
 
-### Playbook (`/root/rhcsa_journal/lab-38b/playbooks/task1.yml`)
+### Step 1 of 2 — Write the DNS playbook
+
+**In plain English:** We create `task1.yml` that sets `dns4` and `dns_search` on the dummy profile.
 
 ```yaml
 ---
-- name: "Lab 38b Task 1 - declarative NM DNS"
+- name: "Lab 38b Task 1 — declarative DNS config"
   hosts: localhost
   connection: local
   gather_facts: false
-  vars:
-    con_name: lab38test
-
+  become: true
   tasks:
-    - name: "Ensure backup of resolv.conf exists"
-      ansible.builtin.copy:
-        src: /etc/resolv.conf
-        remote_src: true
-        dest: /tmp/lab38b/resolv.task1.bak
-        mode: "0644"
-
-    - name: "Configure DNS declaratively on test connection"
+    - name: "Set DNS servers and search domain on lab-dns"
       community.general.nmcli:
-        conn_name: "{{ con_name }}"
-        type: ethernet
-        ifname: lo
+        conn_name: lab-dns
+        ifname: dummy0
+        type: dummy
         method4: manual
-        ip4: 198.51.100.38/24
+        ip4: 10.88.88.2/24
         dns4:
-          - 1.1.1.1
-          - 8.8.8.8
-        dns4_search:
-          - lab38.local
-          - example.internal
-        autoconnect: false
+          - 10.88.88.53
+          - 10.88.88.54
+        dns_search:
+          - lab.local
         state: present
+      register: nm
 
-    - name: "Activate profile so NM regenerates resolv.conf"
-      ansible.builtin.command: nmcli con up "{{ con_name }}"
-      register: con_up
-      changed_when: "'successfully activated' in (con_up.stdout | lower) or con_up.rc == 0"
-
-    - name: "Capture resolver view"
-      ansible.builtin.shell: "grep -E '^(nameserver|search)' /etc/resolv.conf"
-      register: resolv_view
-      changed_when: false
-
-    - name: "Write summary"
-      ansible.builtin.copy:
-        dest: /tmp/lab38b/task1-summary.txt
-        mode: "0644"
-        content: |
-          con_up_rc={{ con_up.rc }}
-          resolv_lines={{ resolv_view.stdout_lines | length }}
-          resolv_first={{ resolv_view.stdout_lines | first | default('none') }}
+    - name: "Show whether anything changed"
+      ansible.builtin.debug:
+        msg: "changed: {{ nm.changed }}"
 ```
 
-### Run + verify
+**Expected output:**
 
-```bash
-TASKLOG=/tmp/lab38b/task1.txt
-ansible-playbook /root/rhcsa_journal/lab-38b/playbooks/task1.yml 2>&1 | tee "$TASKLOG"
-cat /tmp/lab38b/task1-summary.txt | tee -a "$TASKLOG"
-cat /etc/resolv.conf | tee -a "$TASKLOG"
+```
+(this is the saved playbook file — no output until you run it in Step 2)
 ```
 
-### Concept Card
+**Line-by-line breakdown:**
 
-| Concept | What it does |
-|---|---|
-| `community.general.nmcli` + `dns4` | Declarative DNS profile configuration under NM control |
-| `nmcli con up` | Forces profile activation and resolver regeneration |
-| `grep ^(nameserver\|search)` | Fast validation of effective resolver lines |
-| **🪤 Trap Risk T38-A** | Direct file edits are overwritten on reconnect in NM-managed mode |
-| **🪤 Trap Risk T38-B** | Keep DNS server list to practical max of 3 effective lines |
+- `dns4: [...]` → The DNS server list, set exactly (declarative).
+- `dns_search: [lab.local]` → The search domain(s) written to resolv.conf's `search` line.
+- `state: present` → Reconcile the profile to this desired state.
 
-### Journal write
+**New words in this step:**
 
-```bash
-LAB=lab-38b
-TASK=task1
-JDIR="/root/rhcsa_journal/${LAB}/${TASK}"
-mkdir -p "$JDIR"
-cp /tmp/lab38b/task1.txt "$JDIR/evidence.txt"
-cp /tmp/lab38b/task1-summary.txt "$JDIR/task1-summary.txt"
-cp /root/rhcsa_journal/lab-38b/playbooks/task1.yml "$JDIR/task1.yml"
-```
+- **`dns4` / `dns_search`** — module parameters for resolver servers and search domains.
 
 ---
 
-## Task 2 — Static boundary edge: `copy` to `/etc/resolv.conf` when NM is disabled
+### Step 2 of 2 — Run, activate, and prove idempotence
 
-### Purpose
+**In plain English:** We apply the play, activate, and re-run for `changed=0`.
 
-Rehearse the controlled exception path: only write `/etc/resolv.conf` directly when resolver management is deliberately static.
+```bash
+ansible-playbook /root/rhcsa_journal/lab-38b/playbooks/task1.yml
+sudo nmcli con up lab-dns >/dev/null
+ansible-playbook /root/rhcsa_journal/lab-38b/playbooks/task1.yml | grep -E 'changed='
+```
 
-### Playbook (`/root/rhcsa_journal/lab-38b/playbooks/task2.yml`)
+**Expected output:**
+
+```
+localhost                  : ok=2    changed=1    unreachable=0    failed=0
+localhost                  : ok=2    changed=0    unreachable=0    failed=0
+```
+
+**Line-by-line breakdown:**
+
+- First run `changed=1`, second `changed=0` → idempotent DNS configuration.
+- `nmcli con up lab-dns` → Activate so NM regenerates `/etc/resolv.conf`.
+
+**New words in this step:**
+
+- **declarative resolver** — DNS described as desired state, not file edits.
+
+---
+
+### Concept card (Task 1)
+
+| Concept | What it does | Exam trap |
+|---|---|---|
+| `dns4` list | exact servers | replaces list |
+| `dns_search` | search domains | list form |
+| `state: present` | reconcile | idempotent |
+
+---
+
+### Troubleshoot (Task 1)
+
+| Symptom | Likely cause | Fix |
+|---|---|---|
+| Module missing | No collection | Install `community.general` |
+| resolv.conf unchanged | Not activated | `nmcli con up` |
+
+---
+
+## TASK 2 of 2 — Verify the generated resolv.conf
+
+**In plain English:** We read the generated file and assert the nameserver.
+
+---
+
+### Step 1 of 2 — Write the verification playbook
+
+**In plain English:** We create `task2.yml` that reads `/etc/resolv.conf` and asserts the expected `nameserver`.
 
 ```yaml
 ---
-- name: "Lab 38b Task 2 - static resolv.conf boundary pattern"
+- name: "Lab 38b Task 2 — verify generated resolv.conf"
   hosts: localhost
   connection: local
   gather_facts: false
-
   tasks:
-    - name: "Boundary note marker"
-      ansible.builtin.copy:
-        dest: /tmp/lab38b/static-boundary-note.txt
-        mode: "0644"
-        content: |
-          This task is for NM-disabled/static mode only.
-          In NM-managed mode, configure dns via profile (Task 1).
-
-    - name: "Backup + write static resolv.conf with rollback support"
-      ansible.builtin.copy:
-        dest: /etc/resolv.conf
-        backup: true
-        mode: "0644"
-        content: |
-          # static-mode demo for Lab 38b Task 2
-          nameserver 9.9.9.9
-          nameserver 1.0.0.1
-          search static.lab38.local
-
-    - name: "Capture static resolver state"
-      ansible.builtin.shell: "cat /etc/resolv.conf"
-      register: static_view
+    - name: "Read the generated resolver config"
+      ansible.builtin.command: "cat /etc/resolv.conf"
+      register: rc
       changed_when: false
 
-    - name: "Save task summary"
-      ansible.builtin.copy:
-        dest: /tmp/lab38b/task2-summary.txt
-        mode: "0644"
-        content: |
-          static_lines={{ static_view.stdout_lines | length }}
-          static_first={{ static_view.stdout_lines | first | default('none') }}
+    - name: "Show the resolver config"
+      ansible.builtin.debug:
+        var: rc.stdout_lines
+
+    - name: "Assert our DNS server is present"
+      ansible.builtin.assert:
+        that:
+          - "rc.stdout_lines | select('search', 'nameserver 10.88.88.53') | list | length > 0"
+        success_msg: "nameserver 10.88.88.53 present in resolv.conf"
+        fail_msg: "expected nameserver missing — did NM regenerate the file?"
 ```
 
-### Run + verify
+**Expected output:**
 
-```bash
-TASKLOG=/tmp/lab38b/task2.txt
-ansible-playbook /root/rhcsa_journal/lab-38b/playbooks/task2.yml 2>&1 | tee "$TASKLOG"
-cat /tmp/lab38b/task2-summary.txt | tee -a "$TASKLOG"
-ls -1t /etc/resolv.conf.* 2>/dev/null | head -n 3 | tee -a "$TASKLOG"
-
-# Restore baseline immediately after boundary demonstration.
-cp /tmp/lab38b/resolv.bak /etc/resolv.conf
+```
+(this is the saved playbook file — no output until you run it in Step 2)
 ```
 
-### Concept Card
+**Line-by-line breakdown:**
 
-| Concept | What it does |
-|---|---|
-| `ansible.builtin.copy backup: true` | Safe overwrite with timestamped rollback file |
-| Static boundary mode | Manual resolver file applies only when NM no longer owns resolver state |
-| Immediate restore | Prevents cross-lab resolver drift |
-| **🪤 Trap Risk T44** | Forgetting rollback/cleanup leaves hidden DNS residue |
+- `command: cat /etc/resolv.conf` + `changed_when: false` → Read the generated file without marking a change.
+- `select('search', 'nameserver 10.88.88.53')` → Keep matching lines; `length > 0` asserts presence.
 
-### Journal write
+**New words in this step:**
+
+- **generated-file assertion** — proving NM wrote the expected resolver entry.
+
+---
+
+### Step 2 of 2 — Run it and confirm
+
+**In plain English:** We run the play and confirm the nameserver is present.
 
 ```bash
-LAB=lab-38b
-TASK=task2
-JDIR="/root/rhcsa_journal/${LAB}/${TASK}"
-mkdir -p "$JDIR"
-cp /tmp/lab38b/task2.txt "$JDIR/evidence.txt"
-cp /tmp/lab38b/task2-summary.txt "$JDIR/task2-summary.txt"
-cp /tmp/lab38b/static-boundary-note.txt "$JDIR/static-boundary-note.txt"
-cp /root/rhcsa_journal/lab-38b/playbooks/task2.yml "$JDIR/task2.yml"
+ansible-playbook /root/rhcsa_journal/lab-38b/playbooks/task2.yml
+echo "exit was: $?"
+```
+
+**Expected output:**
+
+```
+TASK [Assert our DNS server is present] ********************************
+ok: [localhost] => {"changed": false, "msg": "nameserver 10.88.88.53 present in resolv.conf"}
+PLAY RECAP **********************************************************
+localhost                  : ok=3    changed=0    unreachable=0    failed=0
+exit was: 0
+```
+
+**Line-by-line breakdown:**
+
+- `ansible-playbook ...` → The assertion confirms NM regenerated `/etc/resolv.conf` with our server; `changed=0`.
+
+> If the assert fails, the profile wasn't activated — run `nmcli con up lab-dns` and re-test.
+
+**New words in this step:**
+
+- **end-to-end check** — module config proven all the way to the output file.
+
+---
+
+### Concept card (Task 2)
+
+| Concept | What it does | Exam trap |
+|---|---|---|
+| read resolv.conf | verify output | `changed_when: false` |
+| `select('search')` | match line | nameserver present |
+| activation needed | NM regenerates | `con up` first |
+
+---
+
+### Troubleshoot (Task 2)
+
+| Symptom | Likely cause | Fix |
+|---|---|---|
+| Assert fails | Not activated | `nmcli con up lab-dns` |
+| Wrong server | Profile drift | Re-run Task 1 |
+
+---
+
+## ✅ Lab Checklist
+
+- [ ] Task 1 · Step 1 — Write the DNS playbook
+- [ ] Task 1 · Step 2 — Run, activate, and prove idempotence
+- [ ] Task 2 · Step 1 — Write the verification playbook
+- [ ] Task 2 · Step 2 — Run it and confirm
+- [ ] Every 🎯 Focus Coverage row (Anchor + NEW) mapped to a step
+- [ ] 🧹 Teardown run — dummy profile removed + sandbox cleared
+
+---
+
+## 🧹 Teardown
+
+**In plain English:** Remove the dummy DNS profile and clear the sandbox.
+
+> Removing the profile lets NM restore resolv.conf from your real connection.
+
+```bash
+sudo nmcli con down lab-dns 2>/dev/null || true
+sudo nmcli con delete lab-dns 2>/dev/null || true
+bash lab_teardown.sh "$LAB_ROOT"     # = /tmp/lab-38
+rm -rf /root/rhcsa_journal/lab-38b
+```
+
+**Expected output:**
+
+```
+Connection 'lab-dns' (...) successfully deleted.
+✅ Removed /tmp/lab-38 — lab workspace is clean.
 ```
 
 ---
 
-## Lab Closeout — Bulletproof Teardown (Section 6)
+## ⚠️ Common Pitfalls
 
-```bash
-set +e
-
-test -f /tmp/lab38b/resolv.bak && cp /tmp/lab38b/resolv.bak /etc/resolv.conf
-nmcli con delete lab38test 2>/dev/null || true
-
-if getent passwd "${USER}" >/dev/null 2>&1; then userdel -r "${USER}" 2>/dev/null; fi
-if getent group "${GROUP}" >/dev/null 2>&1; then groupdel "${GROUP}" 2>/dev/null; fi
-rm -rf "${SANDBOX}"
-
-echo "── Lab 38b cleanup audit ──"
-nmcli con show | grep -w lab38test >/dev/null && echo "❌ connection remains" || echo "✅ connection gone"
-test -f /etc/resolv.conf && echo "✅ resolv.conf present" || echo "❌ resolv.conf missing"
-getent passwd "${USER}" >/dev/null && echo "❌ user remains" || echo "✅ user gone"
-getent group  "${GROUP}" >/dev/null && echo "❌ group remains" || echo "✅ group gone"
-test -d "${SANDBOX}" && echo "❌ sandbox remains" || echo "✅ sandbox gone"
-
-set -e
-```
+| Mistake | Symptom | Fix |
+|---|---|---|
+| Templating resolv.conf | Overwritten by NM | Use `dns4`/`dns_search` |
+| Skipping activation | File not regenerated | `nmcli con up` |
+| Read task marks changed | Noisy runs | `changed_when: false` |
 
 ---
 
-## Lab 38b Checklist (2 tasks + closeout)
+## 📌 Exam Strategy
 
-- [ ] Task 1 used `community.general.nmcli` with `dns4` and activated `lab38test`
-- [ ] Task 1 verified generated `/etc/resolv.conf` lines (`nameserver` + `search`)
-- [ ] Task 2 documented static boundary and used `copy backup: true` for `/etc/resolv.conf`
-- [ ] `/etc/resolv.conf` was restored from backup and `lab38test` removed
-- [ ] Section 6 closeout ended with cleanup audit checks
+Set DNS on the connection via `community.general.nmcli` (`dns4`, `dns_search`), activate, then assert the generated `/etc/resolv.conf`. Never template resolv.conf on an NM host — it reverts.
+
+- `dns4`/`dns_search` are lists, set exactly.
+- Activate so NM regenerates the file.
+- Verify end-to-end by asserting the `nameserver` line.
 
 ---
 
-## Author
+## 🔗 Related Labs
+
+- [Lab 38a — Configuring DNS Servers (RHCSA)](../lab-38a-resolv-conf-dns-rhcsa/) — the `nmcli`/`resolv.conf` basics
+- [Lab 38c — Configuring DNS Servers (Verify)](../lab-38c-resolv-conf-dns-verify/) — prove the resolver config
+- [Lab 36b — Command-Line Network Config (Ansible)](../lab-36b-nmcli-cli-config-ansible/) — the nmcli module fundamentals
+
+---
+
+## 👤 Author
 
 **Kelvin R. Tobias**  
 [kelvinintech.com](https://kelvinintech.com) · [GitHub](https://github.com/kelvintechnical) · [LinkedIn](https://www.linkedin.com/in/kelvin-r-tobias-211949219)

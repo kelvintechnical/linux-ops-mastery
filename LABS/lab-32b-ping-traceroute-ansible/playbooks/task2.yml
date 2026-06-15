@@ -1,0 +1,30 @@
+---
+- name: "Lab 32b Task 2 — port and HTTP readiness"
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  tasks:
+    - name: "Wait for the SSH port to be open"
+      ansible.builtin.wait_for:
+        host: 127.0.0.1
+        port: 22
+        timeout: 5
+        state: started
+      register: portcheck
+      failed_when: false
+
+    - name: "Report the port result"
+      ansible.builtin.debug:
+        msg: "port 22 reachable: {{ portcheck is succeeded }}"
+
+    - name: "Check an HTTP endpoint (if a server is running)"
+      ansible.builtin.uri:
+        url: "http://127.0.0.1/"
+        status_code: 200
+        timeout: 3
+      register: web
+      failed_when: false
+
+    - name: "Report the HTTP result"
+      ansible.builtin.debug:
+        msg: "http status: {{ web.status | default('no server') }}"

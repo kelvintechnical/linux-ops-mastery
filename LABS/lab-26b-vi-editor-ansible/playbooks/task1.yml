@@ -1,0 +1,30 @@
+---
+# Lab 26b Task 1 — insert a positioned line
+#
+# Run (twice, to prove idempotence):
+#   ansible-playbook /root/rhcsa_journal/lab-26b/playbooks/task1.yml
+#   ansible-playbook /root/rhcsa_journal/lab-26b/playbooks/task1.yml
+#
+# There is no vi module: automation edits declaratively. lineinfile guarantees
+# a line exists, and insertafter positions it after a regex anchor (here the
+# [network] section header). The second run finds the line present -> changed=0.
+
+- name: "Lab 26b Task 1 — insert a positioned line"
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars:
+    conf: /tmp/lab-26/app.conf
+
+  tasks:
+    - name: "Ensure port line exists under [network]"
+      ansible.builtin.lineinfile:
+        path: "{{ conf }}"
+        line: 'port = 8080'
+        insertafter: '^\[network\]'
+        backup: true
+      register: line_result
+
+    - name: "Show whether anything changed"
+      ansible.builtin.debug:
+        msg: "changed: {{ line_result.changed }}"
