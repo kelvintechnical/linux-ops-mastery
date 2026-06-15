@@ -331,7 +331,7 @@ On the RHCSA you control boot-time services constantly: `enable --now` to turn s
 
 - [Lab 216b — Service Isolation Bastion Host (Ansible)](../lab-216b-service-isolation-bastion-host-ansible/) — the same disable/mask outcome expressed idempotently in a playbook
 - [Lab 216c — Service Isolation Bastion Host (Verify)](../lab-216c-service-isolation-bastion-host-verify/) — prove the enabled → disabled → masked transitions with hard evidence
-- [Lab 218a — Build a Bastion Host (RHCSA)](../lab-218a-build-bastion-host-rhcsa/) — assemble the hardened jump host this isolation work feeds into
+- [Lab 218a — Build a Bastion Server (RHCSA)](../lab-218a-build-bastion-server-rhcsa/) — assemble the hardened jump host this isolation work feeds into
 
 ---
 

@@ -365,7 +365,7 @@ The RHCE question is "make sure this service is off and stays off," not "type `s
 
 - [Lab 216a — Service Isolation Bastion Host (RHCSA)](../lab-216a-service-isolation-bastion-host-rhcsa/) — the hand-typed `systemctl` version this play mirrors
 - [Lab 216c — Service Isolation Bastion Host (Verify)](../lab-216c-service-isolation-bastion-host-verify/) — audit the enabled → disabled → masked transitions with hard evidence
-- [Lab 218b — Build a Bastion Host (Ansible)](../lab-218b-build-bastion-host-ansible/) — roll this isolation into a full hardened jump-host playbook
+- [Lab 218b — Build a Bastion Server (Ansible)](../lab-218b-build-bastion-server-ansible/) — roll this isolation into a full hardened jump-host playbook
 
 ---
 

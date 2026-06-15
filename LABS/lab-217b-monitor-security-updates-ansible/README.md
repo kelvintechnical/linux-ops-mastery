@@ -394,7 +394,7 @@ RHCE patch questions hinge on two reflexes: never let `dnf check-update` fail a 
 - [Lab 217a — Monitor Security Updates (RHCSA)](../lab-217a-monitor-security-updates-rhcsa/) — the hand-typed survey this play mirrors
 - [Lab 217b — Monitor Security Updates (Ansible)](../lab-217b-monitor-security-updates-ansible/) — this lab: the rc-100 and check_mode idioms
 - [Lab 217c — Monitor Security Updates (Verify)](../lab-217c-monitor-security-updates-verify/) — audit the reports both 217a and 217b produced
-- [Lab 218b — Bastion Host Hardening (Ansible)](../lab-218b-bastion-host-ansible/) — the neighbor lab: automate hardening of the jump box you patch from
+- [Lab 218b — Build a Bastion Server (Ansible)](../lab-218b-build-bastion-server-ansible/) — the neighbor lab: automate hardening of the jump box you patch from
 
 ---
 
