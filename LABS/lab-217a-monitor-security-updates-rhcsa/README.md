@@ -343,7 +343,7 @@ On the RHCSA you are asked to install and update software; the professional habi
 - [Lab 217a — Monitor Security Updates (RHCSA)](../lab-217a-monitor-security-updates-rhcsa/) — this lab: survey update posture by hand
 - [Lab 217b — Monitor Security Updates (Ansible)](../lab-217b-monitor-security-updates-ansible/) — the same survey expressed as a playbook, including the rc-100 idiom
 - [Lab 217c — Monitor Security Updates (Verify)](../lab-217c-monitor-security-updates-verify/) — prove the reports exist and the exit codes are sane
-- [Lab 218a — Bastion Host Hardening (RHCSA)](../lab-218a-bastion-host-rhcsa/) — the neighbor lab: lock down the jump box you patch from
+- [Lab 218a — Build a Bastion Server (RHCSA)](../lab-218a-build-bastion-server-rhcsa/) — the neighbor lab: lock down the jump box you patch from
 
 ---
 

@@ -2,7 +2,7 @@
 
 **Series:** linux-ops-mastery — Security Administration · **Lab 219a of the Novice → RHCA path**  
 **Certifications covered:** RHCSA EX200 (configure firewall settings with `firewall-cmd`), RHCE EX294 (the manual baseline behind `ansible.posix.firewalld`), SRE/DevOps (host-based packet filtering, NAT, and least-privilege exposure)  
-**Prerequisite:** A RHEL 9 / Rocky / Alma sandbox you can `sudo` on with `firewalld` running (`systemctl is-active firewalld`) — [Lab 218a](../lab-218a-bastion-host-hardening-rhcsa/) (bastion host hardening) is a useful warm-up  
+**Prerequisite:** A RHEL 9 / Rocky / Alma sandbox you can `sudo` on with `firewalld` running (`systemctl is-active firewalld`) — [Lab 218a](../lab-218a-build-bastion-server-rhcsa/) (bastion host hardening) is a useful warm-up  
 **Time Estimate:** 30–40 minutes  
 **Difficulty:** Beginner → Intermediate
 
@@ -407,7 +407,7 @@ On the RHCSA, firewall tasks read like "permit service X" or "allow port Y" — 
 
 - [Lab 219b — Comprehensive firewalld Setup (Ansible)](../lab-219b-comprehensive-firewalld-setup-ansible/) — the same zone built idempotently with `ansible.posix.firewalld`
 - [Lab 219c — Comprehensive firewalld Setup (Verify)](../lab-219c-comprehensive-firewalld-setup-verify/) — assert every rule is present with `firewall-cmd --list-all` greps
-- [Lab 218a — Bastion Host Hardening (RHCSA)](../lab-218a-bastion-host-hardening-rhcsa/) — the bastion pattern this firewall policy protects
+- [Lab 218a — Build a Bastion Server (RHCSA)](../lab-218a-build-bastion-server-rhcsa/) — the bastion pattern this firewall policy protects
 
 ---
 
