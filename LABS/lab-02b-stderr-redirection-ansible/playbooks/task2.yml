@@ -1,0 +1,36 @@
+---
+# Lab 02b Task 2 — failed_when: vs ignore_errors: (T02-D)
+#
+# Run:
+#   ansible-playbook /root/rhcsa_journal/lab-02b/playbooks/task2.yml
+#
+# Expected: the selective find PASSES (only Permission denied in stderr), the
+# broken-path task under ignore_errors: fails SILENTLY (PLAY RECAP ignored=1),
+# and the debug task reveals the real "No such file or directory" error that
+# ignore_errors hid. failed_when: is the scalpel; ignore_errors: is the hammer.
+
+- name: "Lab 02b Task 2 — failed_when: vs ignore_errors: (T02-D)"
+  hosts: localhost
+  connection: local
+  gather_facts: false
+
+  tasks:
+    - name: "Pass when only Permission denied is in stderr"
+      ansible.builtin.shell:
+        cmd: "find /var/log -name '*.log' -type f"
+      register: selective
+      changed_when: false
+      failed_when: >
+        selective.rc != 0 and
+        (selective.stderr_lines | reject('search', 'Permission denied') | list | length) > 0
+
+    - name: "ignore_errors demo — broken path fails SILENTLY"
+      ansible.builtin.shell:
+        cmd: "find /DOES_NOT_EXIST -type f"
+      register: broken
+      changed_when: false
+      ignore_errors: true
+
+    - name: "Show that ignore_errors hid the real failure"
+      ansible.builtin.debug:
+        msg: "broken rc={{ broken.rc }} stderr={{ broken.stderr_lines }}"

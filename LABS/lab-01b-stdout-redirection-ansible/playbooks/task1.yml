@@ -1,0 +1,29 @@
+---
+# Lab 01b Task 1 — stdout redirect via shell (NOT idempotent)
+#
+# Run (twice, to see the boundary):
+#   ansible-playbook /root/rhcsa_journal/lab-01b/playbooks/task1.yml
+#   ansible-playbook /root/rhcsa_journal/lab-01b/playbooks/task1.yml
+#
+# Expected: PLAY RECAP shows changed=1 on BOTH runs. `>` is a shell operator
+# with no ansible.builtin module, so ansible.builtin.shell is the only honest
+# substitute — and it cannot be idempotent for dynamic output.
+
+- name: "Lab 01b Task 1 — stdout redirect via shell (NOT idempotent)"
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars:
+    target: /tmp/labsandbox_01/notes.txt
+
+  tasks:
+    - name: "Write the file with > (shell, because no module owns redirection)"
+      ansible.builtin.shell: |
+        echo "ansible wrote at $(date -Is)" > "{{ target }}"
+      register: write_result
+
+    - name: "Show what the shell task reported"
+      ansible.builtin.debug:
+        msg:
+          - "rc:      {{ write_result.rc }}"
+          - "changed: {{ write_result.changed }}"

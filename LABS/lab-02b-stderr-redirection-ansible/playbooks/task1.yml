@@ -1,0 +1,37 @@
+---
+# Lab 02b Task 1 — capture stderr_lines from ansible.builtin.shell
+#
+# Run:
+#   ansible-playbook /root/rhcsa_journal/lab-02b/playbooks/task1.yml
+#
+# Expected: the debug task prints rc=1 with non-zero stdout AND stderr line
+# counts. register: splits FD 1 (stdout_lines) and FD 2 (stderr_lines)
+# automatically — the Ansible equivalent of `> file` and `2> file` in 02a.
+
+- name: "Lab 02b Task 1 — capture stderr_lines from ansible.builtin.shell"
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars:
+    output_dir: /tmp/lab02b
+
+  tasks:
+    - name: "Find .log files — register splits stdout and stderr automatically"
+      ansible.builtin.shell:
+        cmd: "find /var/log -name '*.log' -type f"
+      register: find_result
+      failed_when: false
+      changed_when: false
+
+    - name: "Show the split capture"
+      ansible.builtin.debug:
+        msg:
+          - "rc:           {{ find_result.rc }}"
+          - "stdout lines: {{ find_result.stdout_lines | length }}"
+          - "stderr lines: {{ find_result.stderr_lines | length }}"
+
+    - name: "Save the stderr stream to a file (the 2> equivalent)"
+      ansible.builtin.copy:
+        dest: "{{ output_dir }}/log-errors.txt"
+        content: "{{ find_result.stderr }}\n"
+        mode: '0644'

@@ -1,0 +1,31 @@
+---
+# Lab 01b Task 2 — stdout content via copy (idempotent)
+#
+# Run (twice, to prove idempotence):
+#   ansible-playbook /root/rhcsa_journal/lab-01b/playbooks/task2.yml
+#   ansible-playbook /root/rhcsa_journal/lab-01b/playbooks/task2.yml
+#
+# Expected: PLAY RECAP shows changed=1 on the first run, changed=0 on the
+# second. ansible.builtin.copy with content: is the declarative, state-aware
+# way to "write a file" — the idempotent replacement for `echo ... > file`.
+
+- name: "Lab 01b Task 2 — stdout content via copy (idempotent)"
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars:
+    target: /tmp/labsandbox_01/notes.txt
+
+  tasks:
+    - name: "Declare the file's exact contents (the idempotent way to 'write')"
+      ansible.builtin.copy:
+        dest: "{{ target }}"
+        content: |
+          first line
+          second line
+        mode: '0644'
+      register: copy_result
+
+    - name: "Show whether copy changed anything"
+      ansible.builtin.debug:
+        msg: "changed: {{ copy_result.changed }}"
