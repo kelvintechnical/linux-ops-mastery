@@ -1,0 +1,27 @@
+---
+# Lab 216b Task 2 — disable then mask the dummy unit (idempotent)
+#
+# Run (twice, to prove idempotence):
+#   ansible-playbook /root/rhcsa_journal/lab-216b/playbooks/task2.yml
+#   ansible-playbook /root/rhcsa_journal/lab-216b/playbooks/task2.yml
+#
+# Expected: PLAY RECAP shows changed=1 on the first run, changed=0 on the
+# second. masked: true is the declarative equivalent of `systemctl mask` —
+# it symlinks the unit to /dev/null and, once masked, a re-run is changed=0.
+
+- name: "Lab 216b Task 2 — disable then mask the dummy unit (true isolation)"
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  become: true
+  tasks:
+    - name: "Mask the dummy unit and ensure it is stopped"
+      ansible.builtin.systemd_service:
+        name: lab216-dummy.service
+        masked: true
+        state: stopped
+      register: mask_result
+
+    - name: "Show whether the mask changed anything"
+      ansible.builtin.debug:
+        msg: "mask changed: {{ mask_result.changed }}"

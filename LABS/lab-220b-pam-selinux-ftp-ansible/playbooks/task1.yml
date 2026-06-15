@@ -1,0 +1,41 @@
+---
+# Lab 220b Task 1 — install vsftpd, enable it, set the ftp_home_dir SELinux boolean
+#
+# Run (twice, to prove idempotence):
+#   ansible-playbook /root/rhcsa_journal/lab-220b/playbooks/task1.yml
+#   ansible-playbook /root/rhcsa_journal/lab-220b/playbooks/task1.yml
+#
+# Expected: PLAY RECAP shows changed>=1 on the first run and changed=0 on the
+# second. ansible.builtin.dnf, ansible.builtin.systemd_service, and
+# ansible.posix.seboolean are all state-aware, so re-applying an already-correct
+# state reports no change. persistent: true is the module equivalent of
+# `setsebool -P` — the boolean survives a reboot.
+
+- name: "Lab 220b Task 1 — vsftpd up + ftp_home_dir boolean on"
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  become: true
+
+  tasks:
+    - name: "Install the vsftpd package"
+      ansible.builtin.dnf:
+        name: vsftpd
+        state: present
+
+    - name: "Enable and start vsftpd (now and at boot)"
+      ansible.builtin.systemd_service:
+        name: vsftpd
+        enabled: true
+        state: started
+
+    - name: "Turn the ftp_home_dir SELinux boolean ON, persistently"
+      ansible.posix.seboolean:
+        name: ftp_home_dir
+        state: true
+        persistent: true
+      register: sebool_result
+
+    - name: "Show whether the boolean changed"
+      ansible.builtin.debug:
+        msg: "ftp_home_dir changed: {{ sebool_result.changed }}"

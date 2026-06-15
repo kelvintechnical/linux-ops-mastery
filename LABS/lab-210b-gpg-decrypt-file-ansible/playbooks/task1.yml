@@ -1,0 +1,39 @@
+---
+# Lab 210b Task 1 — decrypt an asymmetric GPG file via shell (creates: for idempotence)
+#
+# Run (twice, to prove the creates: guard):
+#   ansible-playbook /root/rhcsa_journal/lab-210b/playbooks/task1.yml
+#   ansible-playbook /root/rhcsa_journal/lab-210b/playbooks/task1.yml
+#
+# Expected: PLAY RECAP shows changed=1 on the FIRST run (recovered.txt created),
+# changed=0 on the SECOND (the creates: file already exists, so the task is
+# skipped). `gpg --decrypt` is a shell action with no ansible.builtin module, so
+# ansible.builtin.shell is the honest substitute — creates: gives it idempotence.
+
+- name: "Lab 210b Task 1 — decrypt an asymmetric GPG file (idempotent via creates:)"
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars:
+    lab_root: /tmp/lab-210
+    gnupg_home: /tmp/lab-210/gnupg
+    passphrase: "LabPass210!"
+    cipher: /tmp/lab-210/secret.txt.gpg
+    recovered: /tmp/lab-210/recovered.txt
+
+  tasks:
+    - name: "Decrypt the asymmetric file with loopback pinentry (no module owns gpg)"
+      ansible.builtin.shell: |
+        gpg --batch --pinentry-mode loopback --passphrase '{{ passphrase }}' \
+            -o '{{ recovered }}' --decrypt '{{ cipher }}'
+      environment:
+        GNUPGHOME: "{{ gnupg_home }}"
+      args:
+        creates: "{{ recovered }}"
+      register: decrypt_result
+
+    - name: "Show what the decrypt task reported"
+      ansible.builtin.debug:
+        msg:
+          - "rc:      {{ decrypt_result.rc | default('skipped') }}"
+          - "changed: {{ decrypt_result.changed }}"

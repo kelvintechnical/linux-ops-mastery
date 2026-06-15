@@ -1,0 +1,44 @@
+---
+# Lab 209b Task 1 — asymmetric (public-key) encrypt to a recipient
+#
+# Run (twice, to see the creates: guard make it idempotent):
+#   ansible-playbook /root/rhcsa_journal/lab-209b/playbooks/task1.yml
+#   ansible-playbook /root/rhcsa_journal/lab-209b/playbooks/task1.yml
+#
+# Expected: PLAY RECAP shows changed=1 on the first run, changed=0 on the
+# second. `gpg --encrypt` has no ansible.builtin module, so ansible.builtin.shell
+# is the honest substitute — and `creates:` keeps it idempotent by skipping the
+# command once the ciphertext exists.
+
+- name: "Lab 209b Task 1 — asymmetric encrypt to a recipient (shell + creates)"
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars:
+    lab_root: /tmp/lab-209
+    recipient: recipient@lab209.local
+  environment:
+    GNUPGHOME: "{{ lab_root }}/gnupg"
+
+  tasks:
+    - name: "Write the plaintext we will encrypt (idempotent copy)"
+      ansible.builtin.copy:
+        dest: "{{ lab_root }}/secret.txt"
+        content: |
+          top secret ansible payload
+        mode: '0644'
+
+    - name: "Encrypt to the recipient's public key (binary OpenPGP)"
+      ansible.builtin.shell: |
+        gpg --batch --yes --recipient "{{ recipient }}" \
+            --encrypt --output "{{ lab_root }}/secret.txt.gpg" \
+            "{{ lab_root }}/secret.txt"
+      args:
+        creates: "{{ lab_root }}/secret.txt.gpg"
+      register: enc_result
+
+    - name: "Show the encryption result"
+      ansible.builtin.debug:
+        msg:
+          - "changed:    {{ enc_result.changed }}"
+          - "ciphertext: {{ lab_root }}/secret.txt.gpg"

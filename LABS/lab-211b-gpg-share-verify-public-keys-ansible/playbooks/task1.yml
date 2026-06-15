@@ -1,0 +1,100 @@
+---
+# Lab 211b Task 1 — export, transfer, and import a public key (idempotent)
+#
+# Run (twice, to prove idempotence):
+#   ansible-playbook /root/rhcsa_journal/lab-211b/playbooks/task1.yml
+#   ansible-playbook /root/rhcsa_journal/lab-211b/playbooks/task1.yml
+#
+# Expected: PLAY RECAP shows changed=1 on the first run (export/import),
+# changed=0 on the second. `creates:` on the export guards the shell task;
+# fingerprint comparison is read-only (changed_when: false).
+
+- name: "Lab 211b Task 1 — export, transfer, import public key"
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars:
+    lab_root: /tmp/lab-211
+    gnupg_a: /tmp/lab-211/gnupg-a
+    gnupg_b: /tmp/lab-211/gnupg-b
+    key_email: alice@lab211.local
+    pubkey: /tmp/lab-211/pubkey.asc
+    received: /tmp/lab-211/pubkey-received.asc
+
+  tasks:
+    - name: "Ensure both sandbox keyrings exist (chmod 700)"
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: directory
+        mode: '0700'
+      loop:
+        - "{{ gnupg_a }}"
+        - "{{ gnupg_b }}"
+
+    - name: "Write Party A batch params (idempotent copy)"
+      ansible.builtin.copy:
+        dest: "{{ lab_root }}/keyparams-a"
+        mode: '0600'
+        content: |
+          %echo Generating Party A key for Lab 211
+          Key-Type: RSA
+          Key-Length: 3072
+          Subkey-Type: RSA
+          Subkey-Length: 3072
+          Name-Real: Lab 211 Alice
+          Name-Email: {{ key_email }}
+          Expire-Date: 1y
+          Passphrase: labpass211
+          %commit
+          %echo done
+
+    - name: "Generate Party A key if not present (guarded shell)"
+      ansible.builtin.shell: |
+        gpg --batch --gen-key "{{ lab_root }}/keyparams-a"
+      environment:
+        GNUPGHOME: "{{ gnupg_a }}"
+      args:
+        creates: "{{ gnupg_a }}/pubring.kbx"
+      register: gen_result
+
+    - name: "Export the armored public key from Party A"
+      ansible.builtin.shell: |
+        gpg --export -a "{{ key_email }}" > "{{ pubkey }}"
+      environment:
+        GNUPGHOME: "{{ gnupg_a }}"
+      args:
+        creates: "{{ pubkey }}"
+      register: export_result
+
+    - name: "Transfer the key (local copy simulating scp handoff)"
+      ansible.builtin.copy:
+        src: "{{ pubkey }}"
+        dest: "{{ received }}"
+        remote_src: true
+        mode: '0644'
+
+    - name: "Import the public key into Party B's keyring"
+      ansible.builtin.shell: |
+        gpg --import "{{ received }}"
+      environment:
+        GNUPGHOME: "{{ gnupg_b }}"
+      register: import_result
+      changed_when: "'imported: 1' in import_result.stderr or 'imported: 1' in import_result.stdout"
+
+    - name: "Compare fingerprints between A and B"
+      ansible.builtin.shell: |
+        fpr_a=$(gpg --list-keys --with-colons "{{ key_email }}" | awk -F: '/^fpr/ {print $10; exit}')
+        fpr_b=$(GNUPGHOME="{{ gnupg_b }}" gpg --list-keys --with-colons "{{ key_email }}" | awk -F: '/^fpr/ {print $10; exit}')
+        test "$fpr_a" = "$fpr_b" && echo "FINGERPRINT MATCH" || echo "FINGERPRINT MISMATCH"
+      environment:
+        GNUPGHOME: "{{ gnupg_a }}"
+      register: fpr_result
+      changed_when: false
+
+    - name: "Show export/import and fingerprint result"
+      ansible.builtin.debug:
+        msg:
+          - "gen changed:    {{ gen_result.changed }}"
+          - "export changed: {{ export_result.changed }}"
+          - "import changed: {{ import_result.changed }}"
+          - "{{ fpr_result.stdout }}"

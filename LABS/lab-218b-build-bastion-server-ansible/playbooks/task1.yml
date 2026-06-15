@@ -1,0 +1,60 @@
+---
+# Lab 218b Task 1 — deploy and enable a throwaway extra listener
+#
+# Run (twice, to prove idempotence):
+#   ansible-playbook /root/rhcsa_journal/lab-218b/playbooks/task1.yml
+#   ansible-playbook /root/rhcsa_journal/lab-218b/playbooks/task1.yml
+#
+# Expected: PLAY RECAP shows changed=1 on the first run (units copied, socket
+# enabled+started) and changed=0 on the second — ansible.builtin.copy and
+# ansible.builtin.systemd_service are state-aware, so the re-run is a no-op.
+
+- name: "Lab 218b Task 1 — deploy and enable a throwaway extra listener"
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  become: true
+  vars:
+    socket_unit: /etc/systemd/system/lab218-extra.socket
+    service_unit: /etc/systemd/system/lab218-extra.service
+
+  tasks:
+    - name: "Install the throwaway socket unit"
+      ansible.builtin.copy:
+        dest: "{{ socket_unit }}"
+        content: |
+          [Unit]
+          Description=Lab 218 throwaway extra listener (safe to disable)
+
+          [Socket]
+          ListenStream=127.0.0.1:2189
+
+          [Install]
+          WantedBy=sockets.target
+        mode: '0644'
+
+    - name: "Install the paired throwaway service unit"
+      ansible.builtin.copy:
+        dest: "{{ service_unit }}"
+        content: |
+          [Unit]
+          Description=Lab 218 throwaway service paired with lab218-extra.socket
+
+          [Service]
+          ExecStart=/usr/bin/cat
+          StandardInput=socket
+        mode: '0644'
+
+    - name: "Enable and start the extra socket (daemon_reload picks up new units)"
+      ansible.builtin.systemd_service:
+        name: lab218-extra.socket
+        enabled: true
+        state: started
+        daemon_reload: true
+
+    - name: "Read current service/socket state into facts"
+      ansible.builtin.service_facts:
+
+    - name: "Show the extra socket's reported state"
+      ansible.builtin.debug:
+        msg: "lab218-extra.socket state: {{ ansible_facts.services['lab218-extra.socket'].state | default('unknown') }}"

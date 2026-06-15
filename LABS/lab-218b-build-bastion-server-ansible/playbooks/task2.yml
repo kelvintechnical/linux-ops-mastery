@@ -1,0 +1,30 @@
+---
+# Lab 218b Task 2 — disable the extra listener (back to SSH-only)
+#
+# Run (twice, to prove idempotence):
+#   ansible-playbook /root/rhcsa_journal/lab-218b/playbooks/task2.yml
+#   ansible-playbook /root/rhcsa_journal/lab-218b/playbooks/task2.yml
+#
+# Expected: PLAY RECAP shows changed=1 on the first run (socket stopped and
+# disabled) and changed=0 on the second — the desired "stopped + disabled"
+# state is already met, so ansible.builtin.systemd_service does nothing.
+
+- name: "Lab 218b Task 2 — disable the extra listener (back to SSH-only)"
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  become: true
+
+  tasks:
+    - name: "Disable and stop the throwaway extra socket"
+      ansible.builtin.systemd_service:
+        name: lab218-extra.socket
+        enabled: false
+        state: stopped
+
+    - name: "Re-read service/socket state into facts"
+      ansible.builtin.service_facts:
+
+    - name: "Confirm the one required service (sshd) is still running"
+      ansible.builtin.debug:
+        msg: "sshd state: {{ ansible_facts.services['sshd.service'].state | default('unknown') }}"

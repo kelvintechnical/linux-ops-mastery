@@ -1,0 +1,43 @@
+---
+# Lab 217b Task 1 — check for updates and survive the rc=100 trap
+#
+# Run (twice, to see the rc-100 idiom hold steady):
+#   ansible-playbook /root/rhcsa_journal/lab-217b/playbooks/task1.yml
+#   ansible-playbook /root/rhcsa_journal/lab-217b/playbooks/task1.yml
+#
+# Expected: the play does NOT fail even though `dnf check-update` exits 100
+# when updates exist. failed_when treats only rc NOT in [0, 100] as an error —
+# the canonical Ansible idiom for the DNF "updates available = exit 100" trap.
+
+- name: "Lab 217b Task 1 — discover updates without failing on rc=100"
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  become: true
+  vars:
+    lab_root: /tmp/lab-217
+
+  tasks:
+    - name: "Ensure the sandbox exists for reports"
+      ansible.builtin.file:
+        path: "{{ lab_root }}"
+        state: directory
+        mode: '0755'
+
+    - name: "Run dnf check-update (rc 100 = updates available, NOT a failure)"
+      ansible.builtin.command: dnf check-update
+      register: check_result
+      changed_when: false
+      failed_when: check_result.rc not in [0, 100]
+
+    - name: "Save the pending list into the sandbox"
+      ansible.builtin.copy:
+        dest: "{{ lab_root }}/pending.txt"
+        content: "{{ check_result.stdout }}\n"
+        mode: '0644'
+
+    - name: "Report what the exit code means"
+      ansible.builtin.debug:
+        msg:
+          - "rc: {{ check_result.rc }}"
+          - "meaning: {{ 'updates available' if check_result.rc == 100 else 'up to date' if check_result.rc == 0 else 'error' }}"

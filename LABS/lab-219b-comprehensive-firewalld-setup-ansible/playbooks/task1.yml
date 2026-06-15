@@ -1,0 +1,50 @@
+---
+# Lab 219b Task 1 — services + custom port in the bastion zone (idempotent)
+#
+# Run (twice, to prove idempotence):
+#   ansible-playbook /root/rhcsa_journal/lab-219b/playbooks/task1.yml
+#   ansible-playbook /root/rhcsa_journal/lab-219b/playbooks/task1.yml
+#
+# Expected: PLAY RECAP shows changed>=1 on the first run and changed=0 on the
+# second. ansible.posix.firewalld is state-aware, so re-declaring services and
+# ports that already exist in the zone reports no change.
+
+- name: "Lab 219b Task 1 — services + custom port in bastion zone"
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  become: true
+  vars:
+    fw_zone: bastion
+  tasks:
+    - name: "Create the dedicated throwaway zone (permanent)"
+      ansible.builtin.command: firewall-cmd --permanent --new-zone={{ fw_zone }}
+      args:
+        creates: "/etc/firewalld/zones/{{ fw_zone }}.xml"
+      notify: reload firewalld
+
+    - name: "Flush handlers so the zone exists before we add rules"
+      ansible.builtin.meta: flush_handlers
+
+    - name: "Allow named services ssh and http (permanent + runtime)"
+      ansible.posix.firewalld:
+        zone: "{{ fw_zone }}"
+        service: "{{ item }}"
+        permanent: true
+        immediate: true
+        state: enabled
+      loop:
+        - ssh
+        - http
+
+    - name: "Allow raw custom port 8080/tcp (permanent + runtime)"
+      ansible.posix.firewalld:
+        zone: "{{ fw_zone }}"
+        port: 8080/tcp
+        permanent: true
+        immediate: true
+        state: enabled
+  handlers:
+    - name: reload firewalld
+      ansible.builtin.command: firewall-cmd --reload
+      changed_when: true

@@ -1,0 +1,38 @@
+---
+# Lab 209b Task 2 — symmetric (passphrase-only) encrypt with AES256
+#
+# Run (twice, to see the creates: guard make it idempotent):
+#   ansible-playbook /root/rhcsa_journal/lab-209b/playbooks/task2.yml
+#   ansible-playbook /root/rhcsa_journal/lab-209b/playbooks/task2.yml
+#
+# Expected: PLAY RECAP shows changed=1 on the first run, changed=0 on the
+# second. Symmetric encryption needs no keyring at all — only a shared
+# passphrase — so this play works even with an empty GNUPGHOME.
+
+- name: "Lab 209b Task 2 — symmetric (passphrase-only) encrypt (shell + creates)"
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars:
+    lab_root: /tmp/lab-209
+    passphrase: labpass209
+  environment:
+    GNUPGHOME: "{{ lab_root }}/gnupg"
+
+  tasks:
+    - name: "Symmetrically encrypt with AES256 (no keys, just a passphrase)"
+      ansible.builtin.shell: |
+        gpg --batch --yes --pinentry-mode loopback \
+            --passphrase "{{ passphrase }}" \
+            --symmetric --cipher-algo AES256 \
+            --output "{{ lab_root }}/secret.sym.gpg" \
+            "{{ lab_root }}/secret.txt"
+      args:
+        creates: "{{ lab_root }}/secret.sym.gpg"
+      register: sym_result
+
+    - name: "Show the symmetric encryption result"
+      ansible.builtin.debug:
+        msg:
+          - "changed:    {{ sym_result.changed }}"
+          - "ciphertext: {{ lab_root }}/secret.sym.gpg"

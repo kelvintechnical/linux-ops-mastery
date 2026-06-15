@@ -1,0 +1,40 @@
+---
+# Lab 208b Task 2 — list and inspect the generated key (read-only, idempotent)
+#
+# Run (twice, to prove it never changes state):
+#   ansible-playbook /root/rhcsa_journal/lab-208b/playbooks/task2.yml
+#   ansible-playbook /root/rhcsa_journal/lab-208b/playbooks/task2.yml
+#
+# Expected: PLAY RECAP shows changed=0 on BOTH runs. Listing keys is a pure
+# read, so we use ansible.builtin.command (no shell needed) with
+# changed_when: false to keep the recap honest, then print the fingerprint.
+
+- name: "Lab 208b Task 2 — list and inspect the key (read-only)"
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars:
+    gnupghome: /tmp/lab-208/gnupg
+    key_email: lab208@example.com
+
+  tasks:
+    - name: "List public keys with the long key-ID format"
+      ansible.builtin.command: gpg --list-keys --keyid-format LONG
+      environment:
+        GNUPGHOME: "{{ gnupghome }}"
+      register: list_result
+      changed_when: false
+
+    - name: "Extract the primary key fingerprint from machine-readable output"
+      ansible.builtin.shell: |
+        gpg --list-keys --with-colons "{{ key_email }}" | awk -F: '/^fpr/ {print $10; exit}'
+      environment:
+        GNUPGHOME: "{{ gnupghome }}"
+      register: fpr_result
+      changed_when: false
+
+    - name: "Show the listing and the captured fingerprint"
+      ansible.builtin.debug:
+        msg:
+          - "{{ list_result.stdout_lines }}"
+          - "fingerprint: {{ fpr_result.stdout }}"

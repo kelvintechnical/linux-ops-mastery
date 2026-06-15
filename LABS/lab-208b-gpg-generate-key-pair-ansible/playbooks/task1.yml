@@ -1,0 +1,59 @@
+---
+# Lab 208b Task 1 — generate a GPG key pair via shell (guarded for idempotence)
+#
+# Run (twice, to see idempotence):
+#   ansible-playbook /root/rhcsa_journal/lab-208b/playbooks/task1.yml
+#   ansible-playbook /root/rhcsa_journal/lab-208b/playbooks/task1.yml
+#
+# Expected: PLAY RECAP shows changed=1 on the FIRST run (key generated) and
+# changed=0 on the SECOND run, because `creates:` makes Ansible skip the shell
+# task once the marker exists. Key generation is a shell-only operation (no
+# ansible.builtin module owns gpg), so we guard it ourselves with creates:.
+
+- name: "Lab 208b Task 1 — generate a GPG key pair (shell, guarded)"
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars:
+    lab_root: /tmp/lab-208
+    gnupghome: /tmp/lab-208/gnupg
+    key_email: lab208@example.com
+
+  tasks:
+    - name: "Create the sandbox keyring directory (chmod 700)"
+      ansible.builtin.file:
+        path: "{{ gnupghome }}"
+        state: directory
+        mode: '0700'
+
+    - name: "Write the batch parameter file (declarative, idempotent)"
+      ansible.builtin.copy:
+        dest: "{{ lab_root }}/keyparams"
+        mode: '0600'
+        content: |
+          %echo Generating a sandbox GPG key pair
+          Key-Type: RSA
+          Key-Length: 3072
+          Subkey-Type: RSA
+          Subkey-Length: 3072
+          Name-Real: Lab 208 User
+          Name-Email: {{ key_email }}
+          Expire-Date: 1y
+          Passphrase: labpass208
+          %commit
+          %echo done
+
+    - name: "Generate the key pair (shell, because no module owns gpg)"
+      ansible.builtin.shell: |
+        gpg --batch --gen-key "{{ lab_root }}/keyparams"
+      environment:
+        GNUPGHOME: "{{ gnupghome }}"
+      args:
+        creates: "{{ gnupghome }}/pubring.kbx"
+      register: gen_result
+
+    - name: "Show what the generation task reported"
+      ansible.builtin.debug:
+        msg:
+          - "changed: {{ gen_result.changed }}"
+          - "skipped (already created): {{ gen_result.skipped | default(false) }}"

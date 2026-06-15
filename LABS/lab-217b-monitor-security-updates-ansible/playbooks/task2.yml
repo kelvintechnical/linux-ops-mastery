@@ -1,0 +1,46 @@
+---
+# Lab 217b Task 2 — plan a security-only upgrade safely with check_mode
+#
+# Run (twice, to confirm it stays non-destructive):
+#   ansible-playbook /root/rhcsa_journal/lab-217b/playbooks/task2.yml
+#   ansible-playbook /root/rhcsa_journal/lab-217b/playbooks/task2.yml
+#
+# Safety: ansible.builtin.dnf with security: true / state: latest is run under
+# check_mode: true, so it only PREDICTS the security upgrade (changed=1 when
+# updates exist) without applying it — the playbook equivalent of
+# `dnf upgrade --security --assumeno`. Drop check_mode to actually patch.
+
+- name: "Lab 217b Task 2 — preview a security-only upgrade (no changes applied)"
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  become: true
+  vars:
+    lab_root: /tmp/lab-217
+
+  tasks:
+    - name: "Predict the security-only upgrade (check_mode = dry run)"
+      ansible.builtin.dnf:
+        name: '*'
+        state: latest
+        security: true
+      check_mode: true
+      register: sec_preview
+
+    - name: "List pending security advisories for the report"
+      ansible.builtin.command: dnf updateinfo list security
+      register: sec_list
+      changed_when: false
+      failed_when: sec_list.rc not in [0, 100]
+
+    - name: "Save the security advisory listing into the sandbox"
+      ansible.builtin.copy:
+        dest: "{{ lab_root }}/security-advisories.txt"
+        content: "{{ sec_list.stdout }}\n"
+        mode: '0644'
+
+    - name: "Report the predicted change without applying it"
+      ansible.builtin.debug:
+        msg:
+          - "would change: {{ sec_preview.changed }}"
+          - "advisory lines: {{ sec_list.stdout_lines | length }}"

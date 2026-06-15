@@ -1,0 +1,39 @@
+---
+# Lab 210b Task 2 — decrypt a symmetric GPG file and read the exit code (rc)
+#
+# Run (twice, to prove the creates: guard):
+#   ansible-playbook /root/rhcsa_journal/lab-210b/playbooks/task2.yml
+#   ansible-playbook /root/rhcsa_journal/lab-210b/playbooks/task2.yml
+#
+# Expected: PLAY RECAP shows changed=1 on the FIRST run, changed=0 on the SECOND
+# (recovered.sym.txt already exists). The symmetric decrypt needs only the shared
+# passphrase — no private key. register + debug surface rc so a wrong passphrase
+# (non-zero rc) is detectable in automation.
+
+- name: "Lab 210b Task 2 — decrypt a symmetric GPG file (passphrase only, report rc)"
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars:
+    lab_root: /tmp/lab-210
+    gnupg_home: /tmp/lab-210/gnupg
+    passphrase: "LabPass210!"
+    cipher: /tmp/lab-210/secret.sym.gpg
+    recovered: /tmp/lab-210/recovered.sym.txt
+
+  tasks:
+    - name: "Decrypt the symmetric file with only the shared passphrase"
+      ansible.builtin.shell: |
+        gpg --batch --yes --pinentry-mode loopback --passphrase '{{ passphrase }}' \
+            -o '{{ recovered }}' -d '{{ cipher }}'
+      environment:
+        GNUPGHOME: "{{ gnupg_home }}"
+      args:
+        creates: "{{ recovered }}"
+      register: sym_result
+
+    - name: "Show the return code so a wrong passphrase would be detectable"
+      ansible.builtin.debug:
+        msg:
+          - "rc:      {{ sym_result.rc | default('skipped') }}"
+          - "changed: {{ sym_result.changed }}"

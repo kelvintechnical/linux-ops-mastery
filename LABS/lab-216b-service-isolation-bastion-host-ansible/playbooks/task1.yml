@@ -1,0 +1,49 @@
+---
+# Lab 216b Task 1 — install the dummy unit and enable it (idempotent)
+#
+# Run (twice, to prove idempotence):
+#   ansible-playbook /root/rhcsa_journal/lab-216b/playbooks/task1.yml
+#   ansible-playbook /root/rhcsa_journal/lab-216b/playbooks/task1.yml
+#
+# Expected: PLAY RECAP shows changed=1 on the first run, changed=0 on the
+# second. ansible.builtin.copy writes the harmless unit file; ansible.builtin.
+# systemd_service with enabled: true creates the boot symlink — both are
+# state-aware, so a re-run reports no change.
+
+- name: "Lab 216b Task 1 — install + enable the harmless dummy unit"
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  become: true
+  vars:
+    unit_path: /etc/systemd/system/lab216-dummy.service
+  tasks:
+    - name: "Write the harmless dummy unit file"
+      ansible.builtin.copy:
+        dest: "{{ unit_path }}"
+        mode: '0644'
+        content: |
+          [Unit]
+          Description=Lab 216 harmless dummy service (safe to enable/disable/mask)
+
+          [Service]
+          Type=oneshot
+          ExecStart=/bin/true
+          RemainAfterExit=yes
+
+          [Install]
+          WantedBy=multi-user.target
+      register: unit_file
+
+    - name: "Enable the dummy unit (create the boot symlink)"
+      ansible.builtin.systemd_service:
+        name: lab216-dummy.service
+        enabled: true
+        daemon_reload: true
+      register: enable_result
+
+    - name: "Show whether anything changed"
+      ansible.builtin.debug:
+        msg:
+          - "unit file changed: {{ unit_file.changed }}"
+          - "enable changed:    {{ enable_result.changed }}"

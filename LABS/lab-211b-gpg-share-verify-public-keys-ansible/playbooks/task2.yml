@@ -1,0 +1,57 @@
+---
+# Lab 211b Task 2 — detach-sign and verify (idempotent sign, read-only verify)
+#
+# Run (twice, to prove idempotence):
+#   ansible-playbook /root/rhcsa_journal/lab-211b/playbooks/task2.yml
+#   ansible-playbook /root/rhcsa_journal/lab-211b/playbooks/task2.yml
+#
+# Expected: PLAY RECAP shows changed=1 on the first run (message + signature),
+# changed=0 on the second. The verify task uses changed_when: false because
+# reading a signature is not a state change.
+
+- name: "Lab 211b Task 2 — detach-sign and verify"
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars:
+    lab_root: /tmp/lab-211
+    gnupg_a: /tmp/lab-211/gnupg-a
+    gnupg_b: /tmp/lab-211/gnupg-b
+    key_email: alice@lab211.local
+    message: /tmp/lab-211/message.txt
+    sig: /tmp/lab-211/message.txt.sig
+    passphrase: labpass211
+
+  tasks:
+    - name: "Write the message to sign (idempotent copy)"
+      ansible.builtin.copy:
+        dest: "{{ message }}"
+        content: |
+          release artifact v1.0 — checksum: deadbeef
+        mode: '0644'
+
+    - name: "Create a detached signature from Party A"
+      ansible.builtin.shell: |
+        gpg --batch --pinentry-mode loopback --passphrase '{{ passphrase }}' \
+            --detach-sign -o '{{ sig }}' '{{ message }}'
+      environment:
+        GNUPGHOME: "{{ gnupg_a }}"
+      args:
+        creates: "{{ sig }}"
+      register: sign_result
+
+    - name: "Verify the signature from Party B's keyring"
+      ansible.builtin.shell: |
+        gpg --verify '{{ sig }}' '{{ message }}'
+      environment:
+        GNUPGHOME: "{{ gnupg_b }}"
+      register: verify_result
+      changed_when: false
+      failed_when: verify_result.rc != 0
+
+    - name: "Show sign and verify results"
+      ansible.builtin.debug:
+        msg:
+          - "sign changed:   {{ sign_result.changed }}"
+          - "verify rc:     {{ verify_result.rc }}"
+          - "verify stdout: {{ verify_result.stderr }}"

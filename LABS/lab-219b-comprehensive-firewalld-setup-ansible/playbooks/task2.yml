@@ -1,0 +1,42 @@
+---
+# Lab 219b Task 2 — icmp block, masquerade, and a rich rule (idempotent)
+#
+# Run (twice, to prove idempotence):
+#   ansible-playbook /root/rhcsa_journal/lab-219b/playbooks/task2.yml
+#   ansible-playbook /root/rhcsa_journal/lab-219b/playbooks/task2.yml
+#
+# Expected: PLAY RECAP shows changed>=1 on the first run and changed=0 on the
+# second. Each ansible.posix.firewalld parameter (icmp_block, masquerade,
+# rich_rule) is state-aware, so a re-run that finds them already set is a no-op.
+
+- name: "Lab 219b Task 2 — icmp block, masquerade, rich rule in bastion zone"
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  become: true
+  vars:
+    fw_zone: bastion
+  tasks:
+    - name: "Block ICMP echo-request / ping (permanent + runtime)"
+      ansible.posix.firewalld:
+        zone: "{{ fw_zone }}"
+        icmp_block: echo-request
+        permanent: true
+        immediate: true
+        state: enabled
+
+    - name: "Enable masquerade / source NAT (permanent + runtime)"
+      ansible.posix.firewalld:
+        zone: "{{ fw_zone }}"
+        masquerade: true
+        permanent: true
+        immediate: true
+        state: enabled
+
+    - name: "Accept SSH only from 192.0.2.0/24 via a rich rule"
+      ansible.posix.firewalld:
+        zone: "{{ fw_zone }}"
+        rich_rule: rule family="ipv4" source address="192.0.2.0/24" service name="ssh" accept
+        permanent: true
+        immediate: true
+        state: enabled

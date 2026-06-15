@@ -1,0 +1,39 @@
+---
+# Lab 220b Task 2 — deny an account FTP login via the ftpusers PAM list
+#
+# Run (twice, to prove idempotence):
+#   ansible-playbook /root/rhcsa_journal/lab-220b/playbooks/task2.yml
+#   ansible-playbook /root/rhcsa_journal/lab-220b/playbooks/task2.yml
+#
+# Expected: PLAY RECAP shows changed=1 on the first run (the line is added) and
+# changed=0 on the second (the line already exists). ansible.builtin.lineinfile
+# is state-aware: it ensures EXACTLY one matching line is present, so a re-run is
+# a no-op. /etc/pam.d/vsftpd runs pam_listfile against this file with sense=deny,
+# so any account listed here is blocked from FTP login.
+
+- name: "Lab 220b Task 2 — add an account to the ftpusers deny list"
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  become: true
+  vars:
+    denied_user: labghost220
+
+  tasks:
+    - name: "Back up ftpusers once before editing (idempotent via creates:)"
+      ansible.builtin.copy:
+        src: /etc/vsftpd/ftpusers
+        dest: /etc/vsftpd/ftpusers.lab220.bak
+        remote_src: true
+        force: false
+
+    - name: "Ensure the account is present in the ftpusers deny list"
+      ansible.builtin.lineinfile:
+        path: /etc/vsftpd/ftpusers
+        line: "{{ denied_user }}"
+        state: present
+      register: deny_result
+
+    - name: "Show whether the deny list changed"
+      ansible.builtin.debug:
+        msg: "ftpusers changed: {{ deny_result.changed }} (denied: {{ denied_user }})"

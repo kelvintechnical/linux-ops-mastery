@@ -578,10 +578,10 @@ Labs organized by official RHCSA EX200 exam objectives.
 
 | # | Lab | Key Commands |
 |---|-----|-------------|
-| 208 | Generate a GPG Key Pair *(coming soon)* | `gpg --gen-key` — Run `gpg --gen-key` to create an RSA public/private key pair with a passphrase |
-| 209 | Encrypt a File with GPG *(coming soon)* | `gpg --recipient --encrypt` — Create a text file and use `gpg --recipient --encrypt` to secure it |
-| 210 | Decrypt a GPG File *(coming soon)* | `gpg --decrypt` — Use `gpg --decrypt` entering the passphrase to read the original plaintext contents |
-| 211 | Share and Verify Public Keys *(coming soon)* | `gpg --export -a`, `scp`, `gpg --import` — Export a GPG key, transfer with `scp`, and import on another system |
+| 208 | Generate a GPG Key Pair: [208a RHCSA](LABS/lab-208a-gpg-generate-key-pair-rhcsa/) · [208b Ansible](LABS/lab-208b-gpg-generate-key-pair-ansible/) · [208c Verify](LABS/lab-208c-gpg-generate-key-pair-verify/) | `gpg --gen-key` — Run `gpg --gen-key` to create an RSA public/private key pair with a passphrase |
+| 209 | Encrypt a File with GPG: [209a RHCSA](LABS/lab-209a-gpg-encrypt-file-rhcsa/) · [209b Ansible](LABS/lab-209b-gpg-encrypt-file-ansible/) · [209c Verify](LABS/lab-209c-gpg-encrypt-file-verify/) | `gpg --recipient --encrypt` — Create a text file and use `gpg --recipient --encrypt` to secure it |
+| 210 | Decrypt a GPG File: [210a RHCSA](LABS/lab-210a-gpg-decrypt-file-rhcsa/) · [210b Ansible](LABS/lab-210b-gpg-decrypt-file-ansible/) · [210c Verify](LABS/lab-210c-gpg-decrypt-file-verify/) | `gpg --decrypt` — Use `gpg --decrypt` entering the passphrase to read the original plaintext contents |
+| 211 | Share and Verify Public Keys: [211a RHCSA](LABS/lab-211a-gpg-share-verify-public-keys-rhcsa/) · [211b Ansible](LABS/lab-211b-gpg-share-verify-public-keys-ansible/) · [211c Verify](LABS/lab-211c-gpg-share-verify-public-keys-verify/) | `gpg --export -a`, `scp`, `gpg --import` — Export a GPG key, transfer with `scp`, and import on another system |
 
 ---
 
@@ -604,11 +604,11 @@ Labs organized by official RHCSA EX200 exam objectives.
 
 | # | Lab | Key Commands |
 |---|-----|-------------|
-| 216 | Service Isolation Bastion Host *(coming soon)* | `systemctl disable` — Configure a minimal VM to run only SSH and disable all other network services |
-| 217 | Monitor Security Updates *(coming soon)* | `dnf update` — Review Red Hat Errata and apply latest security fixes using `dnf update` |
-| 218 | Build a Bastion Server *(coming soon)* | minimal install, `systemctl` — Perform minimal RHEL install, confirm SSH is active, and disable unneeded services |
-| 219 | Comprehensive firewalld Setup *(coming soon)* | `firewall-cmd` — Add HTTP and SSH permanently, block ICMP, configure masquerading and rich rules |
-| 220 | PAM and SELinux with FTP *(coming soon)* | `vsftpd`, `ftp_home_dir`, PAM — Activate `ftp_home_dir` SELinux boolean, start `vsftpd`, verify PAM blocks root FTP login |
+| 216 | Service Isolation Bastion Host: [216a RHCSA](LABS/lab-216a-service-isolation-bastion-host-rhcsa/) · [216b Ansible](LABS/lab-216b-service-isolation-bastion-host-ansible/) · [216c Verify](LABS/lab-216c-service-isolation-bastion-host-verify/) | `systemctl disable` — Configure a minimal VM to run only SSH and disable all other network services |
+| 217 | Monitor Security Updates: [217a RHCSA](LABS/lab-217a-monitor-security-updates-rhcsa/) · [217b Ansible](LABS/lab-217b-monitor-security-updates-ansible/) · [217c Verify](LABS/lab-217c-monitor-security-updates-verify/) | `dnf update` — Review Red Hat Errata and apply latest security fixes using `dnf update` |
+| 218 | Build a Bastion Server: [218a RHCSA](LABS/lab-218a-build-bastion-server-rhcsa/) · [218b Ansible](LABS/lab-218b-build-bastion-server-ansible/) · [218c Verify](LABS/lab-218c-build-bastion-server-verify/) | minimal install, `systemctl` — Perform minimal RHEL install, confirm SSH is active, and disable unneeded services |
+| 219 | Comprehensive firewalld Setup: [219a RHCSA](LABS/lab-219a-comprehensive-firewalld-setup-rhcsa/) · [219b Ansible](LABS/lab-219b-comprehensive-firewalld-setup-ansible/) · [219c Verify](LABS/lab-219c-comprehensive-firewalld-setup-verify/) | `firewall-cmd` — Add HTTP and SSH permanently, block ICMP, configure masquerading and rich rules |
+| 220 | PAM and SELinux with FTP: [220a RHCSA](LABS/lab-220a-pam-selinux-ftp-rhcsa/) · [220b Ansible](LABS/lab-220b-pam-selinux-ftp-ansible/) · [220c Verify](LABS/lab-220c-pam-selinux-ftp-verify/) | `vsftpd`, `ftp_home_dir`, PAM — Activate `ftp_home_dir` SELinux boolean, start `vsftpd`, verify PAM blocks root FTP login |
 
 ---
 
